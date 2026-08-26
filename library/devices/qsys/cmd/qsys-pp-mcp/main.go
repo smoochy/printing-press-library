@@ -21,11 +21,11 @@ import (
 // guidance that production agents need a remote option.
 
 const (
-	defaultHTTPAddr = ":7777"
+	defaultHTTPAddr = "127.0.0.1:7777"
 )
 
 // version is the printed MCP server's version, overridable at build time via ldflags.
-var version = "2026.8.1"
+var version = "2026.8.4"
 
 func main() {
 	// Pin the learn-event surface for this process and every walker
