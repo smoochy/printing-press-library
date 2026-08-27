@@ -13,7 +13,7 @@ import (
 func newCollectionsAddCmd(flags *rootFlags) *cobra.Command {
 	var bodyCollection string
 	var bodyRecipe string
-	var stdinBody bool
+	var stdinBody, apply bool
 
 	cmd := &cobra.Command{
 		Use:         "add",
@@ -28,6 +28,7 @@ func newCollectionsAddCmd(flags *rootFlags) *cobra.Command {
 				}
 				bodyCollection = stringFromBody(body, "collection")
 				bodyRecipe = stringFromBody(body, "recipe")
+				apply = apply || boolFromBody(body, "apply")
 			}
 			if bodyCollection == "" && !cmd.Flags().Changed("collection") && !flags.dryRun {
 				return usageErr(fmt.Errorf("required flag \"%s\" not set", "collection"))
@@ -35,8 +36,11 @@ func newCollectionsAddCmd(flags *rootFlags) *cobra.Command {
 			if bodyRecipe == "" && !cmd.Flags().Changed("recipe") && !flags.dryRun {
 				return usageErr(fmt.Errorf("required flag \"%s\" not set", "recipe"))
 			}
-			if dryRunOK(flags) {
-				return nil
+			if !apply || dryRunOK(flags) {
+				return collectionWritePreview(cmd, flags, "add recipe "+bodyRecipe+" to collection "+bodyCollection, apply, map[string]any{"collection": bodyCollection, "recipe": bodyRecipe})
+			}
+			if !recipeCollectionLiveWritesEnabled() {
+				return fmt.Errorf("recipe collection live writes are disabled until AnyList collection persistence is proven by fresh read-back")
 			}
 			ctx := cmd.Context()
 			cfg, st, err := openAuthedLocalStore(flags)
@@ -71,12 +75,16 @@ func newCollectionsAddCmd(flags *rootFlags) *cobra.Command {
 			if err := anylist.New(cfg).SaveRecipeCollection(ctx, recipeDataID, collection); err != nil {
 				return err
 			}
-			if err := syncStoreFromLive(ctx, cfg, st); err != nil {
+			verifiedData, verified, err := verifyLiveRecipeCollection(ctx, cfg, collection)
+			if err != nil {
+				return err
+			}
+			if err := st.SyncFromUserData(verifiedData); err != nil {
 				return fmt.Errorf("refreshing data after updating collection: %w", err)
 			}
 			if flags.asJSON {
 				return printJSONFiltered(cmd.OutOrStdout(), map[string]any{
-					"collection": collection.GetName(),
+					"collection": verified.GetName(),
 					"recipe":     recipe.GetName(),
 					"added":      !found,
 				}, flags)
@@ -88,6 +96,7 @@ func newCollectionsAddCmd(flags *rootFlags) *cobra.Command {
 	cmd.Flags().StringVarP(&bodyCollection, "collection", "c", "", "Name of the recipe collection to add the recipe to")
 	cmd.Flags().StringVarP(&bodyRecipe, "recipe", "r", "", "Name of the recipe to add to the specified collection")
 	cmd.Flags().BoolVar(&stdinBody, "stdin", false, "Read request body as JSON from stdin")
+	cmd.Flags().BoolVar(&apply, "apply", false, "Enable live mutation with fresh read-after-write verification")
 
 	return cmd
 }

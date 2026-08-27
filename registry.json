@@ -415,6 +415,57 @@
       }
     },
     {
+      "name": "agentmail",
+      "category": "social-and-messaging",
+      "api": "AgentMail",
+      "description": "AgentMail operations with local memory, safe sends, and fleet-wide insight.",
+      "search_terms": [
+        "agentmail",
+        "agentmail-pp-cli",
+        "AgentMail operations with local memory, safe sends, and fleet-wide insight.",
+        "Triage queue",
+        "Rank unresolved inbound conversations across inboxes with age, direction, labels, and pending drafts.",
+        "Send check",
+        "Review a draft for deterministic recipient, attachment, schedule, duplicate, and idempotency risks before sending.",
+        "Thread rollup",
+        "Render compact conversation handoff context with participants, counts, latest direction, age, labels, and extracted reply content.",
+        "Fleet health",
+        "Report inbox, domain, webhook, list, metrics, API-key, pod, and organization readiness findings.",
+        "Schedule audit",
+        "Find scheduled drafts that are overdue, orphaned, duplicated, or missing review state.",
+        "Delivery reconcile",
+        "Reconcile outbound messages with status, thread placement, timestamps, and later inbound activity."
+      ],
+      "path": "library/social-and-messaging/agentmail",
+      "release": {
+        "cli_name": "agentmail-pp-cli",
+        "version": "2026.8.1",
+        "released_at": "2026-08-27T09:16:49Z",
+        "source_commit": "dd645aad133c3e17d1e14f00eee6ce82d17deb6f"
+      },
+      "printer": "SomSamantray",
+      "printer_name": "Som Samantray",
+      "creator": {
+        "handle": "SomSamantray",
+        "name": "Som Samantray"
+      },
+      "mcp": {
+        "binary": "agentmail-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 130,
+        "public_tool_count": 0,
+        "auth_type": "bearer_token",
+        "env_vars": [
+          "PRINTING_PRESS_CLIENT_PROFILE"
+        ],
+        "mcp_ready": "full",
+        "spec_format": "openapi3"
+      }
+    },
+    {
       "name": "agentpool",
       "category": "developer-tools",
       "api": "AgentPool",
@@ -445,6 +496,69 @@
       "creator": {
         "handle": "sidduHERE",
         "name": "sidduHERE"
+      }
+    },
+    {
+      "name": "agoda",
+      "category": "travel",
+      "api": "Agoda",
+      "description": "Search Agoda hotels with the true all-in price, and re-rank by what you will actually pay.",
+      "search_terms": [
+        "agoda",
+        "agoda-pp-cli",
+        "Search Agoda hotels with the true all-in price, and re-rank by what you will actually pay.",
+        "True all-in pricing",
+        "hotels search",
+        "Shows what you will actually pay, not the teaser rate, with the hidden tax-and-fee delta broken out per property.",
+        "Honest re-ranking",
+        "hotels rank",
+        "Re-sorts a destination's results by true all-in price instead of Agoda's teaser-price ranking.",
+        "Fee-gouge detection",
+        "hotels fees",
+        "Flags properties whose tax-and-fee ratio is an outlier against the destination median.",
+        "Cheapest-date sweep",
+        "prices cheapest",
+        "Returns the cheapest check-in dates across a flexible window for a destination.",
+        "AgodaVIP delta",
+        "vip delta",
+        "Runs the same search signed-in and anonymous, then diffs per property to show what your VIP tier is actually worth.",
+        "Price-drop watch",
+        "watch run",
+        "Surfaces only watched properties whose latest true all-in price dropped meaningfully below their trailing median.",
+        "Shortlist compare",
+        "compare",
+        "Puts finalist properties side by side on true all-in price, hidden fee share, review score, star rating, and free-cancellation deadline.",
+        "Offline corpus search",
+        "search",
+        "Full-text search over every property this CLI has already seen, with no network call."
+      ],
+      "path": "library/travel/agoda",
+      "release": {
+        "cli_name": "agoda-pp-cli",
+        "version": "2026.8.1",
+        "released_at": "2026-08-27T09:16:49Z",
+        "source_commit": "f2179c8d6f25abf3a9c732f95b1ed13302d5f29c"
+      },
+      "printer": "devacto",
+      "printer_name": "Victor Wibisono",
+      "creator": {
+        "handle": "devacto",
+        "name": "Victor Wibisono"
+      },
+      "mcp": {
+        "binary": "agoda-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 2,
+        "public_tool_count": 2,
+        "auth_type": "none",
+        "env_vars": [
+          "PRINTING_PRESS_CLIENT_PROFILE"
+        ],
+        "mcp_ready": "full",
+        "spec_format": "internal"
       }
     },
     {
@@ -1468,9 +1582,9 @@
       "path": "library/food-and-dining/anylist",
       "release": {
         "cli_name": "anylist-pp-cli",
-        "version": "2026.8.1",
-        "released_at": "2026-08-17T04:47:01Z",
-        "source_commit": "d48f568519d15ae3dd84e0d01a169adfbea94036"
+        "version": "2026.8.3",
+        "released_at": "2026-08-27T09:13:04Z",
+        "source_commit": "10cba8f2e78a102fa67d7c34af1793e2c964fd90"
       },
       "printer": "jeeves",
       "printer_name": "Jeeves",
@@ -1484,7 +1598,7 @@
           "stdio",
           "http"
         ],
-        "tool_count": 44,
+        "tool_count": 47,
         "public_tool_count": 0,
         "auth_type": "bearer_token",
         "env_vars": [
@@ -1940,6 +2054,61 @@
         "public_tool_count": 1,
         "auth_type": "none",
         "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "openapi3"
+      }
+    },
+    {
+      "name": "asc",
+      "category": "developer-tools",
+      "api": "App Store Connect",
+      "description": "A read-only App Store Connect cockpit that shows every app you ship at once — review state, builds, downloads, and ratings in one glance.",
+      "search_terms": [
+        "asc",
+        "App Store Connect",
+        "asc-pp-cli",
+        "A read-only App Store Connect cockpit that shows every app you ship at once — review state, builds, downloads, and ratings in one glance.",
+        "Fleet cockpit",
+        "cockpit",
+        "One-glance board across all your apps: review state, latest build + processing state, and an action-needed flag.",
+        "In-flight review board with SLA aging",
+        "pipeline",
+        "Every version currently in the review pipeline across all apps, ranked by how long it has been waiting.",
+        "Traction leaderboard",
+        "traction",
+        "Ranks your apps by recent rating and review volume and flags apps whose rating is trending down; adds download counts when ASC_VENDOR_NUMBER is set.",
+        "Fleet feedback pulse",
+        "reviews recent",
+        "Newest written customer reviews across all your apps in one merged stream.",
+        "Action-needed blockers",
+        "blockers",
+        "Correlates failed/invalid builds, pending or absent submissions, and metadata rejections into one fleet blocker list."
+      ],
+      "path": "library/developer-tools/asc",
+      "release": {
+        "cli_name": "asc-pp-cli",
+        "version": "2026.8.1",
+        "released_at": "2026-08-26T09:19:22Z",
+        "source_commit": "25fbced8ab4eec660dbc70de934c4597b2848a3f"
+      },
+      "printer": "justinwfu",
+      "printer_name": "justinwfu",
+      "creator": {
+        "handle": "justinwfu",
+        "name": "justinwfu"
+      },
+      "mcp": {
+        "binary": "asc-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 17,
+        "public_tool_count": 0,
+        "auth_type": "bearer_token",
+        "env_vars": [
+          "ASC_ITC_BEARER_TOKEN"
+        ],
         "mcp_ready": "full",
         "spec_format": "openapi3"
       }
@@ -2732,6 +2901,38 @@
       ]
     },
     {
+      "name": "bestfoodtrucks",
+      "category": "food-and-dining",
+      "api": "bestfoodtrucks",
+      "description": "The only Best Food Trucks client that can tell you where a truck goes, not just what's parked outside today.",
+      "search_terms": [
+        "bestfoodtrucks",
+        "bestfoodtrucks-pp-cli",
+        "Digest",
+        "lot digest",
+        "Turns a lot's upcoming schedule into ready-to-paste announcement text instead of raw structured data.",
+        "Cuisine Alert",
+        "trucks find",
+        "Finds every upcoming shift at a lot matching a cuisine, without opening each shift page one at a time.",
+        "Truck Schedule",
+        "Shows every lot a specific truck visits, past and future — a view the Best Food Trucks website itself never built.",
+        "Market Hotlist",
+        "Ranks trucks operating in a city by review signal, a cross-truck aggregate the site never computes.",
+        "Route Planner",
+        "lots digest",
+        "Combines multiple lots' schedules into one view in a single command instead of visiting each lot's page separately."
+      ],
+      "path": "library/food-and-dining/bestfoodtrucks",
+      "release": {
+        "cli_name": "bestfoodtrucks-pp-cli",
+        "version": "2026.8.1",
+        "released_at": "2026-08-27T09:14:23Z",
+        "source_commit": "bb973defecfbf859948e6c11464101a5549c29ee"
+      },
+      "printer": "enlewof",
+      "printer_name": "Allen Lew"
+    },
+    {
       "name": "bird",
       "category": "social-and-messaging",
       "api": "Bird",
@@ -2900,6 +3101,69 @@
         "env_vars": [],
         "mcp_ready": "full",
         "spec_format": "internal"
+      }
+    },
+    {
+      "name": "bmw-cardata",
+      "category": "devices",
+      "api": "BMW CarData",
+      "description": "Your BMW's telemetry, on the command line — device-code login, live telematic snapshots, charging history, and a local SQLite store that turns raw VSS data into trends, cost, and fleet insight no other tool gives you.",
+      "search_terms": [
+        "bmw-cardata",
+        "BMW CarData",
+        "bmw-cardata-pp-cli",
+        "Your BMW's telemetry, on the command line — device-code login, live telematic snapshots, charging history, and a local SQLite store that turns raw VSS data into trends, cost, and fleet insight no other tool gives you.",
+        "SoC/range trends",
+        "soc-trends",
+        "See your battery state-of-charge and derived range as a time series you can chart.",
+        "Charging cost & efficiency",
+        "charging-cost",
+        "Reconcile your charging sessions against your electricity tariff and see DC charge efficiency.",
+        "Quota tracker",
+        "quota",
+        "See how many of your ~50 daily API calls you have spent and when the budget resets (midnight UTC).",
+        "Fleet status",
+        "One table of current SoC, range, charging state and last location across every vehicle on your account.",
+        "Descriptor search",
+        "descriptors search",
+        "Search the VSS telematic descriptor catalogue (e.g. batteryManagement, charging, navigation) to build containers.",
+        "Battery health",
+        "battery-health",
+        "Track battery capacity degradation by comparing observed max energy against the nameplate capacity.",
+        "Snapshot diff",
+        "vehicles diff",
+        "Show exactly what changed between two telematic snapshots (windows, charging, locks, location).",
+        "Trip reconstruction",
+        "trips",
+        "Reconstruct trips (start, end, elapsed, distance) from your vehicle's location breadcrumbs."
+      ],
+      "path": "library/devices/bmw-cardata",
+      "release": {
+        "cli_name": "bmw-cardata-pp-cli",
+        "version": "2026.8.1",
+        "released_at": "2026-08-26T09:41:25Z",
+        "source_commit": "efe229e36e2a353022549f7dac2c9621e6ae10de"
+      },
+      "printer": "jvm",
+      "printer_name": "jvm",
+      "creator": {
+        "handle": "jvm",
+        "name": "jvm"
+      },
+      "mcp": {
+        "binary": "bmw-cardata-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 11,
+        "public_tool_count": 0,
+        "auth_type": "bearer_token",
+        "env_vars": [
+          "BMW_CARDATA_ACCESS_TOKEN"
+        ],
+        "mcp_ready": "full",
+        "spec_format": "openapi3"
       }
     },
     {
@@ -3493,6 +3757,110 @@
         ],
         "mcp_ready": "full",
         "spec_format": "openapi3"
+      }
+    },
+    {
+      "name": "carol-bike",
+      "category": "health",
+      "api": "CAROL Bike",
+      "description": "Read and locally mirror personal CAROL Bike workout data.",
+      "search_terms": [
+        "carol-bike",
+        "CAROL Bike",
+        "carol-bike-pp-cli",
+        "Read and locally mirror personal CAROL Bike workout data.",
+        "Private ride mirror",
+        "sync",
+        "Mirror personal CAROL ride history into local SQLite for dependable offline search and analysis."
+      ],
+      "path": "library/health/carol-bike",
+      "release": {
+        "cli_name": "carol-bike-pp-cli",
+        "version": "2026.8.1",
+        "released_at": "2026-08-26T09:29:35Z",
+        "source_commit": "922dc411079fb5600136cbeddffe8a9f202c87d1"
+      },
+      "printer": "bricenice17",
+      "printer_name": "bricenice17",
+      "creator": {
+        "handle": "bricenice17",
+        "name": "bricenice17"
+      },
+      "mcp": {
+        "binary": "carol-bike-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 7,
+        "public_tool_count": 0,
+        "auth_type": "bearer_token",
+        "env_vars": [
+          "PRINTING_PRESS_CLIENT_PROFILE"
+        ],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
+      "name": "catapult-openfield-connect",
+      "category": "health",
+      "api": "Catapult OpenField",
+      "description": "Every Catapult GPS metric — ACWR, velocity benchmarks, load reports — from one command, with a local SQLite mirror for offline analysis.",
+      "search_terms": [
+        "catapult-openfield-connect",
+        "Catapult OpenField",
+        "catapult-openfield-connect-pp-cli",
+        "Every Catapult GPS metric — ACWR, velocity benchmarks, load reports — from one command, with a local SQLite mirror for offline analysis.",
+        "ACWR dashboard",
+        "acwr",
+        "Instant acute:chronic workload ratios for any athlete or the full squad, color-coded into safe (0.8-1.3), caution, and danger (>1.5) zones.",
+        "Weekly load report",
+        "report",
+        "One-command weekly summary — total Player Load, session count, ACWR, max velocity vs PB, monotony, strain, and risk flags — exportable as markdown or CSV.",
+        "Personal bests",
+        "pb",
+        "Compares recent session values against each athlete's all-time or rolling personal best, with readiness % and 3-session trend arrows.",
+        "Session diff",
+        "diff",
+        "Side-by-side comparison of two sessions (by ID, date, or last/prev) showing absolute and percentage change per metric and per athlete.",
+        "Positional benchmark",
+        "benchmark",
+        "Ranks any athlete against positional peers for a metric: percentile rank, squad median, and position median with outlier flags.",
+        "Return-to-play tracker",
+        "rtp",
+        "Tracks an injured athlete's load progression session-by-session as a percentage of squad average or a pre-injury baseline window.",
+        "Period intensity heatmap",
+        "heatmap",
+        "Renders an athlete-by-period intensity matrix for a session — ANSI heatmap on a terminal, JSON matrix for agents — surfacing where fatigue compounded."
+      ],
+      "path": "library/health/catapult-openfield-connect",
+      "release": {
+        "cli_name": "catapult-openfield-connect-pp-cli",
+        "version": "2026.8.1",
+        "released_at": "2026-08-26T09:21:43Z",
+        "source_commit": "07504744c5a458574956e25b828b147e06f6e164"
+      },
+      "printer": "erash11",
+      "printer_name": "Eric Rash",
+      "creator": {
+        "handle": "erash11",
+        "name": "Eric Rash"
+      },
+      "mcp": {
+        "binary": "catapult-openfield-connect-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 22,
+        "public_tool_count": 0,
+        "auth_type": "bearer_token",
+        "env_vars": [
+          "PRINTING_PRESS_CLIENT_PROFILE"
+        ],
+        "mcp_ready": "full",
+        "spec_format": "internal"
       }
     },
     {
@@ -5746,6 +6114,49 @@
         ],
         "mcp_ready": "full",
         "spec_format": "openapi3"
+      }
+    },
+    {
+      "name": "dndbeyond",
+      "category": "developer-tools",
+      "api": "D&D Beyond",
+      "description": "Read public D&D Beyond rules pages from the terminal.",
+      "search_terms": [
+        "dndbeyond",
+        "D&D Beyond",
+        "dndbeyond-pp-cli",
+        "Read public D&D Beyond rules pages from the terminal.",
+        "This first print intentionally uses only public, unauthenticated pages.",
+        "Local character snapshot and PDF inspection",
+        "characters inspect",
+        "Normalize a user-supplied D&D Beyond or Beyond20 character snapshot or exported PDF."
+      ],
+      "path": "library/developer-tools/dndbeyond",
+      "release": {
+        "cli_name": "dndbeyond-pp-cli",
+        "version": "2026.8.1",
+        "released_at": "2026-08-26T09:28:34Z",
+        "source_commit": "dda9b8239e7d1daec24543728204104eb4c11c33"
+      },
+      "printer": "wirelesstkd",
+      "printer_name": "Matthew Martin",
+      "creator": {
+        "handle": "wirelesstkd",
+        "name": "Matthew Martin"
+      },
+      "mcp": {
+        "binary": "dndbeyond-pp-mcp",
+        "transports": [
+          "stdio"
+        ],
+        "tool_count": 5,
+        "public_tool_count": 5,
+        "auth_type": "none",
+        "env_vars": [
+          "PRINTING_PRESS_CLIENT_PROFILE"
+        ],
+        "mcp_ready": "full",
+        "spec_format": "internal"
       }
     },
     {
@@ -11509,6 +11920,124 @@
       }
     },
     {
+      "name": "irail",
+      "category": "travel",
+      "api": "iRail",
+      "description": "Every Belgian rail lookup the existing tools offer, plus transfer-risk, delay history and accessibility data that none of them have.",
+      "search_terms": [
+        "irail",
+        "irail-pp-cli",
+        "Every Belgian rail lookup the existing tools offer, plus transfer-risk, delay history and accessibility data that none of them have.",
+        "Transfer risk under live delay",
+        "transfer-risk",
+        "Tells you whether the transfers in a journey still hold once today's delays are applied.",
+        "Route punctuality history",
+        "punctuality",
+        "Shows how reliable a train or route has actually been, from delay observations recorded on your machine.",
+        "Disruptions scoped to one journey",
+        "disruptions route",
+        "Filters the national disruption feed down to the stations your journey actually passes through.",
+        "Live observation capture",
+        "observe",
+        "Records what the board says right now into local SQLite, building the history other commands read.",
+        "Latest safe departure",
+        "leave-by",
+        "Answers the last train you can take and still arrive before a deadline, accounting for current delays.",
+        "Station facilities and accessibility",
+        "stations facilities",
+        "Reports step-free access, elevators, ramps, lockers, bike parking and ticket-desk hours for a station.",
+        "What changed since last check",
+        "changes",
+        "Reports new delays, cancellations and platform changes since the last time you looked."
+      ],
+      "path": "library/travel/irail",
+      "release": {
+        "cli_name": "irail-pp-cli",
+        "version": "2026.8.1",
+        "released_at": "2026-08-26T09:21:43Z",
+        "source_commit": "34ae63798e125234b21b70d6825c7df88818eeba"
+      },
+      "printer": "olli757",
+      "printer_name": "Olivier",
+      "creator": {
+        "handle": "olli757",
+        "name": "Olivier"
+      },
+      "mcp": {
+        "binary": "irail-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 7,
+        "public_tool_count": 7,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
+      "name": "is-agentic",
+      "category": "developer-tools",
+      "api": "Is Agentic",
+      "description": "Turn Is Agentic reports into durable, scriptable readiness evidence.",
+      "search_terms": [
+        "is-agentic",
+        "Is Agentic",
+        "is-agentic-pp-cli",
+        "Turn Is Agentic reports into durable, scriptable readiness evidence.",
+        "Snapshot ledger",
+        "history",
+        "Keep a local, timestamped ledger of readiness reports and their provenance.",
+        "Cross-report diff",
+        "diff",
+        "See which readiness scores and findings changed between two retained audits.",
+        "Explainable policy gate",
+        "check",
+        "Fail CI with an explicit, machine-readable readiness policy decision.",
+        "Portfolio matrix",
+        "portfolio",
+        "Compare a fleet of public sites in one sortable score and issue matrix.",
+        "Issue lifecycle queue",
+        "issues",
+        "Track when readiness findings first appeared, last appeared, were fixed, or regressed.",
+        "Rate-aware fleet scheduler",
+        "Refresh many targets with bounded concurrency, deduplication, and Retry-After-aware pacing.",
+        "Evidence bundle",
+        "evidence",
+        "Package a report and its provenance into a portable evidence artifact."
+      ],
+      "path": "library/developer-tools/is-agentic",
+      "release": {
+        "cli_name": "is-agentic-pp-cli",
+        "version": "2026.8.1",
+        "released_at": "2026-08-26T09:29:35Z",
+        "source_commit": "dc6a9c7a1d02e68e3ff839552566ab46469a5058"
+      },
+      "printer": "SomSamantray",
+      "printer_name": "Som Samantray",
+      "creator": {
+        "handle": "SomSamantray",
+        "name": "Som Samantray"
+      },
+      "mcp": {
+        "binary": "is-agentic-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 2,
+        "public_tool_count": 2,
+        "auth_type": "none",
+        "env_vars": [
+          "PRINTING_PRESS_CLIENT_PROFILE"
+        ],
+        "mcp_ready": "full",
+        "spec_format": "openapi3"
+      }
+    },
+    {
       "name": "isitagentready",
       "category": "developer-tools",
       "api": "Is It Agent Ready",
@@ -12115,6 +12644,109 @@
         "env_vars": [],
         "mcp_ready": "partial",
         "spec_format": "internal"
+      }
+    },
+    {
+      "name": "keenable",
+      "category": "ai",
+      "api": "Keenable",
+      "description": "Keenable web search with reproducible research, citations, and a local evidence trail.",
+      "search_terms": [
+        "keenable",
+        "keenable-pp-cli",
+        "Keenable web search with reproducible research, citations, and a local evidence trail.",
+        "Reproducible research snapshot",
+        "research snapshot",
+        "Save an exact search and fetch run as an immutable local evidence snapshot.",
+        "Snapshot replay",
+        "research replay",
+        "Rerun a saved research recipe and report how current evidence changed.",
+        "Citation bundle export",
+        "research citations",
+        "Export source-linked Markdown or JSON citations from a saved research run.",
+        "Bounded multi-page fetch",
+        "research fetch-many",
+        "Fetch a bounded URL list with concurrency limits and explicit partial failures.",
+        "Offline local FTS recall",
+        "research local-search",
+        "Search saved titles, snippets, URLs, and Markdown without spending an upstream request.",
+        "Result and content drift comparison",
+        "research diff",
+        "Compare saved runs for URL changes, rank movement, metadata edits, and content-hash drift.",
+        "Domain and source coverage report",
+        "research coverage",
+        "Measure domain diversity, rank share, timestamp coverage, and missing metadata in a saved run."
+      ],
+      "path": "library/ai/keenable",
+      "release": {
+        "cli_name": "keenable-pp-cli",
+        "version": "2026.8.1",
+        "released_at": "2026-08-27T09:16:49Z",
+        "source_commit": "bd306e7ceaef16e97de408be0da317f423af6cea"
+      },
+      "printer": "SomSamantray",
+      "printer_name": "Som Samantray",
+      "creator": {
+        "handle": "SomSamantray",
+        "name": "Som Samantray"
+      },
+      "mcp": {
+        "binary": "keenable-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 4,
+        "public_tool_count": 2,
+        "auth_type": "api_key",
+        "env_vars": [
+          "PRINTING_PRESS_CLIENT_PROFILE"
+        ],
+        "mcp_ready": "full",
+        "spec_format": "openapi3"
+      }
+    },
+    {
+      "name": "kie",
+      "category": "ai",
+      "api": "Kie.ai",
+      "description": "Unified CLI for Kie.ai's AI generation platform: 120+ Market models (image, video, audio) via one create/query task pair, plus dedicated Suno, Veo3.1, Runway, Flux Kontext, 4o Image, and per-model chat completion endpoints.",
+      "search_terms": [
+        "kie",
+        "Kie.ai",
+        "kie-pp-cli",
+        "Unified CLI for Kie.ai's AI generation platform: 120+ Market models (image, video, audio) via one create/query task pair, plus dedicated Suno, Veo3.1, Runway, Flux Kontext, 4o Image, and per-model chat completion endpoints.",
+        "Unified Market Catalog Access",
+        "kie-ai-jobs market-create-task",
+        "Single create/query command pair that reaches all 120+ Kie.ai Market models via a --model identifier and JSON --input, instead of one generated command per model."
+      ],
+      "path": "library/ai/kie",
+      "release": {
+        "cli_name": "kie-pp-cli",
+        "version": "2026.8.1",
+        "released_at": "2026-08-27T09:16:49Z",
+        "source_commit": "8bc459ef6a47876dd6745fa928ba73d79b0845b3"
+      },
+      "printer": "kelvincushman",
+      "printer_name": "Kelvin Cushman",
+      "creator": {
+        "handle": "kelvincushman",
+        "name": "Kelvin Cushman"
+      },
+      "mcp": {
+        "binary": "kie-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 0,
+        "public_tool_count": 0,
+        "auth_type": "api_key",
+        "env_vars": [
+          "KIE_BEARER_AUTH"
+        ],
+        "mcp_ready": "full",
+        "spec_format": "openapi3"
       }
     },
     {
@@ -15031,6 +15663,68 @@
       }
     },
     {
+      "name": "openai-ads",
+      "category": "marketing",
+      "api": "OpenAI Ads",
+      "description": "The first OpenAI Ads client that can write, and the only one that keeps local history.",
+      "search_terms": [
+        "openai-ads",
+        "OpenAI Ads",
+        "openai-ads-pp-cli",
+        "The first OpenAI Ads client that can write, and the only one that keeps local history.",
+        "Budget pacing",
+        "pace",
+        "See whether a campaign will underspend or blow through its cap before the period ends.",
+        "Change drift",
+        "drift",
+        "Show what changed across campaigns, ad groups, and ads between two syncs.",
+        "Creative fatigue",
+        "fatigue",
+        "Rank ads by click-through decay so tired creative is obvious before spend is wasted.",
+        "Review watch",
+        "review-watch",
+        "Track approval and review status transitions across the account and every ad.",
+        "Bid and budget coherence",
+        "bid-check",
+        "Flag ad groups whose maximum bid is irrational against the parent campaign budget.",
+        "Structural audit",
+        "orphans",
+        "Find ad groups with no ads, campaigns with no delivery, and audiences nothing references.",
+        "Account tree",
+        "tree",
+        "Render the whole campaign, ad group, and ad hierarchy with status, budget, and review state.",
+        "Geo resolve",
+        "Turn the bare location IDs in campaign targeting into readable place names."
+      ],
+      "path": "library/marketing/openai-ads",
+      "release": {
+        "cli_name": "openai-ads-pp-cli",
+        "version": "2026.8.1",
+        "released_at": "2026-08-26T09:36:09Z",
+        "source_commit": "06f620b4704d8e99ed3b90ba2f53adf17bfc6934"
+      },
+      "printer": "bobeglz",
+      "printer_name": "bobe",
+      "creator": {
+        "handle": "bobeglz",
+        "name": "bobe"
+      },
+      "mcp": {
+        "binary": "openai-ads-pp-mcp",
+        "transports": [
+          "stdio"
+        ],
+        "tool_count": 41,
+        "public_tool_count": 0,
+        "auth_type": "bearer_token",
+        "env_vars": [
+          "PRINTING_PRESS_CLIENT_PROFILE"
+        ],
+        "mcp_ready": "full",
+        "spec_format": "openapi3"
+      }
+    },
+    {
       "name": "openalex",
       "category": "other",
       "api": "OpenAlex",
@@ -17781,9 +18475,9 @@
       "path": "library/devices/qsys",
       "release": {
         "cli_name": "qsys-pp-cli",
-        "version": "2026.8.3",
-        "released_at": "2026-08-25T09:30:29Z",
-        "source_commit": "6ab477bd4140d6d524a5fee21ac3cae548d8359a"
+        "version": "2026.8.4",
+        "released_at": "2026-08-25T09:33:25Z",
+        "source_commit": "23e5f868854e23f1faede224f759215c0f6ce036"
       },
       "printer": "Drummerms",
       "printer_name": "drummerms",
@@ -17862,6 +18556,70 @@
         ],
         "mcp_ready": "full",
         "spec_format": "openapi3"
+      }
+    },
+    {
+      "name": "quickcommerce",
+      "category": "commerce",
+      "api": "QuickCommerce API",
+      "description": "Compare live Indian product prices, stock, and delivery ETAs from the terminal, then keep the history locally.",
+      "search_terms": [
+        "quickcommerce",
+        "QuickCommerce API",
+        "quickcommerce-pp-cli",
+        "Compare live Indian product prices, stock, and delivery ETAs from the terminal, then keep the history locally.",
+        "Price and availability history",
+        "history prices",
+        "Query local observations to see price, stock, rating, and availability movement over time.",
+        "Observation diff",
+        "history diff",
+        "Show the field-level changes between the latest saved observations.",
+        "Fastest available delivery",
+        "delivery fastest",
+        "Rank currently available delivery options while preserving closed or unparseable platforms.",
+        "Credit-aware request planner",
+        "requests plan",
+        "Calculate fan-out credit cost and affordability before making paid platform requests.",
+        "Manual mirror ingestion",
+        "mirror ingest",
+        "Persist real QuickCommerce command responses and metadata into the local SQLite mirror.",
+        "Stale-observation report",
+        "mirror stale",
+        "Find saved product and ETA observations that are older than a chosen trust window.",
+        "Local platform/location coverage",
+        "mirror coverage",
+        "Report observed, missing, and stale platform coverage for a location.",
+        "Price-per-unit value view",
+        "prices value",
+        "Compare price per unit from explicit pack quantities without guessing missing units."
+      ],
+      "path": "library/commerce/quickcommerce",
+      "release": {
+        "cli_name": "quickcommerce-pp-cli",
+        "version": "2026.8.1",
+        "released_at": "2026-08-27T09:14:23Z",
+        "source_commit": "1dcc77576dd357a9ab6e71e802d8aa0281227971"
+      },
+      "printer": "SomSamantray",
+      "printer_name": "Som Samantray",
+      "creator": {
+        "handle": "SomSamantray",
+        "name": "Som Samantray"
+      },
+      "mcp": {
+        "binary": "quickcommerce-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 7,
+        "public_tool_count": 1,
+        "auth_type": "api_key",
+        "env_vars": [
+          "PRINTING_PRESS_CLIENT_PROFILE"
+        ],
+        "mcp_ready": "full",
+        "spec_format": "internal"
       }
     },
     {
@@ -18238,6 +18996,64 @@
         "env_vars": [],
         "mcp_ready": "full",
         "spec_format": "internal"
+      }
+    },
+    {
+      "name": "redmine",
+      "category": "project-management",
+      "api": "Redmine",
+      "description": "Every Redmine feature, plus a local mirror that finally answers the cross-project questions the Roadmap page never could.",
+      "search_terms": [
+        "redmine",
+        "redmine-pp-cli",
+        "Every Redmine feature, plus a local mirror that finally answers the cross-project questions the Roadmap page never could.",
+        "Roadmap Burndown",
+        "See open/closed issue counts, average completion, and logged-vs-estimated hours for a release version — the Roadmap page Redmine never exposed as an API.",
+        "Assignee Workload Report",
+        "workload",
+        "See every assignee's open-issue count and estimated hours in one aggregate view, with a flag for anyone over threshold.",
+        "Stale Issue Detection",
+        "issues stale",
+        "Find open issues nobody has touched in N days — Redmine has no built-in staleness concept.",
+        "Since-Last-Sync Digest",
+        "digest",
+        "A personal activity report of what was created, updated, or closed in a time window, optionally scoped to issues assigned to or watched by you.",
+        "Cycle-Time by Tracker",
+        "issues cycle-time",
+        "Average days from creation to close, grouped by tracker or project — real duration math the API can't do.",
+        "Transitive Blocker Chain",
+        "issues blockers",
+        "Walk the full multi-hop 'blocks'/'blocked by' dependency chain for an issue, not just its direct relations."
+      ],
+      "path": "library/project-management/redmine",
+      "release": {
+        "cli_name": "redmine-pp-cli",
+        "version": "2026.8.1",
+        "released_at": "2026-08-27T09:14:23Z",
+        "source_commit": "ce031f152a17c612f2fbe93770289020626f1e32"
+      },
+      "printer": "yosimasu",
+      "printer_name": "Masu Lin",
+      "contributors": [
+        {
+          "handle": "yosimasu",
+          "name": "Masu Lin"
+        }
+      ],
+      "mcp": {
+        "binary": "redmine-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 93,
+        "public_tool_count": 0,
+        "auth_type": "api_key",
+        "env_vars": [
+          "PRINTING_PRESS_CLIENT_PROFILE"
+        ],
+        "mcp_ready": "full",
+        "spec_format": "openapi3"
       }
     },
     {
@@ -19274,9 +20090,9 @@
       "path": "library/other/scientific-consensus",
       "release": {
         "cli_name": "scientific-consensus-pp-cli",
-        "version": "2026.8.6",
-        "released_at": "2026-08-22T09:12:22Z",
-        "source_commit": "ff450b44874dd1570e13f7e7d031409a9a9aa2f8"
+        "version": "2026.8.7",
+        "released_at": "2026-08-26T09:24:33Z",
+        "source_commit": "bbb92e65cb6271cd8ad72b181e30e2294ba81d8c"
       },
       "printer": "laci141",
       "printer_name": "laci141",
@@ -25455,6 +26271,70 @@
       }
     },
     {
+      "name": "workspace-admin",
+      "category": "productivity",
+      "api": "Google Workspace Admin",
+      "description": "GAT-style Google Workspace auditing as an agent-native CLI: sync Directory, Drive, Gmail, Reports, and Alert Center into a local store, then run offline cross-API audits, offboarding, and OAuth-app risk checks that GAM and the official gws CLI cannot persist.",
+      "search_terms": [
+        "workspace-admin",
+        "Google Workspace Admin",
+        "workspace-admin-pp-cli",
+        "GAT-style Google Workspace auditing as an agent-native CLI: sync Directory, Drive, Gmail, Reports, and Alert Center into a local store, then run offline cross-API audits, offboarding, and OAuth-app risk checks that GAM and the official gws CLI cannot persist.",
+        "Offboard workflow",
+        "workflow offboard",
+        "Run a departing user's entire lifecycle in one command — suspend, sign out, revoke OAuth tokens, transfer Drive ownership, set Gmail delegation, remove from groups, and move to a suspended OU.",
+        "User 360 audit",
+        "audit user360",
+        "One per-user posture report joining the user's Drive footprint and quota, security (2SV, suspended), connected OAuth apps, devices, Gmail settings, group memberships, and recent activity.",
+        "External sharing audit",
+        "audit external-shares",
+        "Find every Drive file shared 'anyone with link' or with an external domain, joined to its owner and the owner's org unit.",
+        "OAuth app risk audit",
+        "audit app-risk",
+        "Roll up every third-party OAuth app authorized in the domain by a curated scope-to-risk tier (Low/Moderate/High), flag apps with Full Drive access, and count users-per-app with the member list.",
+        "Login and geo-failure audit",
+        "audit logins",
+        "Surface failed-login bursts, new-country logins, and dormant accounts (no login since N days) from synced login activity joined to users.",
+        "Incident reconstruction",
+        "audit reconstruct",
+        "Merge one user's login, admin, Drive, and token activity into a single ordered timeline for post-compromise review.",
+        "Email exposure sweep",
+        "audit email-exposure",
+        "Sweep every user's Gmail forwarding, sendAs, delegates, and filters for external forwarding, external send-as, delegates, and forward/delete rules — the standard business-email-compromise indicators.",
+        "Nested group expansion",
+        "groups expand",
+        "Recursively flatten nested groups into their effective direct-user membership, cycle-safe."
+      ],
+      "path": "library/productivity/workspace-admin",
+      "release": {
+        "cli_name": "workspace-admin-pp-cli",
+        "version": "2026.8.1",
+        "released_at": "2026-08-26T09:21:43Z",
+        "source_commit": "e1eb87226c0c86f92e514b5d6a2a08f29589cb4b"
+      },
+      "printer": "RyanGravetteIDLA",
+      "printer_name": "RyanGravetteIDLA",
+      "creator": {
+        "handle": "RyanGravetteIDLA",
+        "name": "RyanGravetteIDLA"
+      },
+      "mcp": {
+        "binary": "workspace-admin-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 266,
+        "public_tool_count": 0,
+        "auth_type": "bearer_token",
+        "env_vars": [
+          "GOOGLE_WORKSPACE_TOKEN"
+        ],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
       "name": "worten",
       "category": "commerce",
       "api": "Worten Reverse Engineered",
@@ -26202,6 +27082,61 @@
         "env_vars": [],
         "mcp_ready": "full",
         "spec_format": "openapi3"
+      }
+    },
+    {
+      "name": "zotero-research-library",
+      "category": "productivity",
+      "api": "Zotero",
+      "description": "Your entire Zotero research library, searchable offline — version-based incremental sync into SQLite with full-text search no other Zotero tool has.",
+      "search_terms": [
+        "zotero-research-library",
+        "Zotero",
+        "zotero-research-library-pp-cli",
+        "Your entire Zotero research library, searchable offline — version-based incremental sync into SQLite with full-text search no other Zotero tool has.",
+        "Offline research-grounding search",
+        "ground",
+        "Ranked full-text search over your synced library — title, abstract, creators, tags, and attachment full text — answered offline in under a second, with snippets and citation-ready metadata.",
+        "Recently-added triage",
+        "items recent",
+        "What landed in the library recently, sorted by dateAdded from the local cache, with a --days cutoff and pipeable keys.",
+        "Citekey bridge",
+        "cite",
+        "Resolves a Better BibTeX citekey to its item from the local cache and exports citekey-faithful BibTeX; sync backfills citekeys via the desktop's local JSON-RPC when available.",
+        "Cached collection tree",
+        "collections tree",
+        "Renders the full collection hierarchy with per-node item counts in one command — a shape the flat API cannot return in one call.",
+        "Cache health and offline reindex",
+        "cache status",
+        "Sync cursors, row and FTS counts, and last-sync age from the local cache; 'cache reindex' rebuilds the FTS index from base tables with zero network."
+      ],
+      "path": "library/productivity/zotero-research-library",
+      "release": {
+        "cli_name": "zotero-research-library-pp-cli",
+        "version": "2026.8.1",
+        "released_at": "2026-08-26T09:20:32Z",
+        "source_commit": "d010c2bd2188e74e12d9d70867ce1306d0c5652f"
+      },
+      "printer": "erash11",
+      "printer_name": "Eric Rash",
+      "creator": {
+        "handle": "erash11",
+        "name": "Eric Rash"
+      },
+      "mcp": {
+        "binary": "zotero-research-library-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 17,
+        "public_tool_count": 0,
+        "auth_type": "api_key",
+        "env_vars": [
+          "PRINTING_PRESS_CLIENT_PROFILE"
+        ],
+        "mcp_ready": "full",
+        "spec_format": "internal"
       }
     }
   ]
