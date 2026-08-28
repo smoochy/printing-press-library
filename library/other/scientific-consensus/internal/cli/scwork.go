@@ -17,19 +17,27 @@ import (
 // scWork is the normalized work record the engines operate on. It is populated
 // primarily from OpenAlex and optionally enriched from secondary sources.
 type scWork struct {
-	ID          string   `json:"id"`
-	DOI         string   `json:"doi,omitempty"`
-	PMID        string   `json:"pmid,omitempty"`
-	Title       string   `json:"title"`
-	Abstract    string   `json:"-"`
-	Year        int      `json:"year,omitempty"`
-	Type        string   `json:"type,omitempty"`
-	CitedBy     int      `json:"cited_by_count"`
-	Venue       string   `json:"venue,omitempty"`
-	Topic       string   `json:"topic,omitempty"`
-	IsOA        bool     `json:"is_oa,omitempty"`
-	PubTypes    []string `json:"-"`
-	FirstAuthor string   `json:"first_author,omitempty"`
+	ID       string `json:"id"`
+	DOI      string `json:"doi,omitempty"`
+	PMID     string `json:"pmid,omitempty"`
+	Title    string `json:"title"`
+	Abstract string `json:"-"`
+	Year     int    `json:"year,omitempty"`
+	Type     string `json:"type,omitempty"`
+	CitedBy  int    `json:"cited_by_count"`
+	Venue    string `json:"venue,omitempty"`
+	Topic    string `json:"topic,omitempty"`
+	IsOA     bool   `json:"is_oa,omitempty"`
+	// IsRetracted is the source index's retraction flag, carried raw from
+	// OpenAlex is_retracted. It is one of the two inputs to
+	// scengine.DetectRetraction; the derived status lives in Retraction.
+	IsRetracted bool `json:"-"`
+	// Retraction is the derived retraction status, set by filterRetracted.
+	// Empty (scengine.NotRetracted) for every work with no signal, so the
+	// field is absent from JSON for the overwhelming majority of works.
+	Retraction  scengine.Retraction `json:"retraction,omitempty"`
+	PubTypes    []string            `json:"-"`
+	FirstAuthor string              `json:"first_author,omitempty"`
 	// Authors is every authorship display name in the order OpenAlex
 	// returned them. Empty when the work has no authorships.
 	Authors []string `json:"authors,omitempty"`
@@ -58,6 +66,7 @@ type openAlexWork struct {
 	PublicationYear int    `json:"publication_year"`
 	CitedByCount    int    `json:"cited_by_count"`
 	Type            string `json:"type"`
+	IsRetracted     bool   `json:"is_retracted"`
 	OpenAccess      struct {
 		IsOA bool `json:"is_oa"`
 	} `json:"open_access"`
@@ -99,7 +108,10 @@ func fetchWorks(ctx context.Context, c apiGetter, search, filter, sortBy string,
 	params := map[string]string{
 		"per-page": strconv.Itoa(perPage),
 		"mailto":   defaultMailto,
-		"select":   "id,doi,title,display_name,publication_year,cited_by_count,type,open_access,abstract_inverted_index,ids,primary_topic,primary_location,authorships",
+		// is_retracted is requested explicitly: without it the field is absent
+		// from every result and scengine.DetectRetraction degrades to the
+		// title rule alone, which misses index-only retractions.
+		"select": "id,doi,title,display_name,publication_year,cited_by_count,type,open_access,abstract_inverted_index,ids,primary_topic,primary_location,authorships,is_retracted",
 	}
 	if search != "" {
 		params["search"] = search
@@ -136,6 +148,10 @@ func fetchWorks(ctx context.Context, c apiGetter, search, filter, sortBy string,
 			Venue:    w.PrimaryLocation.Source.DisplayName,
 			Topic:    w.PrimaryTopic.DisplayName,
 			IsOA:     w.OpenAccess.IsOA,
+			// Carried raw rather than resolved here: detection needs the title
+			// too, and filterRetracted is the single place that runs it, so
+			// works built by other paths get the same treatment.
+			IsRetracted: w.IsRetracted,
 		}
 		if len(w.Authorships) > 0 {
 			sw.FirstAuthor = w.Authorships[0].Author.DisplayName
@@ -258,14 +274,62 @@ func relevantToClaim(claim string, w scWork) bool {
 
 // filterRelevant drops works that fail the relevance gate so they never reach
 // classification or scoring. Returns a new slice; the input is not mutated.
+//
+// Two gates are available and this is the single place that chooses between
+// them. The PICO gate is preferred: it requires a work to name BOTH sides of
+// the claim (an intervention token AND an outcome token), and it reads the
+// abstract, so it judges what a paper is actually about rather than what its
+// title happens to mention. It applies only when the claim can be split around
+// a polarity verb; PICOTokens returns empty slices when it cannot.
+//
+// When the claim is not splittable the token-overlap gate runs instead. That
+// case is not rare, and dropping the older gate outright would leave those
+// claims with no relevance filtering at all, which is the opposite of this
+// change's purpose. The two are alternatives, not layers: running both would
+// apply a title/topic rule on top of an abstract-aware one and silently
+// re-drop works the PICO gate deliberately kept.
 func filterRelevant(claim string, works []scWork) []scWork {
+	ivTokens, outTokens := scengine.PICOTokens(claim)
+	usePICO := len(ivTokens) > 0 && len(outTokens) > 0
 	kept := make([]scWork, 0, len(works))
 	for _, w := range works {
-		if relevantToClaim(claim, w) {
+		var relevant bool
+		if usePICO {
+			relevant = scengine.IsPICORelevant(w.Abstract, w.Title, ivTokens, outTokens)
+		} else {
+			relevant = relevantToClaim(claim, w)
+		}
+		if relevant {
 			kept = append(kept, w)
 		}
 	}
 	return kept
+}
+
+// filterRetracted partitions works by retraction status, running
+// scengine.DetectRetraction on both available signals: the title alone (never
+// title+abstract joined — the marker pattern is start-anchored) and the source
+// index flag carried in IsRetracted.
+//
+// It follows filterRelevant: a pre-scoring gate that returns new slices and
+// does not mutate its input. It differs in also returning the excluded works,
+// because a retracted work must stay visible in the study list with its reason
+// attached (the PRISMA convention retracted.go's ExcludeFromScore documents),
+// whereas an off-topic work is simply not about the claim.
+//
+// The derived status is stamped onto both returned slices, so NotRetracted
+// works carry an explicit empty value and callers never re-run the detector.
+func filterRetracted(works []scWork) (kept, excluded []scWork) {
+	kept = make([]scWork, 0, len(works))
+	for _, w := range works {
+		w.Retraction = scengine.DetectRetraction(w.Title, w.IsRetracted)
+		if w.Retraction.ExcludeFromScore() {
+			excluded = append(excluded, w)
+			continue
+		}
+		kept = append(kept, w)
+	}
+	return kept, excluded
 }
 
 // extractPMID pulls the numeric PMID out of an OpenAlex pmid URL.

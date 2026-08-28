@@ -8416,9 +8416,9 @@
       "path": "library/travel/flight-goat",
       "release": {
         "cli_name": "flight-goat-pp-cli",
-        "version": "2026.8.3",
-        "released_at": "2026-08-22T09:11:11Z",
-        "source_commit": "abce8a310cc87310486bc3ff05a06b9a6a34155e"
+        "version": "2026.8.4",
+        "released_at": "2026-08-27T18:01:13Z",
+        "source_commit": "2a3d45a2b1ab809e861c18060e4a01fdb759c3b6"
       },
       "printer": "mvanhorn",
       "printer_name": "Matt Van Horn",
@@ -8457,6 +8457,67 @@
         ],
         "mcp_ready": "full",
         "spec_format": "openapi3"
+      }
+    },
+    {
+      "name": "flighty",
+      "category": "travel",
+      "api": "Flighty Airports",
+      "description": "Every Flighty Airports meltdown map feature, plus cross-airport intelligence no web page can answer.",
+      "search_terms": [
+        "flighty",
+        "Flighty Airports",
+        "flighty-pp-cli",
+        "Every Flighty Airports meltdown map feature, plus cross-airport intelligence no web page can answer.",
+        "Worst-airports ranking",
+        "airports worst",
+        "Rank the network's airports right now by cumulative delay and cancellations — the web map color-codes but never ranks.",
+        "Flight lookup by number",
+        "airports find-flight",
+        "Find one flight by number across arrivals and departures boards — status, original vs actual time, gate, belt, terminal.",
+        "Network airline disruption",
+        "airports airline",
+        "One airline's delay/cancel/divert footprint aggregated across every synced airport — impossible per-airport on the site.",
+        "Airport comparison",
+        "airports compare",
+        "Side-by-side status, delays, warnings, and flight rules for two airports.",
+        "Route disruption check",
+        "airports route",
+        "Both directions of one origin-destination pair's delay/cancel/divert stats, joined from each side's disrupted routes.",
+        "Healthy-alternates finder",
+        "airports nearby",
+        "Distance-ranked nearby airports, flagging which have normal operations right now.",
+        "Change diff since last sync",
+        "airports diff",
+        "What changed since the last sync: status transitions, new/cleared warnings, delay deltas."
+      ],
+      "path": "library/travel/flighty",
+      "release": {
+        "cli_name": "flighty-pp-cli",
+        "version": "2026.8.1",
+        "released_at": "2026-08-28T09:20:44Z",
+        "source_commit": "e36d496e172ccc9bff64db18a3f48b555cc43ab6"
+      },
+      "printer": "SomSamantray",
+      "printer_name": "Som Samantray",
+      "creator": {
+        "handle": "SomSamantray",
+        "name": "Som Samantray"
+      },
+      "mcp": {
+        "binary": "flighty-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 5,
+        "public_tool_count": 0,
+        "auth_type": "none",
+        "env_vars": [
+          "PRINTING_PRESS_CLIENT_PROFILE"
+        ],
+        "mcp_ready": "full",
+        "spec_format": "internal"
       }
     },
     {
@@ -8661,9 +8722,9 @@
       "path": "library/food-and-dining/forkable",
       "release": {
         "cli_name": "forkable-pp-cli",
-        "version": "2026.8.4",
-        "released_at": "2026-08-21T08:29:25Z",
-        "source_commit": "c8f05ea0f30474bafd6488e47c019f223d88e9f4"
+        "version": "2026.8.5",
+        "released_at": "2026-08-28T09:20:44Z",
+        "source_commit": "ccc5ef2cf0359f1d4a234dbeb957b9d99278454b"
       },
       "printer": "enlewof",
       "printer_name": "Allen Lew",
@@ -12865,6 +12926,37 @@
       }
     },
     {
+      "name": "kuma",
+      "category": "monitoring",
+      "api": "Uptime Kuma Operator",
+      "description": "Inspect Uptime Kuma v2 monitors, heartbeats, and incident context; retry changes are explicitly gated.",
+      "search_terms": [
+        "kuma",
+        "Uptime Kuma Operator",
+        "kuma-pp-cli",
+        "Inspect Uptime Kuma v2 monitors, heartbeats, and incident context; retry changes are explicitly gated.",
+        "Incident context composite",
+        "incident-context",
+        "Combines monitor identity, recent heartbeat timeline, and current status into one redacted operator brief.",
+        "No single Kuma call provides an incident-ready context packet.",
+        "Complete-object retry safety gate",
+        "set-retries",
+        "Previews and, only with explicit --yes, applies a complete monitor edit while preserving unrelated fields and verifying readback.",
+        "Kuma editMonitor is full replacement; a narrow patch risks silently clearing settings.",
+        "Socket.IO heartbeat normalization",
+        "heartbeats",
+        "Normalizes Kuma Socket.IO heartbeat records into a bounded time-window timeline with redacted output.",
+        "Kuma exposes management data over Socket.IO, not a conventional REST resource."
+      ],
+      "path": "library/monitoring/kuma",
+      "printer": "keithah",
+      "printer_name": "Keith",
+      "creator": {
+        "handle": "keithah",
+        "name": "Keith"
+      }
+    },
+    {
       "name": "lawhub",
       "category": "education",
       "api": "LawHub",
@@ -13778,6 +13870,50 @@
       "creator": {
         "handle": "bwishan",
         "name": "Brian Wishan"
+      }
+    },
+    {
+      "name": "mcpmarket",
+      "category": "developer-tools",
+      "api": "mcpmarket",
+      "description": "Every MCP Market search, leaderboard, and skill lookup — plus trending deltas, sync diffs, and author portfolios no other tool tracks.",
+      "search_terms": [
+        "mcpmarket",
+        "mcpmarket-pp-cli",
+        "Trending Delta",
+        "trending",
+        "See which MCP servers/skills are rising fastest vs. holding steady, computed from your own browse history.",
+        "Sync Diff",
+        "diff",
+        "See exactly which servers, clients, or skills were added, removed, or changed between two snapshots.",
+        "Author Portfolio",
+        "author",
+        "See everything one GitHub org has published across servers, skills, and clients in one view.",
+        "Time-Travel Leaderboard",
+        "leaderboard",
+        "See what the top-100 leaderboard looked like on a past date, not just right now.",
+        "Stack Recommendation",
+        "stack",
+        "Chain the similar-tools recommendation graph multiple hops to build a ranked shortlist around a server you already use.",
+        "Category Watch",
+        "watch category",
+        "Flag newly-appeared listings in a category since your last check.",
+        "Duplicate Detector",
+        "dedupe",
+        "Surface near-identical listings from different authors within a category."
+      ],
+      "path": "library/developer-tools/mcpmarket",
+      "release": {
+        "cli_name": "mcpmarket-pp-cli",
+        "version": "2026.8.1",
+        "released_at": "2026-08-28T09:19:31Z",
+        "source_commit": "bf5c70997e60a6d267fe2df559da2d6d725b4993"
+      },
+      "printer": "SomSamantray",
+      "printer_name": "Som Samantray",
+      "creator": {
+        "handle": "SomSamantray",
+        "name": "Som Samantray"
       }
     },
     {
@@ -18746,6 +18882,60 @@
       }
     },
     {
+      "name": "rapidapi",
+      "category": "developer-tools",
+      "api": "Rapidapi",
+      "description": "RapidAPI Hub marketplace CLI - search APIs, browse categories & collections, inspect providers",
+      "search_terms": [
+        "rapidapi",
+        "rapidapi-pp-cli",
+        "RapidAPI Hub marketplace CLI - search APIs, browse categories & collections, inspect providers",
+        "Offline sync & search",
+        "sync",
+        "Sync marketplace data into a local SQLite store with sync-state tracking, then search it offline.",
+        "Hub analytics with aggregation",
+        "analytics",
+        "Hub-wide metrics plus per-day API traffic aggregated from the local store (SUM, AVG, error rates).",
+        "Marketplace export",
+        "export",
+        "Export cached marketplace records to JSON or CSV for offline analysis.",
+        "Chrome TLS transport",
+        "system csrf",
+        "uTLS Chrome-fingerprint HTTP/2 transport that passes the Cloudflare bot gate, enabling live CLI access to the hub gateway.",
+        "Cache freshness doctor",
+        "doctor",
+        "Doctor reports cache freshness with schema-gated auto-refresh."
+      ],
+      "path": "library/developer-tools/rapidapi",
+      "release": {
+        "cli_name": "rapidapi-pp-cli",
+        "version": "2026.8.1",
+        "released_at": "2026-08-28T09:20:44Z",
+        "source_commit": "4fc07f8a51821077b7247e6c0e054bca5a9cb1ed"
+      },
+      "printer": "SomSamantray",
+      "printer_name": "Som Samantray",
+      "creator": {
+        "handle": "SomSamantray",
+        "name": "Som Samantray"
+      },
+      "mcp": {
+        "binary": "rapidapi-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 13,
+        "public_tool_count": 0,
+        "auth_type": "api_key",
+        "env_vars": [
+          "PRINTING_PRESS_CLIENT_PROFILE"
+        ],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
       "name": "rappi",
       "category": "food-and-dining",
       "api": "Rappi",
@@ -20090,9 +20280,9 @@
       "path": "library/other/scientific-consensus",
       "release": {
         "cli_name": "scientific-consensus-pp-cli",
-        "version": "2026.8.7",
-        "released_at": "2026-08-26T09:24:33Z",
-        "source_commit": "bbb92e65cb6271cd8ad72b181e30e2294ba81d8c"
+        "version": "2026.8.8",
+        "released_at": "2026-08-28T09:23:38Z",
+        "source_commit": "c881166853bf23c5cacefde1f332702093a6fce5"
       },
       "printer": "laci141",
       "printer_name": "laci141",
@@ -23656,6 +23846,75 @@
       }
     },
     {
+      "name": "teslatracker",
+      "category": "commerce",
+      "api": "TeslaTracker",
+      "description": "Every used Tesla TeslaTracker lists, in a local store that answers questions the site cannot — price paths, cohort placement, warranty left, and what already left the lot.",
+      "search_terms": [
+        "teslatracker",
+        "teslatracker-pp-cli",
+        "Every used Tesla TeslaTracker lists, in a local store that answers questions the site cannot — price paths, cohort placement, warranty left, and what already left the lot.",
+        "Remaining-warranty ledger",
+        "warranty",
+        "See exactly how many months and miles of Tesla warranty are left on the day you would take delivery, and which limit runs out first.",
+        "Range delta with cohort placement",
+        "degradation",
+        "Compare a car's actual range against its rated range, and see where that gap sits among every similar car in your local store.",
+        "Cohort price placement",
+        "comps",
+        "See where one car's landed cost sits in the distribution of comparable cars, with the sample size and the arithmetic shown.",
+        "Departure log",
+        "gone",
+        "See which cars left inventory, at what landed price, and after how many days listed.",
+        "Per-VIN price trajectory",
+        "price-history",
+        "See a single car's full observed price path: every cut, its size, and how long it has held the current price.",
+        "Configuration premium analysis",
+        "premium",
+        "See what a configuration attribute actually costs across the market, computed within matched cohorts.",
+        "Aging leaderboard",
+        "stale",
+        "Rank the corpus by days listed and flag cars that are both long-listed and have never had a price cut.",
+        "Landed-cost distance curve",
+        "radius",
+        "See how the price floor and median change as you widen your search radius, with real transport fees included at every step.",
+        "Saved searches with a change cursor",
+        "watch",
+        "Save a named search and see only what is new, price-changed, or departed since the last time you ran it.",
+        "Mirror provenance and gap report",
+        "coverage",
+        "See how complete and how fresh your local mirror is, field by field, including whether any pages were dropped during sync."
+      ],
+      "path": "library/commerce/teslatracker",
+      "release": {
+        "cli_name": "teslatracker-pp-cli",
+        "version": "2026.8.1",
+        "released_at": "2026-08-28T09:15:30Z",
+        "source_commit": "0b297efef2a18eda9e0894aff88b3c651314cff8"
+      },
+      "printer": "michegz",
+      "printer_name": "michegz",
+      "creator": {
+        "handle": "michegz",
+        "name": "michegz"
+      },
+      "mcp": {
+        "binary": "teslatracker-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 3,
+        "public_tool_count": 3,
+        "auth_type": "none",
+        "env_vars": [
+          "PRINTING_PRESS_CLIENT_PROFILE"
+        ],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
       "name": "tessie",
       "category": "devices",
       "api": "Tessie",
@@ -24856,6 +25115,75 @@
         "auth_type": "api_key",
         "env_vars": [
           "PRINTING_PRESS_CLIENT_PROFILE"
+        ],
+        "mcp_ready": "full",
+        "spec_format": "openapi3"
+      }
+    },
+    {
+      "name": "unipile",
+      "category": "social-and-messaging",
+      "api": "Unipile",
+      "description": "Every Unipile endpoint as a typed command, plus a local mirror that makes cross-provider search possible and an invitation ledger that shows how much LinkedIn headroom you have left.",
+      "search_terms": [
+        "unipile",
+        "unipile-pp-cli",
+        "Every Unipile endpoint as a typed command, plus a local mirror that makes cross-provider search possible and an invitation ledger that shows how much LinkedIn headroom you have left.",
+        "Rate-budget ledger",
+        "budget",
+        "See how many LinkedIn invitations you have left today and this week, counted from your synced invitation history.",
+        "Offline cross-provider search",
+        "search",
+        "Full-text search every message, email, attendee, and relation across all connected providers at once, offline.",
+        "Contact 360",
+        "contact",
+        "Everything the local mirror knows about one person: connection state, invitation history, and every conversation with per-direction message counts.",
+        "Unified unread inbox",
+        "inbox",
+        "One table of everything unread across LinkedIn, WhatsApp, Telegram, Instagram, Messenger, and email.",
+        "Silence detection",
+        "silent",
+        "Find conversations where you sent the last message and got no reply for N days.",
+        "Accepted but not messaged",
+        "accepted",
+        "New LinkedIn connections since your last sync that you have not messaged yet.",
+        "Invitation funnel",
+        "funnel",
+        "Sent, accepted, and replied counts with conversion rates over a time window.",
+        "Cross-provider digest",
+        "digest",
+        "What changed across every connected provider since the last sync.",
+        "Resolved thread view",
+        "thread",
+        "Read one conversation end to end with attendee IDs resolved to real names.",
+        "Post engagement crossmatch",
+        "engagement",
+        "Who reacted to or commented on your posts, flagged by whether they are already a connection."
+      ],
+      "path": "library/social-and-messaging/unipile",
+      "release": {
+        "cli_name": "unipile-pp-cli",
+        "version": "2026.8.1",
+        "released_at": "2026-08-28T09:20:44Z",
+        "source_commit": "5d4b45af88ca8c9f4336fc7f123791ae1dea61eb"
+      },
+      "printer": "fuushyn",
+      "printer_name": "fuushyn",
+      "creator": {
+        "handle": "fuushyn",
+        "name": "fuushyn"
+      },
+      "mcp": {
+        "binary": "unipile-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 94,
+        "public_tool_count": 0,
+        "auth_type": "api_key",
+        "env_vars": [
+          "UNIPILE_API_KEY"
         ],
         "mcp_ready": "full",
         "spec_format": "openapi3"
