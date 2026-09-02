@@ -1582,9 +1582,9 @@
       "path": "library/food-and-dining/anylist",
       "release": {
         "cli_name": "anylist-pp-cli",
-        "version": "2026.8.4",
-        "released_at": "2026-08-28T09:32:36Z",
-        "source_commit": "00a18551788f440b6276456889156fba7c41a5d4"
+        "version": "2026.9.1",
+        "released_at": "2026-09-01T09:07:10Z",
+        "source_commit": "4c3bc306f9f4f4a63f9e6a4ead2f313160cd020f"
       },
       "printer": "jeeves",
       "printer_name": "Jeeves",
@@ -6777,6 +6777,42 @@
       }
     },
     {
+      "name": "e-boekhouden",
+      "category": "payments",
+      "api": "e-boekhouden",
+      "description": "Balance, profit & loss, and journal entries for e-Boekhouden from your terminal",
+      "search_terms": [
+        "e-boekhouden",
+        "e-boekhouden-pp-cli",
+        "Administration Safety Banner",
+        "mutation create",
+        "Refuses to actually write a mutation or invoice without --confirm, and blocks an ambiguous write across multiple linked administrations unless --company names the exact target.",
+        "Invoice-Mutation Reconciliation Health",
+        "invoice reconcile",
+        "Lists invoices with no matching payment mutation, and mutations that reference an invoice number the CLI doesn't recognize.",
+        "Mutation Ledger/VAT Suggest",
+        "mutation suggest",
+        "Suggests the ledger and VAT code most often used for past mutations with a similar description.",
+        "Administration Portfolio Overview",
+        "administration overview",
+        "Lists every administration linked to this API token, alongside ledger balances and outstanding invoices for the one administration this session is actually authenticated against.",
+        "Relation Statement",
+        "Full chronological history of invoices and mutations for one relation, with a computed running balance.",
+        "Ledger Drill-Down (T-Account)",
+        "ledger history",
+        "Itemized chronological mutation rows for one ledger account with a computed running balance."
+      ],
+      "path": "library/payments/e-boekhouden",
+      "release": {
+        "cli_name": "e-boekhouden-pp-cli",
+        "version": "2026.9.1",
+        "released_at": "2026-09-01T09:10:07Z",
+        "source_commit": "0aa8d94e3fc7410d83eb6a6ef051be1abc7e2f61"
+      },
+      "printer": "markvandeven",
+      "printer_name": "markvandeven"
+    },
+    {
       "name": "ebay",
       "category": "commerce",
       "api": "eBay",
@@ -8474,9 +8510,9 @@
       "path": "library/travel/flight-goat",
       "release": {
         "cli_name": "flight-goat-pp-cli",
-        "version": "2026.8.5",
-        "released_at": "2026-08-31T09:18:27Z",
-        "source_commit": "8e2e95ef4ff79a8412653a2e621c852cf3bd54dc"
+        "version": "2026.9.1",
+        "released_at": "2026-09-01T09:08:43Z",
+        "source_commit": "2302f3f8c7985e3a2f5a50ebfc66af28f8a05ccf"
       },
       "printer": "mvanhorn",
       "printer_name": "Matt Van Horn",
@@ -8571,6 +8607,66 @@
         "tool_count": 5,
         "public_tool_count": 0,
         "auth_type": "none",
+        "env_vars": [
+          "PRINTING_PRESS_CLIENT_PROFILE"
+        ],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
+      "name": "flow",
+      "category": "media-and-entertainment",
+      "api": "Google Flow",
+      "description": "Everything Flow's community CLIs and MCP servers do, plus the two things none of them do: real Google Drive ingestion and an honest audio-drama pipeline that closes the loop Flow itself cannot.",
+      "search_terms": [
+        "flow",
+        "Google Flow",
+        "flow-pp-cli",
+        "Everything Flow's community CLIs and MCP servers do, plus the two things none of them do: real Google Drive ingestion and an honest audio-drama pipeline that closes the loop Flow itself cannot.",
+        "Beat-to-prompt drafter",
+        "script draft-prompts",
+        "Turn a Scribe recap-script JSON into a ready-to-approve queue of per-segment Flow prompts, each matched to the right seed image automatically.",
+        "Episode import",
+        "Pull a whole episode's assets from two separate Google Drive folders -- Scribe's session output and the images folder -- into a Flow project and draft the prompt queue, in one command.",
+        "Audio mux-back",
+        "mux",
+        "Lay your real audio-drama mp3 back over the rendered Flow clips, in the right order and at the right offsets, with one local command.",
+        "Queue credit-affordability check",
+        "queue estimate",
+        "See whether a prepared batch of generations fits your remaining Flow credits before you spend a single one.",
+        "Drive import scene auto-tagging",
+        "drive import",
+        "Pull seed images straight out of a local Google Drive folder into a Flow project, with character tags inferred automatically from filenames (requires --project for character names).",
+        "Batch aggregate status watch",
+        "video watch",
+        "Check on an entire submitted batch of generations with one command instead of clicking through each one.",
+        "Scene/character/asset gap check",
+        "scenes gaps",
+        "Find characters missing a reference image and see a media-status breakdown for a project, before you submit a batch."
+      ],
+      "path": "library/media-and-entertainment/flow",
+      "release": {
+        "cli_name": "flow-pp-cli",
+        "version": "2026.9.1",
+        "released_at": "2026-09-01T09:14:45Z",
+        "source_commit": "900a3f3d31031ba42319cd22ef2698ab9faa4529"
+      },
+      "printer": "wryenmeek",
+      "printer_name": "github-actionsbot",
+      "creator": {
+        "handle": "wryenmeek",
+        "name": "github-actionsbot"
+      },
+      "mcp": {
+        "binary": "flow-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 5,
+        "public_tool_count": 0,
+        "auth_type": "session_handshake",
         "env_vars": [
           "PRINTING_PRESS_CLIENT_PROFILE"
         ],
@@ -10251,9 +10347,9 @@
       "path": "library/marketing/google-search-console",
       "release": {
         "cli_name": "google-search-console-pp-cli",
-        "version": "2026.8.2",
-        "released_at": "2026-08-17T08:06:59Z",
-        "source_commit": "e3c649d26a0a3972dd1d41a44487d17227a0ddb5"
+        "version": "2026.9.1",
+        "released_at": "2026-09-01T09:08:43Z",
+        "source_commit": "09276b5c23d2e79e8e4efc403d6ca3aac95157a5"
       },
       "printer": "bossriceshark",
       "printer_name": "Matt",
@@ -11175,6 +11271,60 @@
         "auth_type": "bearer_token",
         "env_vars": [
           "HOME_ASSISTANT_BEARER_AUTH"
+        ],
+        "mcp_ready": "full",
+        "spec_format": "openapi3"
+      }
+    },
+    {
+      "name": "hostex",
+      "category": "travel",
+      "api": "Hostex",
+      "description": "Every Hostex v3 operation, plus a local SQLite mirror that answers cross-property questions no single Hostex call can — occupancy gaps, revenue rollups, and guest-message SLA, offline.",
+      "search_terms": [
+        "hostex",
+        "hostex-pp-cli",
+        "Every Hostex v3 operation, plus a local SQLite mirror that answers cross-property questions no single Hostex call can — occupancy gaps, revenue rollups, and guest-message SLA, offline.",
+        "Operations gap finder",
+        "ops-gaps",
+        "Find imminent or occupied stays with no cleaning task or missing check-in details.",
+        "Stay brief dossier",
+        "stay-brief",
+        "One dossier for a single stay: reservation, guest, thread state, tasks, transactions, and review.",
+        "Inbox SLA triage",
+        "inbox-sla",
+        "Rank open guest conversations by age since the last guest message and flag threads past your SLA.",
+        "Automation preview",
+        "automation-preview",
+        "List pending automated messages and reviews and flag any whose thread a human has already handled.",
+        "Cross-channel price parity",
+        "price-parity",
+        "Flag property-dates where per-channel listing price or min-stay diverges across channels.",
+        "Oversell / double-sell watch",
+        "oversell-watch",
+        "Flag dates a channel still shows bookable on a property that is blocked or booked on the master calendar.",
+        "Revenue rollup",
+        "revenue-rollup",
+        "Net income minus expense by property or month over a date range, from the live ledger."
+      ],
+      "path": "library/travel/hostex",
+      "printer": "Bust011r",
+      "printer_name": "Bust011r",
+      "creator": {
+        "handle": "Bust011r",
+        "name": "Bust011r"
+      },
+      "mcp": {
+        "binary": "hostex-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 86,
+        "public_tool_count": 0,
+        "auth_type": "api_key",
+        "env_vars": [
+          "HOSTEX_HOSTEX_ACCESS_TOKEN"
         ],
         "mcp_ready": "full",
         "spec_format": "openapi3"
@@ -13074,15 +13224,61 @@
       "path": "library/monitoring/kuma",
       "release": {
         "cli_name": "kuma-pp-cli",
-        "version": "2026.8.1",
-        "released_at": "2026-08-28T09:31:02Z",
-        "source_commit": "00d100d4448ee37c769539c14082314b6c697b69"
+        "version": "2026.9.1",
+        "released_at": "2026-09-01T09:10:07Z",
+        "source_commit": "78c5c4c057194cbb2ae266b188a7859c442ec05b"
       },
       "printer": "keithah",
       "printer_name": "Keith",
       "creator": {
         "handle": "keithah",
         "name": "Keith"
+      }
+    },
+    {
+      "name": "kvmctl",
+      "category": "devices",
+      "api": "Kvmd Compatible Kvm",
+      "description": "The verified REST subset used by kvmctl for KVMD-compatible GLKVM devices.",
+      "search_terms": [
+        "kvmctl",
+        "Kvmd Compatible Kvm",
+        "kvmctl-pp-cli",
+        "The verified REST subset used by kvmctl for KVMD-compatible GLKVM devices.",
+        "Structured semantic dispatch",
+        "semantic capabilities",
+        "Expose named KVMD operations through stable evidence envelopes with explicit read/write policy.",
+        "Target-bound workflows",
+        "workflow-list",
+        "List immutable named KVM workflows in deterministic order."
+      ],
+      "path": "library/devices/kvmctl",
+      "release": {
+        "cli_name": "kvmctl-pp-cli",
+        "version": "2026.9.1",
+        "released_at": "2026-09-01T09:16:12Z",
+        "source_commit": "fbc990bd1b830fda6d0a06848f88890a5eedfe9b"
+      },
+      "printer": "keithah",
+      "printer_name": "Keith Herrington",
+      "creator": {
+        "handle": "keithah",
+        "name": "Keith"
+      },
+      "mcp": {
+        "binary": "kvmctl-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 14,
+        "public_tool_count": 1,
+        "auth_type": "api_key",
+        "env_vars": [
+          "KVMCTL_KVMD_TOKEN"
+        ],
+        "mcp_ready": "full",
+        "spec_format": "openapi3"
       }
     },
     {
@@ -14672,9 +14868,9 @@
       "path": "library/media-and-entertainment/movie-goat",
       "release": {
         "cli_name": "movie-goat-pp-cli",
-        "version": "2026.8.2",
-        "released_at": "2026-08-17T07:57:07Z",
-        "source_commit": "40363ac0936c4f406625f8399d8ad9b57673170e"
+        "version": "2026.9.1",
+        "released_at": "2026-09-01T09:07:10Z",
+        "source_commit": "34f1153694c1bad43dc6dddcdfb98c6831faeee2"
       },
       "printer": "tmchow",
       "printer_name": "Trevin Chow",
@@ -23899,9 +24095,9 @@
       "path": "library/media-and-entertainment/tella",
       "release": {
         "cli_name": "tella-pp-cli",
-        "version": "2026.8.1",
-        "released_at": "2026-08-17T07:57:07Z",
-        "source_commit": "40363ac0936c4f406625f8399d8ad9b57673170e"
+        "version": "2026.9.1",
+        "released_at": "2026-09-01T09:06:13Z",
+        "source_commit": "bae6a5a7367da96c7910fc5b6fd321ff0ad834fa"
       },
       "printer": "gregce",
       "printer_name": "Greg Ceccarelli",
@@ -24166,7 +24362,7 @@
         "Cancel a waitlist request. The upstream body requires waitlistRequestId as a JSON number (string flags 400); siteId is the store extref.",
         "Sniffed waitlist check-in",
         "texasroadhouse checkin",
-        "Confirm arrival after the guest receives the Texas Roadhouse text and replies HERE via sniffed POST /waitlist/{extref}/checkin (no public API).",
+        "Mark the party HERE after the guest texts HERE once everyone has arrived (REMOVE to leave) via sniffed POST /waitlist/{extref}/checkin. Not a host-stand visit.",
         "Quote MinQuote lookup",
         "texasroadhouse get-quote",
         "Read per-party-size MinQuote/MaxQuote for a store extref so submit can send the required WaitMinutes.",
@@ -24177,9 +24373,9 @@
       "path": "library/food-and-dining/texas-roadhouse",
       "release": {
         "cli_name": "texas-roadhouse-pp-cli",
-        "version": "2026.8.2",
-        "released_at": "2026-08-31T09:12:40Z",
-        "source_commit": "6695fc0c66c9f1a5670c049428bd79752e231751"
+        "version": "2026.9.1",
+        "released_at": "2026-09-01T09:08:43Z",
+        "source_commit": "aa6dbc822a5be5996de19120c05f2cea76b11299"
       },
       "printer": "DashLabsDev",
       "printer_name": "Thomas McCormick",
@@ -24193,8 +24389,8 @@
           "stdio",
           "http"
         ],
-        "tool_count": 9,
-        "public_tool_count": 9,
+        "tool_count": 8,
+        "public_tool_count": 8,
         "auth_type": "none",
         "env_vars": [
           "PRINTING_PRESS_CLIENT_PROFILE"
