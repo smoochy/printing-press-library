@@ -5,10 +5,16 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
+	"regexp"
+	"strings"
+	"time"
 
+	"github.com/mvanhorn/printing-press-library/library/productivity/concur/internal/client"
 	"github.com/spf13/cobra"
 )
 
@@ -93,9 +99,25 @@ func newReportsCreateCmd(flags *rootFlags) *cobra.Command {
 					bodyMap["businessPurpose"] = bodyBusinessPurpose
 				}
 			}
+			// PATCH(amend-2026-09-04: fallback to browser automation on policyId required error)
 			data, statusCode, err := c.PostWithParams(cmd.Context(), path, params, body)
 			if err != nil {
-				return classifyAPIError(err, flags)
+				if isPolicyIdRequiredError(err) && !flags.dryRun {
+					nameVal := bodyName
+					purposeVal := bodyBusinessPurpose
+					if bm, ok := body.(map[string]any); ok {
+						if n, ok := bm["name"].(string); ok && n != "" {
+							nameVal = n
+						}
+						if p, ok := bm["businessPurpose"].(string); ok && p != "" {
+							purposeVal = p
+						}
+					}
+					data, statusCode, err = createReportViaBrowserFallback(cmd, c, flags, flagUserId, flagContextType, nameVal, purposeVal)
+				}
+				if err != nil {
+					return classifyAPIError(err, flags)
+				}
 			}
 			// Inspect the mutate response body for a partial-failure-shaped
 			// field (e.g. Google Ads `partialFailureError`). Several Google
@@ -251,4 +273,259 @@ func newReportsCreateCmd(flags *rootFlags) *cobra.Command {
 	cmd.Flags().BoolVar(&stdinBody, "stdin", false, "Read request body as JSON from stdin")
 
 	return cmd
+}
+
+func isPolicyIdRequiredError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var apiErr *client.APIError
+	if errors.As(err, &apiErr) && apiErr.StatusCode == 400 {
+		var valResp struct {
+			ValidationErrors []struct {
+				Source  string `json:"source"`
+				Message string `json:"message"`
+				ID      string `json:"id"`
+			} `json:"validationErrors"`
+		}
+		if json.Unmarshal([]byte(apiErr.Body), &valResp) == nil {
+			for _, ve := range valResp.ValidationErrors {
+				if ve.Source == "policyId" && ve.ID == "field.required" {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// resolveReportsUIHost derives the Concur web UI host to drive via
+// agent-browser for the report-creation browser fallback. Guessing wrong
+// here is worse than not deriving anything -- flagged in PR review: the
+// prior version silently defaulted to "us2.concursolutions.com" whenever
+// it couldn't confirm a concursolutions.com host, which for a real tenant
+// on a different region opens the wrong UI outright (can fail auth, or
+// worse, land in a different tenant's context). This never guesses:
+//
+//  1. CONCUR_UI_BASE_URL, if set, wins unconditionally. This is the
+//     escape hatch for a supported proxy or custom endpoint where the API
+//     base URL legitimately isn't a concursolutions.com host but the
+//     Concur web UI still is -- and it's how tests point this fallback at
+//     a fake host without that host needing to resemble a real Concur
+//     domain.
+//  2. Otherwise, a host is derived from the API base URL, but ONLY when
+//     that host is actually concursolutions.com or a subdomain of it
+//     (matching client.go's baseURLIsTrustedConcurHost cookie-scoping
+//     check in spirit, kept local here rather than exported to avoid
+//     widening that function's surface for a single caller).
+//  3. Anything else is a hard error rather than a guess.
+func resolveReportsUIHost(apiBaseURL string) (string, error) {
+	if override := strings.TrimSpace(os.Getenv("CONCUR_UI_BASE_URL")); override != "" {
+		u, err := url.Parse(override)
+		if err != nil || u.Host == "" {
+			return "", fmt.Errorf("CONCUR_UI_BASE_URL %q is not a valid URL with a host", override)
+		}
+		return u.Host, nil
+	}
+
+	u, err := url.Parse(apiBaseURL)
+	if err != nil || u.Host == "" {
+		return "", fmt.Errorf(
+			"cannot determine the Concur web UI host for the browser fallback: base URL %q did not parse to a host; set CONCUR_UI_BASE_URL to the correct region's UI host explicitly (e.g. https://us2.concursolutions.com)",
+			apiBaseURL,
+		)
+	}
+	// Hostname() strips :port; ToLower so WWW-US2.API.… still rewrites to
+	// the UI host. Trust the original API host before www-/api. rewrite:
+	// www-concursolutions.com would otherwise become concursolutions.com.
+	h := strings.ToLower(u.Hostname())
+	if h == "" || (h != "concursolutions.com" && !strings.HasSuffix(h, ".concursolutions.com")) {
+		return "", fmt.Errorf(
+			"cannot determine the Concur web UI host for the browser fallback: base URL host %q is not a concursolutions.com domain (custom proxy or endpoint?); set CONCUR_UI_BASE_URL to the correct region's UI host explicitly (e.g. https://us2.concursolutions.com)",
+			h,
+		)
+	}
+	if strings.HasPrefix(h, "www-") {
+		h = strings.TrimPrefix(h, "www-")
+	}
+	if idx := strings.Index(h, ".api."); idx >= 0 {
+		h = h[:idx] + "." + h[idx+len(".api."):]
+	}
+	return h, nil
+}
+
+func createReportViaBrowserFallback(cmd *cobra.Command, c *client.Client, flags *rootFlags, userId, contextType, name, purpose string) (json.RawMessage, int, error) {
+	const stepTimeout = 10 * time.Second
+
+	// PATCH(amend-2026-09-04: never silently guess a region) -- flagged in
+	// PR review: the original version of this line derived a host from
+	// the API base URL and, if that didn't look like a concursolutions.com
+	// domain (a supported proxy, custom endpoint, or test harness),
+	// silently fell back to a hardcoded "us2.concursolutions.com". For a
+	// policy-gated tenant on a different region that's the WRONG Concur
+	// UI -- it can fail auth or, worse, target a different tenant's
+	// context outright. resolveReportsUIHost never guesses: it derives
+	// the host only when the base URL is actually concursolutions.com (or
+	// a subdomain), honors an explicit CONCUR_UI_BASE_URL override
+	// unconditionally, and otherwise fails loudly.
+	host, err := resolveReportsUIHost(c.RequestBaseURL())
+	if err != nil {
+		return nil, 0, err
+	}
+	reportNewURL := "https://" + host + "/nui/expense?confNum=new"
+
+	fmt.Fprintf(cmd.ErrOrStderr(), "HTTP API returned policyId is required error. Falling back to browser automation to create report...\n")
+
+	if port := refreshActiveCDPPort(); port != "" {
+		fmt.Fprintf(cmd.ErrOrStderr(), "Using dedicated Concur browser on CDP port %s (no separate login needed)\n", port)
+	}
+
+	if _, err := runAgentBrowser("open", reportNewURL); err != nil {
+		return nil, 0, err
+	}
+	time.Sleep(1500 * time.Millisecond)
+
+	refs, err := agentBrowserSnapshotRefs()
+	if err != nil {
+		return nil, 0, err
+	}
+	if _, ok := findRef(refs, "sign in", ""); ok {
+		if activeCDPPort != "" {
+			return nil, 0, fmt.Errorf("the dedicated Concur browser on CDP port %s is no longer logged in -- log in to concursolutions.com in that window again, then re-run this command", activeCDPPort)
+		}
+		return nil, 0, fmt.Errorf("not logged in to Concur in the automated browser -- log in manually in the opened Chrome window, then re-run this command (or set up a dedicated debug-enabled Chrome profile to skip this every time; see --help)")
+	}
+
+	// PATCH(amend-2026-09-04: dismiss blocking interstitial before Create
+	// Report click) -- a one-time-per-session promotional dialog (observed
+	// live: "We've updated the hotel booking experience.") can render on
+	// top of the Create Report modal on a fresh page load and intercept
+	// the Create Report click, leaving createReportViaBrowserFallback to
+	// time out in waitForReportID with the URL never having navigated.
+	// Mirror hotels_search.go's overlay-clearing step (find a plain
+	// "close" button, click it) first. Confirmed live that click alone is
+	// not always enough -- if a dialog is still present afterward, fall
+	// back to Escape, which was confirmed live to dismiss it. Escape can
+	// also close the Create Report modal underneath as collateral damage;
+	// if that happens, the waitForRef call below fails loudly with a
+	// clear "could not find the Report Name textbox" error rather than
+	// silently proceeding on a broken page state.
+	if ref, ok := findRef(refs, "close", "button"); ok {
+		_, _ = runAgentBrowser("click", "@"+ref)
+		time.Sleep(300 * time.Millisecond)
+		if refs2, err := agentBrowserSnapshotRefs(); err == nil {
+			if _, stillOpen := findRef(refs2, "close", "button"); stillOpen {
+				_, _ = runAgentBrowser("press", "Escape")
+				time.Sleep(300 * time.Millisecond)
+			}
+		}
+	}
+
+	reportNameRef, err := waitForRef("Report Name", "textbox", stepTimeout)
+	if err != nil {
+		return nil, 0, fmt.Errorf("could not find the Report Name textbox: %w", err)
+	}
+	if _, err := runAgentBrowser("fill", "@"+reportNameRef, name); err != nil {
+		return nil, 0, err
+	}
+
+	if purpose != "" {
+		purposeRef, err := waitForRef("Business Purpose", "textbox", 3*time.Second)
+		if err == nil {
+			if _, err := runAgentBrowser("fill", "@"+purposeRef, purpose); err != nil {
+				fmt.Fprintf(cmd.ErrOrStderr(), "warning: could not fill Business Purpose field: %v\n", err)
+			}
+		} else {
+			fmt.Fprintf(cmd.ErrOrStderr(), "warning: Business Purpose textbox not found, skipping: %v\n", err)
+		}
+	}
+
+	createButtonRef, err := waitForRef("Create Report", "button", stepTimeout)
+	if err != nil {
+		return nil, 0, fmt.Errorf("could not find the Create Report button: %w", err)
+	}
+	if _, err := runAgentBrowser("click", "@"+createButtonRef); err != nil {
+		return nil, 0, err
+	}
+
+	// PATCH(amend-2026-09-04: surface partial success instead of a plain
+	// error) -- flagged in PR review: the click above is a real,
+	// irreversible submission to Concur. From this point on, a report has
+	// almost certainly already been created even if something below
+	// fails. Returning a plain error here previously looked exactly like
+	// "nothing happened, safe to retry" to a caller -- but retrying
+	// reports create after this point creates a genuine duplicate report.
+	// Every error path from here on wraps in reportsCreatePartialSuccessError
+	// so the message says so explicitly, with the report ID when we have
+	// managed to determine one.
+	reportID, err := waitForReportID(30 * time.Second)
+	if err != nil {
+		return nil, 0, &reportsCreatePartialSuccessError{cause: err}
+	}
+
+	fmt.Fprintf(cmd.ErrOrStderr(), "Report created successfully via browser (ID: %s). Fetching report details...\n", reportID)
+
+	reportPath := "/expensereports/v4/users/{user_id}/context/{context_type}/reports/{report_id}"
+	reportPath = replacePathParam(reportPath, "user_id", formatCLIParamValue(userId))
+	reportPath = replacePathParam(reportPath, "context_type", formatCLIParamValue(contextType))
+	reportPath = replacePathParam(reportPath, "report_id", reportID)
+
+	raw, err := c.Get(cmd.Context(), reportPath, nil)
+	if err != nil {
+		return nil, 0, &reportsCreatePartialSuccessError{
+			reportID: reportID,
+			cause:    fmt.Errorf("fetching report details after browser fallback creation: %w", err),
+		}
+	}
+
+	return raw, 201, nil
+}
+
+// reportsCreatePartialSuccessError signals that the browser fallback's
+// irreversible Create Report click already fired -- and, per
+// waitForReportID, that Concur has already navigated to a real report --
+// before a later step (fetching the created report's details) failed.
+// The report already exists in Concur even though this call returns an
+// error. Callers (including a human re-running the command by hand) must
+// not treat this the same as an ordinary failure and blindly retry
+// reports create, or they risk creating a duplicate report. reportID is
+// always populated when this error is constructed after waitForReportID
+// succeeds; it is only absent for the narrower case of waitForReportID
+// itself timing out, where the create click fired but the resulting
+// report's ID was never determined.
+type reportsCreatePartialSuccessError struct {
+	reportID string
+	cause    error
+}
+
+func (e *reportsCreatePartialSuccessError) Error() string {
+	if e.reportID != "" {
+		return fmt.Sprintf(
+			"report %s was already created in Concur before this failure -- run 'reports get %s' to confirm, and do NOT blindly retry reports create (that would create a duplicate): %v",
+			e.reportID, e.reportID, e.cause,
+		)
+	}
+	return fmt.Sprintf(
+		"the browser fallback's Create Report click already fired before this failure, so a report may already exist in Concur even though its ID could not be determined -- check 'reports list' for an unexpected recent report before retrying reports create (retrying blindly risks creating a duplicate): %v",
+		e.cause,
+	)
+}
+
+func (e *reportsCreatePartialSuccessError) Unwrap() error { return e.cause }
+
+func waitForReportID(timeout time.Duration) (string, error) {
+	deadline := time.Now().Add(timeout)
+	reportURLRE := regexp.MustCompile(`/expense/reports/([a-zA-Z0-9-]{10,48})`)
+	for {
+		url, err := agentBrowserCurrentURL()
+		if err == nil {
+			if m := reportURLRE.FindStringSubmatch(url); m != nil {
+				return m[1], nil
+			}
+		}
+		if time.Now().After(deadline) {
+			return "", fmt.Errorf("browser did not navigate to a report page within %s (last url: %s)", timeout, url)
+		}
+		time.Sleep(1 * time.Second)
+	}
 }

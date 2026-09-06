@@ -17,45 +17,70 @@ func newWorkspacesPublicationsBySubscriptionEmailCmd(flags *rootFlags) *cobra.Co
 	cmd := &cobra.Command{
 		Use:         "publications-by-subscription-email <email>",
 		Aliases:     []string{"get"},
-		Short:       "Retrieve all publications in the workspace that have a subscription for the specified email address. The workspace...",
+		Short:       "Retrieve all publications in the workspace that have a subscription for the specified email address.",
 		Example:     "  beehiiv-pp-cli workspaces publications-by-subscription-email user@example.com",
-		Annotations: map[string]string{"pp:endpoint": "workspaces.publications-by-subscription-email", "pp:method": "GET", "pp:path": "/workspaces/publications/by_subscription_email/{email}", "mcp:read-only": "true"},
+		Annotations: map[string]string{"pp:endpoint": "workspaces.publications-by-subscription-email", "pp:no-error-path-probe": "true", "pp:method": "GET", "pp:path": "/workspaces/publications/by_subscription_email/{email}", "mcp:read-only": "true"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return cmd.Help()
+				// A missing required positional is a usage error in every output
+				// mode (matches command_promoted.go.tmpl). Machine callers
+				// (--json/--agent) also get a JSON error envelope on stdout;
+				// usageErr sets exit 2.
+				if flags.asJSON {
+					if printErr := printJSONFiltered(cmd.OutOrStdout(), map[string]any{
+						"error": "missing required argument",
+						"usage": fmt.Sprintf("%s%s", cmd.CommandPath(), " <email>"),
+					}, flags); printErr != nil {
+						return printErr
+					}
+				}
+				return usageErr(fmt.Errorf("missing required argument\nUsage: %s%s", cmd.CommandPath(), " <email>"))
 			}
+			path := "/workspaces/publications/by_subscription_email/{email}"
+			if len(args) < 1 || args[0] == "" {
+				return usageErr(fmt.Errorf("email is required\nUsage: %s <%s>", cmd.CommandPath(), "email"))
+			}
+			path = replacePathParam(path, "email", args[0])
 			c, err := flags.newClient()
 			if err != nil {
 				return err
 			}
-
-			path := "/workspaces/publications/by_subscription_email/{email}"
-			path = replacePathParam(path, "email", args[0])
-			params := map[string]string{}
 			if flagExpand != "" {
-				params["expand"] = fmt.Sprintf("%v", flagExpand)
+				path = appendArrayQueryParam(path, "expand", flagExpand, "form", true)
 			}
-			data, prov, err := resolveRead(cmd.Context(), c, flags, "workspaces", false, path, params, nil)
+			params := map[string]string{}
+			data, prov, err := resolveReadWithStrategyAndResponsePath(cmd.Context(), c, flags, "auto", "workspaces", false, path, params, nil, "", cmd.ErrOrStderr())
 			if err != nil {
-				return classifyAPIError(err, flags)
+				return classifyAPIError(cmd.OutOrStdout(), err, flags)
 			}
-			// Print provenance to stderr for human-facing output
-			{
+			outputData := data
+			// Print provenance to stderr for human-facing output only.
+			// Machine-format flags (--json, --csv, --compact, --quiet, --plain,
+			// --select) and piped stdout suppress this line; the JSON envelope
+			// already carries meta.source for those consumers.
+			// SYNC: keep this gate aligned with command_promoted.go.tmpl.
+			if wantsHumanTable(cmd.OutOrStdout(), flags) {
 				var countItems []json.RawMessage
-				_ = json.Unmarshal(data, &countItems)
+				_ = json.Unmarshal(outputData, &countItems)
 				printProvenance(cmd, len(countItems), prov)
 			}
 			// For JSON output, wrap with provenance envelope before passing through flags.
 			// --select wins over --compact when both are set; --compact only runs when
-			// no explicit fields were requested.
-			if flags.asJSON || !isTerminal(cmd.OutOrStdout()) {
+			// no explicit fields were requested. Explicit format flags (--csv, --quiet,
+			// --plain) opt out of the auto-JSON path so piped consumers that asked for
+			// a non-JSON format reach the standard pipeline below.
+			if flags.asJSON || (!isTerminal(cmd.OutOrStdout()) && !flags.csv && !flags.quiet && !flags.plain) {
 				filtered := data
 				if flags.selectFields != "" {
 					filtered = filterFields(filtered, flags.selectFields)
 				} else if flags.compact {
-					filtered = compactFields(filtered)
+					filtered = compactFields(filtered, map[string]bool{"publication": true, "publication_id": true, "publication_name": true, "status": true, "subscription": true, "subscription_id": true})
 				}
 				wrapped, wrapErr := wrapWithProvenance(filtered, prov)
+				if wrapErr != nil {
+					return wrapErr
+				}
+				wrapped, wrapErr = wrapPlatformStructuredOutput(wrapped, flags, "results", true)
 				if wrapErr != nil {
 					return wrapErr
 				}
@@ -64,7 +89,7 @@ func newWorkspacesPublicationsBySubscriptionEmailCmd(flags *rootFlags) *cobra.Co
 			// For all other output modes (table, csv, plain, quiet), use the standard pipeline
 			if wantsHumanTable(cmd.OutOrStdout(), flags) {
 				var items []map[string]any
-				if json.Unmarshal(data, &items) == nil && len(items) > 0 {
+				if json.Unmarshal(outputData, &items) == nil && len(items) > 0 {
 					if err := printAutoTable(cmd.OutOrStdout(), items); err != nil {
 						return err
 					}
@@ -74,10 +99,14 @@ func newWorkspacesPublicationsBySubscriptionEmailCmd(flags *rootFlags) *cobra.Co
 					return nil
 				}
 			}
-			return printOutputWithFlags(cmd.OutOrStdout(), data, flags)
+			formatData := data
+			if flags.csv || flags.plain {
+				formatData = outputData
+			}
+			return printOutputWithFlagsMeta(cmd.OutOrStdout(), formatData, flags, map[string]any{"source": "live"}, map[string]bool{"publication": true, "publication_id": true, "publication_name": true, "status": true, "subscription": true, "subscription_id": true})
 		},
 	}
-	cmd.Flags().StringVar(&flagExpand, "expand", "", "Optionally expand the results by adding additional information. <br>`subscription` - Returns the full Subscription...")
+	cmd.Flags().StringVar(&flagExpand, "expand", "", "Optionally expand the results by adding additional information.")
 
 	return cmd
 }

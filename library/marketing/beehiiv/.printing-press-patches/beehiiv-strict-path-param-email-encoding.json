@@ -1,0 +1,13 @@
+{
+  "schema_version": 2,
+  "id": "beehiiv-strict-path-param-email-encoding",
+  "applied_at": "2026-09-04",
+  "base_run_id": "20260904-103650-02c4577b",
+  "base_printing_press_version": "4.31.1",
+  "summary": "replacePathParam additionally encodes '+' and '@' after cliutil.EscapePathParam.",
+  "reason": "url.PathEscape leaves '+' and '@' in path segments, but beehiiv's router misreads them in by_email paths such as /subscriptions/by_email/{email}.",
+  "validated_outcome": "TestReplacePathParamEscapesReservedCharacters (carried from the prior print) passes against the strict encoder.",
+  "files": [
+    "internal/cli/helpers.go"
+  ]
+}

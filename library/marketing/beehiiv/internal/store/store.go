@@ -7,13 +7,17 @@
 package store
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -22,6 +26,20 @@ import (
 )
 
 var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+var isoDatePattern = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}(?:[T ][0-9:.+-Zz]+)?$`)
+var ftsQueryTokenRE = regexp.MustCompile(`[\pL\pN_]+`)
+
+var sqliteDriverInit struct {
+	mu   sync.Mutex
+	done bool
+}
+
+// validIdentifierRE pins ListField's `field` argument to a safe SQL
+// identifier shape before any Sprintf interpolation. Matches what
+// pragma_table_info implicitly enforces on the primary path, so the
+// fallback path inherits the same defense without depending on whether
+// the parent's typed domain table exists at the moment of the lookup.
+var validIdentifierRE = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 
 // IsUUID returns true if the input looks like a UUID.
 func IsUUID(s string) bool {
@@ -30,11 +48,26 @@ func IsUUID(s string) bool {
 
 // StoreSchemaVersion is the on-disk schema version this binary understands.
 // It is stamped into SQLite's PRAGMA user_version on fresh databases and
-// checked on every open. Bump this whenever a migration changes table
-// shape — adding columns, dropping indexes, changing FTS5 tokenizers —
-// so an older binary refuses to open a newer database rather than silently
-// producing wrong results against a schema it cannot read.
-const StoreSchemaVersion = 1
+// checked on every open. Learn-enabled CLIs advance to v9 for the
+// learn_candidates and learn_events tables (CLI-side capture and
+// measurement), on top of the v8 learning_playbooks table for
+// hand-authored choreography keyed by query family and the v6 canonical
+// learn-loop tables ported from prediction-goat (including the v3
+// resources_fts rowid rehash and v4 resources_fts content extraction).
+const StoreSchemaVersion = 9
+
+// resourcesFTSContentSchemaVersion pins the schema bump that rewrote
+// resources_fts content from raw JSON to searchable leaf values. Keep this
+// separate from StoreSchemaVersion — and pinned at 4 regardless of the
+// learn shape — so schema bumps that only add tables (the learn
+// migrations) never trigger an expensive full FTS content rewrite. A
+// store stamped at v4 or later already carries the extracted-leaf FTS
+// content; opening it with a newer binary must stay additive-only.
+const resourcesFTSContentSchemaVersion = 4
+
+const resourcesFTSCreateSQL = `CREATE VIRTUAL TABLE IF NOT EXISTS resources_fts USING fts5(
+	id, resource_type, content, tokenize='porter unicode61'
+)`
 
 type Store struct {
 	db *sql.DB
@@ -67,8 +100,29 @@ func Open(dbPath string) (*Store, error) {
 // mattn/go-sqlite3 _journal_mode=WAL / _busy_timeout=5000 form and drops
 // those keys silently, so the busy_timeout below is what keeps a read
 // concurrent with a writer from failing immediately with SQLITE_BUSY.
+//
+// Deliberately no journal_mode pragma here: journal mode is a property of
+// the database file, set by the read-write open, not the connection. Issuing
+// PRAGMA journal_mode=WAL on a read-only handle to a DB still in the default
+// delete mode (e.g. a pre-WAL database opened by an old binary before its
+// first read-write open) errors with "attempt to write a readonly database".
+//
+// OpenReadOnly uses context.Background(); callers holding a context should use
+// OpenReadOnlyContext so a cancelled command (SIGINT, deadline) interrupts the
+// SQLITE_BUSY retry during driver init instead of waiting out the full timeout.
 func OpenReadOnly(dbPath string) (*Store, error) {
-	db, err := sql.Open("sqlite", "file:"+dbPath+"?mode=ro&_pragma=busy_timeout(5000)&_pragma=foreign_keys(ON)&_pragma=temp_store(MEMORY)&_pragma=mmap_size(268435456)")
+	return OpenReadOnlyContext(context.Background(), dbPath)
+}
+
+// OpenReadOnlyContext is OpenReadOnly with a caller-supplied context honored by
+// the driver-init SQLITE_BUSY retry.
+func OpenReadOnlyContext(ctx context.Context, dbPath string) (*Store, error) {
+	dsn := "file:" + dbPath + "?mode=ro&_pragma=busy_timeout(5000)&_pragma=foreign_keys(ON)&_pragma=temp_store(MEMORY)&_pragma=mmap_size(0)"
+	if err := ensureSQLiteDriverInitialized(ctx, dsn); err != nil {
+		return nil, err
+	}
+
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("opening database (read-only): %w", err)
 	}
@@ -81,27 +135,166 @@ func OpenReadOnly(dbPath string) (*Store, error) {
 // retry-on-SQLITE_BUSY loop and propagates ctx.Err() back to the caller
 // instead of waiting out the full migrationLockTimeout.
 func OpenWithContext(ctx context.Context, dbPath string) (*Store, error) {
-	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dbPath), 0o700); err != nil {
 		return nil, fmt.Errorf("creating db directory: %w", err)
 	}
+	hardenSQLiteFiles(dbPath)
+	defer hardenSQLiteFiles(dbPath)
+	if err := rejectNewerSchemaBeforeJournalMode(ctx, dbPath); err != nil {
+		return nil, err
+	}
 
-	db, err := sql.Open("sqlite", dbPath+"?_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(ON)&_pragma=temp_store(MEMORY)&_pragma=mmap_size(268435456)")
+	// Pragma order is load-bearing: busy_timeout must engage BEFORE the
+	// journal-mode conversion so concurrent first-run opens wait instead of
+	// racing the exclusive conversion. Cache-enabled profiles write local
+	// state during reads, so they use a rollback journal and avoid WAL sidecar
+	// teardown races between short-lived processes. Other store profiles keep
+	// WAL for concurrent analytical reads.
+	dsn := dbPath + "?_txlock=immediate&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=foreign_keys(ON)&_pragma=temp_store(MEMORY)&_pragma=mmap_size(0)"
+	if err := ensureSQLiteDriverInitialized(ctx, dsn); err != nil {
+		return nil, err
+	}
+
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("opening database: %w", err)
 	}
 
-	// WAL mode + 2 connections allows one read cursor open while a second
-	// query executes (e.g., analytics commands calling helpers during row
-	// iteration). Writes are still serialized by SQLite's WAL lock.
+	// Two connections allow one read cursor to remain open while a second query
+	// executes (e.g., analytics commands calling helpers during row iteration).
 	db.SetMaxOpenConns(2)
 
 	s := &Store{db: db, path: dbPath}
 	if err := s.migrate(ctx); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("running migrations: %w", err)
 	}
 
 	return s, nil
+}
+
+// A newer schema must be rejected before a read-write connection can attempt
+// journal-mode conversion. This lightweight read-only probe can read a
+// committed PRAGMA user_version while a peer writer is active; other probe
+// errors remain with the normal open/migration path, which returns the more
+// precise corruption, permission, or lock error.
+func rejectNewerSchemaBeforeJournalMode(ctx context.Context, dbPath string) error {
+	info, err := os.Stat(dbPath)
+	if os.IsNotExist(err) || (err == nil && info.Size() == 0) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("stating database for schema preflight: %w", err)
+	}
+	probe, err := sql.Open("sqlite", "file:"+filepath.ToSlash(dbPath)+"?mode=ro&_pragma=busy_timeout(1000)")
+	if err != nil {
+		return nil
+	}
+	defer probe.Close()
+	probe.SetMaxOpenConns(1)
+
+	var current int
+	if err := probe.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&current); err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		return nil
+	}
+	if current > StoreSchemaVersion {
+		return fmt.Errorf("database schema version %d is newer than supported version %d; upgrade the CLI binary or open an older database", current, StoreSchemaVersion)
+	}
+	return nil
+}
+
+// hardenSQLiteFiles is best-effort so stores on filesystems without Unix modes
+// remain usable. The deferred call catches files the SQLite driver creates.
+func hardenSQLiteFiles(dbPath string) {
+	for _, path := range []string{dbPath, dbPath + "-journal", dbPath + "-wal", dbPath + "-shm"} {
+		info, err := os.Lstat(path)
+		if err != nil || !info.Mode().IsRegular() {
+			continue
+		}
+
+		file, err := os.Open(path)
+		if err != nil {
+			continue
+		}
+		openInfo, statErr := file.Stat()
+		pathInfo, lstatErr := os.Lstat(path)
+		if statErr == nil && lstatErr == nil && pathInfo.Mode().IsRegular() && os.SameFile(openInfo, pathInfo) {
+			_ = file.Chmod(0o600)
+		}
+		_ = file.Close()
+	}
+}
+
+// ensureSQLiteJournalPrivate creates the cache-profile rollback journal before
+// SQLite starts a write transaction, so its mode is private for the whole
+// transaction rather than only after the journal has been created.
+func ensureSQLiteJournalPrivate(dbPath string) {
+	journalPath := dbPath + "-journal"
+	file, err := os.OpenFile(journalPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err == nil {
+		_ = file.Close()
+		return
+	}
+	if os.IsExist(err) {
+		hardenSQLiteFiles(dbPath)
+	}
+}
+
+// lockForWrite and unlockAfterWrite keep SQLite sidecars private across the
+// lifetime of every serialized writer. TRUNCATE journaling reuses its journal
+// file and can restore its mode when a later transaction starts, after the
+// one-time OpenWithContext hardening has already run.
+func (s *Store) lockForWrite() {
+	s.writeMu.Lock()
+	hardenSQLiteFiles(s.path)
+}
+
+func (s *Store) unlockAfterWrite() {
+	hardenSQLiteFiles(s.path)
+	s.writeMu.Unlock()
+}
+
+func ensureSQLiteDriverInitialized(ctx context.Context, dsn string) error {
+	sqliteDriverInit.mu.Lock()
+	defer sqliteDriverInit.mu.Unlock()
+
+	if sqliteDriverInit.done {
+		return nil
+	}
+
+	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		return fmt.Errorf("opening database for driver initialization: %w", err)
+	}
+	defer db.Close()
+
+	// Acquiring the first physical connection runs the DSN _pragma directives,
+	// including the journal-mode conversion for a read-write DSN. On a
+	// fresh DB opened concurrently — e.g. the scorecard live-check probing
+	// sampled commands in parallel — that conversion can return SQLITE_BUSY
+	// before the DSN's busy_timeout engages, so retry the acquisition against a
+	// bounded deadline. SQLITE_BUSY here is always transient.
+	deadline := time.Now().Add(migrationLockTimeout)
+	var conn *sql.Conn
+	if err := retryOnBusy(ctx, deadline, "initializing sqlite driver", func() error {
+		c, err := db.Conn(ctx)
+		if err != nil {
+			return err
+		}
+		conn = c
+		return nil
+	}); err != nil {
+		return err
+	}
+	if err := conn.Close(); err != nil {
+		return fmt.Errorf("closing sqlite initialization connection: %w", err)
+	}
+
+	sqliteDriverInit.done = true
+	return nil
 }
 
 func (s *Store) Close() error {
@@ -221,9 +414,7 @@ func (s *Store) backfillColumns(ctx context.Context, conn *sql.Conn) error {
 		{table: "automations", column: "status", decl: "TEXT"},
 		{table: "automations", column: "parent_id", decl: "TEXT"},
 		{table: "emails", column: "automations_id", decl: "TEXT"},
-		{table: "emails", column: "parent_id", decl: "TEXT"},
 		{table: "journeys", column: "automations_id", decl: "TEXT"},
-		{table: "journeys", column: "parent_id", decl: "TEXT"},
 		{table: "bulk_subscription_updates", column: "completed", decl: "INTEGER"},
 		{table: "bulk_subscription_updates", column: "created", decl: "INTEGER"},
 		{table: "bulk_subscription_updates", column: "failure_reason", decl: "TEXT"},
@@ -234,6 +425,11 @@ func (s *Store) backfillColumns(ctx context.Context, conn *sql.Conn) error {
 		{table: "bulk_subscription_updates", column: "updated", decl: "INTEGER"},
 		{table: "bulk_subscriptions", column: "import_id", decl: "TEXT"},
 		{table: "bulk_subscriptions", column: "message", decl: "TEXT"},
+		{table: "complimentary_access", column: "description", decl: "TEXT"},
+		{table: "complimentary_access", column: "duration", decl: "INTEGER"},
+		{table: "complimentary_access", column: "tier_id", decl: "TEXT"},
+		{table: "complimentary_access", column: "time_unit", decl: "TEXT"},
+		{table: "complimentary_access", column: "parent_id", decl: "TEXT"},
 		{table: "condition_sets", column: "created", decl: "INTEGER"},
 		{table: "condition_sets", column: "name", decl: "TEXT"},
 		{table: "condition_sets", column: "purpose", decl: "TEXT"},
@@ -263,6 +459,16 @@ func (s *Store) backfillColumns(ctx context.Context, conn *sql.Conn) error {
 		{table: "engagements", column: "unique_clicks", decl: "INTEGER"},
 		{table: "engagements", column: "unique_opens", decl: "INTEGER"},
 		{table: "engagements", column: "unique_verified_clicks", decl: "INTEGER"},
+		{table: "exports", column: "completed", decl: "INTEGER"},
+		{table: "exports", column: "created", decl: "INTEGER"},
+		{table: "exports", column: "download_url", decl: "TEXT"},
+		{table: "exports", column: "failure_reason", decl: "TEXT"},
+		{table: "exports", column: "publication_id", decl: "TEXT"},
+		{table: "exports", column: "segment_id", decl: "TEXT"},
+		{table: "exports", column: "status", decl: "TEXT"},
+		{table: "exports", column: "updated", decl: "INTEGER"},
+		{table: "exports", column: "variant", decl: "TEXT"},
+		{table: "exports", column: "parent_id", decl: "TEXT"},
 		{table: "newsletter_lists", column: "auto_subscribe", decl: "INTEGER"},
 		{table: "newsletter_lists", column: "created_at", decl: "INTEGER"},
 		{table: "newsletter_lists", column: "description", decl: "TEXT"},
@@ -274,6 +480,20 @@ func (s *Store) backfillColumns(ctx context.Context, conn *sql.Conn) error {
 		{table: "newsletter_lists", column: "parent_id", decl: "TEXT"},
 		{table: "newsletter_lists_subscriptions", column: "newsletter_lists_id", decl: "TEXT"},
 		{table: "newsletter_lists_subscriptions", column: "parent_id", decl: "TEXT"},
+		{table: "podcasts", column: "artwork_url", decl: "TEXT"},
+		{table: "podcasts", column: "author", decl: "TEXT"},
+		{table: "podcasts", column: "copyright", decl: "TEXT"},
+		{table: "podcasts", column: "created", decl: "INTEGER"},
+		{table: "podcasts", column: "description", decl: "TEXT"},
+		{table: "podcasts", column: "imported", decl: "INTEGER"},
+		{table: "podcasts", column: "language", decl: "TEXT"},
+		{table: "podcasts", column: "slug", decl: "TEXT"},
+		{table: "podcasts", column: "status", decl: "TEXT"},
+		{table: "podcasts", column: "title", decl: "TEXT"},
+		{table: "podcasts", column: "type", decl: "TEXT"},
+		{table: "podcasts", column: "parent_id", decl: "TEXT"},
+		{table: "episodes", column: "podcasts_id", decl: "TEXT"},
+		{table: "private_feeds", column: "podcasts_id", decl: "TEXT"},
 		{table: "polls", column: "created_at", decl: "INTEGER"},
 		{table: "polls", column: "description", decl: "TEXT"},
 		{table: "polls", column: "name", decl: "TEXT"},
@@ -284,7 +504,6 @@ func (s *Store) backfillColumns(ctx context.Context, conn *sql.Conn) error {
 		{table: "polls", column: "trivia_answer", decl: "TEXT"},
 		{table: "polls", column: "parent_id", decl: "TEXT"},
 		{table: "responses", column: "polls_id", decl: "TEXT"},
-		{table: "responses", column: "parent_id", decl: "TEXT"},
 		{table: "post_templates", column: "name", decl: "TEXT"},
 		{table: "post_templates", column: "parent_id", decl: "TEXT"},
 		{table: "posts", column: "audience", decl: "TEXT"},
@@ -308,6 +527,8 @@ func (s *Store) backfillColumns(ctx context.Context, conn *sql.Conn) error {
 		{table: "posts", column: "title", decl: "TEXT"},
 		{table: "posts", column: "web_url", decl: "TEXT"},
 		{table: "posts", column: "parent_id", decl: "TEXT"},
+		{table: "preview", column: "posts_id", decl: "TEXT"},
+		{table: "test_sends", column: "posts_id", decl: "TEXT"},
 		{table: "publications", column: "created", decl: "REAL"},
 		{table: "publications", column: "name", decl: "TEXT"},
 		{table: "publications", column: "organization_name", decl: "TEXT"},
@@ -321,10 +542,8 @@ func (s *Store) backfillColumns(ctx context.Context, conn *sql.Conn) error {
 		{table: "segments", column: "type", decl: "TEXT"},
 		{table: "segments", column: "parent_id", decl: "TEXT"},
 		{table: "members", column: "segments_id", decl: "TEXT"},
-		{table: "members", column: "parent_id", decl: "TEXT"},
 		{table: "recalculate", column: "segments_id", decl: "TEXT"},
 		{table: "results", column: "segments_id", decl: "TEXT"},
-		{table: "results", column: "parent_id", decl: "TEXT"},
 		{table: "subscriptions", column: "created", decl: "INTEGER"},
 		{table: "subscriptions", column: "email", decl: "TEXT"},
 		{table: "subscriptions", column: "referral_code", decl: "TEXT"},
@@ -365,9 +584,23 @@ func (s *Store) backfillColumns(ctx context.Context, conn *sql.Conn) error {
 }
 
 func (s *Store) migrate(ctx context.Context) error {
-	conn, err := s.db.Conn(ctx)
-	if err != nil {
-		return fmt.Errorf("acquiring migration connection: %w", err)
+	// Acquiring the migration connection establishes a physical SQLite
+	// connection, which runs the DSN _pragma directives — including the
+	// journal_mode(WAL) conversion. On a fresh DB opened by several
+	// processes at once, that conversion briefly needs an exclusive lock
+	// and can return SQLITE_BUSY before any statement-level busy handler
+	// applies, so retry the acquisition against the shared deadline.
+	deadline := time.Now().Add(migrationLockTimeout)
+	var conn *sql.Conn
+	if err := retryOnBusy(ctx, deadline, "acquiring migration connection", func() error {
+		c, err := s.db.Conn(ctx)
+		if err != nil {
+			return err
+		}
+		conn = c
+		return nil
+	}); err != nil {
+		return err
 	}
 	defer conn.Close()
 
@@ -375,7 +608,6 @@ func (s *Store) migrate(ctx context.Context) error {
 	// opening a newer-schema DB rejects immediately. WAL readers don't
 	// normally block on writers, but the fresh-DB WAL-init race can BUSY
 	// a SELECT — share the lock's deadline so total budget stays bounded.
-	deadline := time.Now().Add(migrationLockTimeout)
 	var current int
 	if err := retryOnBusy(ctx, deadline, "reading schema version", func() error {
 		return conn.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&current)
@@ -388,11 +620,12 @@ func (s *Store) migrate(ctx context.Context) error {
 
 	migrations := []string{
 		`CREATE TABLE IF NOT EXISTS resources (
-			id TEXT PRIMARY KEY,
+			id TEXT NOT NULL,
 			resource_type TEXT NOT NULL,
 			data JSON NOT NULL,
 			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (resource_type, id)
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_resources_type ON resources(resource_type)`,
 		`CREATE INDEX IF NOT EXISTS idx_resources_synced ON resources(synced_at)`,
@@ -402,428 +635,662 @@ func (s *Store) migrate(ctx context.Context) error {
 			last_synced_at DATETIME,
 			total_count INTEGER DEFAULT 0
 		)`,
-		`CREATE VIRTUAL TABLE IF NOT EXISTS resources_fts USING fts5(
-			id, resource_type, content, tokenize='porter unicode61'
+		resourcesFTSCreateSQL,
+		// CLI Printing Press: learn migrations
+		//
+		// search_learnings: LLM-driven per-query reranking. Populated by
+		// the `teach` command (silent, backgrounded by the LLM after a
+		// successful response) and read by the rerank layer to
+		// boost/hide/alias hits on subsequent queries. See learnings.go
+		// for the full semantics. Per-user table; stays small.
+		//
+		// query_entities: JSON array of case-preserving entity tokens
+		// extracted from query_pattern at teach time. Used by the recall
+		// match validator to reject cross-entity matches that would
+		// otherwise score high on non-entity Jaccard.
+		`CREATE TABLE IF NOT EXISTS search_learnings (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			query_pattern TEXT NOT NULL,
+			query_entities TEXT,
+			venue TEXT,
+			resource_type TEXT,
+			resource_id TEXT NOT NULL,
+			action TEXT NOT NULL,
+			alias_target TEXT,
+			source TEXT NOT NULL,
+			confidence INTEGER DEFAULT 1,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			last_observed_at DATETIME,
+			notes TEXT
 		)`,
-		`CREATE TABLE IF NOT EXISTS advertisement_opportunities (
-			id TEXT PRIMARY KEY,
-			data JSON NOT NULL,
-			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			advertisement_kind TEXT,
-			advertiser_name TEXT,
-			payout_rate TEXT,
-			send_by_window_end_at INTEGER,
-			send_by_window_start_at INTEGER
+		`CREATE INDEX IF NOT EXISTS idx_learn_query ON search_learnings(query_pattern)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_learn_unique ON search_learnings(query_pattern, resource_id, action)`,
+		// entity_lookups: canonical-to-value reference data for the
+		// pattern substitution engine in internal/learn/patterns. Seeded
+		// at migration time by the consumer (e.g., a CLI may register
+		// country codes, sports team abbreviations, etc.); per-user
+		// additions land via the `teach-lookup` CLI command with
+		// source='taught'. PK is the (kind, canonical, value) triple so
+		// multiple aliases under the same kind coexist without
+		// collision.
+		`CREATE TABLE IF NOT EXISTS entity_lookups (
+			kind TEXT NOT NULL,
+			canonical TEXT NOT NULL,
+			value TEXT NOT NULL,
+			source TEXT NOT NULL DEFAULT 'seeded',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (kind, canonical, value)
 		)`,
-		`CREATE TABLE IF NOT EXISTS authors (
-			id TEXT PRIMARY KEY,
-			data JSON NOT NULL,
-			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			bio TEXT,
-			bio_image_url TEXT,
-			name TEXT,
-			type TEXT,
-			parent_id TEXT
+		`CREATE INDEX IF NOT EXISTS idx_entity_lookup_canonical ON entity_lookups(canonical)`,
+		`CREATE INDEX IF NOT EXISTS idx_entity_lookup_kind ON entity_lookups(kind)`,
+		// search_patterns: inferred and taught templates for the
+		// generalization layer in internal/learn/patterns. Each row
+		// encodes a query_template with one {entity[:kind]} slot and a
+		// resource_template that names how the entity substitutes into
+		// the resource ID. Extract() writes "inferred" rows whenever
+		// two or more search_learnings rows share a structural shape;
+		// the teach-pattern CLI command writes "taught" rows directly
+		// for explicit template authorship.
+		//
+		// Idempotency leans on idx_patterns_unique: a re-Extract pass
+		// over the same source learnings re-asserts the same
+		// (query_template, resource_template, strategy) triple, which
+		// bumps confidence and refreshes last_observed_at on the
+		// existing row rather than spawning a duplicate.
+		`CREATE TABLE IF NOT EXISTS search_patterns (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			query_template TEXT NOT NULL,
+			resource_template TEXT NOT NULL,
+			resource_type TEXT NOT NULL,
+			venue TEXT,
+			strategy TEXT NOT NULL,
+			entity_kind TEXT NOT NULL,
+			confidence INTEGER NOT NULL DEFAULT 2,
+			source TEXT NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			last_observed_at DATETIME,
+			example_query TEXT,
+			example_resource TEXT
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_authors_parent_id ON authors(parent_id)`,
-		`CREATE TABLE IF NOT EXISTS automations (
-			id TEXT PRIMARY KEY,
-			data JSON NOT NULL,
-			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			description TEXT,
-			name TEXT,
-			status TEXT,
-			parent_id TEXT
+		`CREATE INDEX IF NOT EXISTS idx_patterns_query_template ON search_patterns(query_template)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_patterns_unique ON search_patterns(query_template, resource_template, strategy)`,
+		// learning_playbooks (v7): hand-authored playbook primitive
+		// keyed on the structural query family (all entities stripped;
+		// see learn.QueryFamily). One row per family holds the optional
+		// structured playbook (ordered CLI command sequence with entity
+		// slots) and the optional free-text notes (gotchas, workarounds
+		// the CLI surface doesn't expose). Either field may be empty;
+		// non-empty in both is the strongest signal.
+		//
+		// Read at recall time by query_family; surfaces to the agent
+		// alongside the existing per-resource hits so a future inquiry
+		// of the same shape can skip rediscovery of the choreography.
+		//
+		// Distinct concept from search_patterns (which auto-extracts
+		// generalization templates from search_learnings); playbooks
+		// are hand-authored choreography + notes attached by family.
+		`CREATE TABLE IF NOT EXISTS learning_playbooks (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			query_family TEXT NOT NULL UNIQUE,
+			playbook_json TEXT,
+			notes_text TEXT,
+			source TEXT NOT NULL DEFAULT 'taught',
+			confidence INTEGER NOT NULL DEFAULT 2,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			last_observed_at TIMESTAMP
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_automations_parent_id ON automations(parent_id)`,
-		`CREATE VIRTUAL TABLE IF NOT EXISTS automations_fts USING fts5(
-			description,
-			name,
+		// query_family already carries a column-level UNIQUE constraint
+		// (SQLite auto-creates the backing index), so no separate
+		// CREATE UNIQUE INDEX is needed -- a second named unique index
+		// would just double the write cost on every upsert.
+		`CREATE INDEX IF NOT EXISTS idx_playbooks_source ON learning_playbooks(source)`,
+		`CREATE INDEX IF NOT EXISTS idx_playbooks_last_observed_at ON learning_playbooks(last_observed_at)`,
+		// learn_candidates (v9): CLI-derived improvement candidates
+		// awaiting explicit agent judgment. Rows are written by the
+		// post-run derivation pass (flag corrections, repeated
+		// discovery shapes) and surfaced read-only in the recall
+		// envelope. Candidates are structurally quarantined: they
+		// never become search_learnings rows and sightings never
+		// grant skip authority — only an explicit confirm promotes
+		// the payload. derivation_signature dedupes re-derivations of
+		// the same observation into a sightings bump instead of a
+		// duplicate row.
+		`CREATE TABLE IF NOT EXISTS learn_candidates (
+			id INTEGER PRIMARY KEY,
+			class TEXT NOT NULL CHECK(class IN ('flag_alias','playbook_candidate')),
+			payload TEXT NOT NULL,
+			derivation_signature TEXT NOT NULL UNIQUE,
+			sightings INTEGER NOT NULL DEFAULT 1,
+			status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','confirmed','rejected','expired')),
+			query_family TEXT,
+			command_path TEXT,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL,
+			last_seen_at TEXT NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_learn_candidates_status ON learn_candidates(status)`,
+		`CREATE INDEX IF NOT EXISTS idx_learn_candidates_family ON learn_candidates(query_family)`,
+		// learn_events (v9): capped, best-effort telemetry for the
+		// learn loop's measurement layer. recall logs hit/miss with
+		// the matched row id so teach-to-reuse joins by row id (family
+		// hash as fallback); `learnings stats` aggregates over it.
+		// Inserts are telemetry-class — they never fail the command
+		// and never hold writeMu across a recall match.
+		`CREATE TABLE IF NOT EXISTS learn_events (
+			id INTEGER PRIMARY KEY,
+			ts TEXT NOT NULL,
+			event TEXT NOT NULL CHECK(event IN ('recall_hit','recall_miss','recall_playbook_hit','teach','teach_playbook','amend','forget','candidate_confirmed','candidate_rejected')),
+			query_family_hash TEXT,
+			matched_row_id INTEGER,
+			entity_match INTEGER,
+			surface TEXT CHECK(surface IN ('cli','mcp'))
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_learn_events_event_ts ON learn_events(event, ts)`,
+		`CREATE TABLE IF NOT EXISTS "advertisement_opportunities" (
+			"id" TEXT PRIMARY KEY,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+			"advertisement_kind" TEXT,
+			"advertiser_name" TEXT,
+			"payout_rate" TEXT,
+			"send_by_window_end_at" INTEGER,
+			"send_by_window_start_at" INTEGER
+		)`,
+		`CREATE TABLE IF NOT EXISTS "authors" (
+			"id" TEXT PRIMARY KEY,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+			"bio" TEXT,
+			"bio_image_url" TEXT,
+			"name" TEXT,
+			"type" TEXT,
+			"parent_id" TEXT
+		)`,
+		`CREATE INDEX IF NOT EXISTS "idx_authors_parent_id" ON "authors"("parent_id")`,
+		`CREATE TABLE IF NOT EXISTS "automations" (
+			"id" TEXT PRIMARY KEY,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+			"description" TEXT,
+			"name" TEXT,
+			"status" TEXT,
+			"parent_id" TEXT
+		)`,
+		`CREATE INDEX IF NOT EXISTS "idx_automations_parent_id" ON "automations"("parent_id")`,
+		`CREATE VIRTUAL TABLE IF NOT EXISTS "automations_fts" USING fts5(
+			"description",
+			"name",
 			content='automations',
 			content_rowid='rowid'
 		)`,
-		`CREATE TRIGGER IF NOT EXISTS automations_ai AFTER INSERT ON automations BEGIN
-			INSERT INTO automations_fts(rowid, description, name)
-			VALUES (new.rowid,new.description, new.name);
+		`CREATE TRIGGER IF NOT EXISTS "automations_ai" AFTER INSERT ON "automations" BEGIN
+			INSERT INTO "automations_fts"(rowid, "description", "name")
+			VALUES (new.rowid,new."description", new."name");
 		END`,
-		`CREATE TRIGGER IF NOT EXISTS automations_ad AFTER DELETE ON automations BEGIN
-			INSERT INTO automations_fts(automations_fts, rowid, description, name)
-			VALUES ('delete', old.rowid,old.description, old.name);
+		`CREATE TRIGGER IF NOT EXISTS "automations_ad" AFTER DELETE ON "automations" BEGIN
+			INSERT INTO "automations_fts"("automations_fts", rowid, "description", "name")
+			VALUES ('delete', old.rowid,old."description", old."name");
 		END`,
-		`CREATE TRIGGER IF NOT EXISTS automations_au AFTER UPDATE ON automations BEGIN
-			INSERT INTO automations_fts(automations_fts, rowid, description, name)
-			VALUES ('delete', old.rowid,old.description, old.name);
-			INSERT INTO automations_fts(rowid, description, name)
-			VALUES (new.rowid,new.description, new.name);
+		`CREATE TRIGGER IF NOT EXISTS "automations_au" AFTER UPDATE ON "automations" BEGIN
+			INSERT INTO "automations_fts"("automations_fts", rowid, "description", "name")
+			VALUES ('delete', old.rowid,old."description", old."name");
+			INSERT INTO "automations_fts"(rowid, "description", "name")
+			VALUES (new.rowid,new."description", new."name");
 		END`,
-		`CREATE TABLE IF NOT EXISTS emails (
-			id TEXT PRIMARY KEY,
-			automations_id TEXT NOT NULL,
-			data JSON NOT NULL,
-			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			parent_id TEXT
+		`CREATE TABLE IF NOT EXISTS "emails" (
+			"id" TEXT PRIMARY KEY,
+			"automations_id" TEXT NOT NULL,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_emails_automations_id ON emails(automations_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_emails_parent_id ON emails(parent_id)`,
-		`CREATE TABLE IF NOT EXISTS journeys (
-			id TEXT PRIMARY KEY,
-			automations_id TEXT NOT NULL,
-			data JSON NOT NULL,
-			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			parent_id TEXT
+		`CREATE INDEX IF NOT EXISTS "idx_emails_automations_id" ON "emails"("automations_id")`,
+		`CREATE TABLE IF NOT EXISTS "journeys" (
+			"id" TEXT PRIMARY KEY,
+			"automations_id" TEXT NOT NULL,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_journeys_automations_id ON journeys(automations_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_journeys_parent_id ON journeys(parent_id)`,
-		`CREATE TABLE IF NOT EXISTS bulk_subscription_updates (
-			id TEXT PRIMARY KEY,
-			data JSON NOT NULL,
-			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			completed INTEGER,
-			created INTEGER,
-			failure_reason TEXT,
-			params TEXT,
-			publication_id TEXT,
-			status TEXT,
-			type TEXT,
-			updated INTEGER
+		`CREATE INDEX IF NOT EXISTS "idx_journeys_automations_id" ON "journeys"("automations_id")`,
+		`CREATE TABLE IF NOT EXISTS "bulk_subscription_updates" (
+			"id" TEXT PRIMARY KEY,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+			"completed" INTEGER,
+			"created" INTEGER,
+			"failure_reason" TEXT,
+			"params" TEXT,
+			"publication_id" TEXT,
+			"status" TEXT,
+			"type" TEXT,
+			"updated" INTEGER
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_bulk_subscription_updates_publication_id ON bulk_subscription_updates(publication_id)`,
-		`CREATE TABLE IF NOT EXISTS bulk_subscriptions (
-			id TEXT PRIMARY KEY,
-			data JSON NOT NULL,
-			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			import_id TEXT,
-			message TEXT
+		`CREATE INDEX IF NOT EXISTS "idx_bulk_subscription_updates_publication_id" ON "bulk_subscription_updates"("publication_id")`,
+		`CREATE TABLE IF NOT EXISTS "bulk_subscriptions" (
+			"id" TEXT PRIMARY KEY,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+			"import_id" TEXT,
+			"message" TEXT
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_bulk_subscriptions_import_id ON bulk_subscriptions(import_id)`,
-		`CREATE TABLE IF NOT EXISTS condition_sets (
-			id TEXT PRIMARY KEY,
-			data JSON NOT NULL,
-			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			created INTEGER,
-			name TEXT,
-			purpose TEXT,
-			status TEXT,
-			updated INTEGER,
-			parent_id TEXT
+		`CREATE INDEX IF NOT EXISTS "idx_bulk_subscriptions_import_id" ON "bulk_subscriptions"("import_id")`,
+		`CREATE TABLE IF NOT EXISTS "complimentary_access" (
+			"id" TEXT PRIMARY KEY,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+			"description" TEXT,
+			"duration" INTEGER,
+			"tier_id" TEXT,
+			"time_unit" TEXT,
+			"parent_id" TEXT
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_condition_sets_parent_id ON condition_sets(parent_id)`,
-		`CREATE TABLE IF NOT EXISTS custom_fields (
-			id TEXT PRIMARY KEY,
-			data JSON NOT NULL,
-			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			created INTEGER,
-			display TEXT,
-			kind TEXT
+		`CREATE INDEX IF NOT EXISTS "idx_complimentary_access_tier_id" ON "complimentary_access"("tier_id")`,
+		`CREATE INDEX IF NOT EXISTS "idx_complimentary_access_parent_id" ON "complimentary_access"("parent_id")`,
+		`CREATE TABLE IF NOT EXISTS "condition_sets" (
+			"id" TEXT PRIMARY KEY,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+			"created" INTEGER,
+			"name" TEXT,
+			"purpose" TEXT,
+			"status" TEXT,
+			"updated" INTEGER,
+			"parent_id" TEXT
 		)`,
-		`CREATE TABLE IF NOT EXISTS data_privacy (
-			id TEXT PRIMARY KEY,
-			data JSON NOT NULL,
-			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			completed_at TEXT,
-			created_at TEXT,
-			email TEXT,
-			requested_at TEXT,
-			scheduled_for_processing_at TEXT,
-			source TEXT,
-			status TEXT
+		`CREATE INDEX IF NOT EXISTS "idx_condition_sets_parent_id" ON "condition_sets"("parent_id")`,
+		`CREATE TABLE IF NOT EXISTS "custom_fields" (
+			"id" TEXT PRIMARY KEY,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+			"created" INTEGER,
+			"display" TEXT,
+			"kind" TEXT
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_data_privacy_created_at ON data_privacy(created_at)`,
-		`CREATE TABLE IF NOT EXISTS email_blasts (
-			id TEXT PRIMARY KEY,
-			data JSON NOT NULL,
-			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			created INTEGER,
-			last_sent INTEGER,
-			preview_text TEXT,
-			status TEXT,
-			subject_line TEXT,
-			parent_id TEXT
+		`CREATE TABLE IF NOT EXISTS "data_privacy" (
+			"id" TEXT PRIMARY KEY,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+			"completed_at" TEXT,
+			"created_at" TEXT,
+			"email" TEXT,
+			"requested_at" TEXT,
+			"scheduled_for_processing_at" TEXT,
+			"source" TEXT,
+			"status" TEXT
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_email_blasts_parent_id ON email_blasts(parent_id)`,
-		`CREATE TABLE IF NOT EXISTS engagements (
-			id TEXT PRIMARY KEY,
-			data JSON NOT NULL,
-			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			date DATETIME,
-			total_clicks INTEGER,
-			total_opens INTEGER,
-			total_verified_clicks INTEGER,
-			unique_clicks INTEGER,
-			unique_opens INTEGER,
-			unique_verified_clicks INTEGER
+		`CREATE INDEX IF NOT EXISTS "idx_data_privacy_created_at" ON "data_privacy"("created_at")`,
+		`CREATE TABLE IF NOT EXISTS "email_blasts" (
+			"id" TEXT PRIMARY KEY,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+			"created" INTEGER,
+			"last_sent" INTEGER,
+			"preview_text" TEXT,
+			"status" TEXT,
+			"subject_line" TEXT,
+			"parent_id" TEXT
 		)`,
-		`CREATE TABLE IF NOT EXISTS newsletter_lists (
-			id TEXT PRIMARY KEY,
-			data JSON NOT NULL,
-			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			auto_subscribe INTEGER,
-			created_at INTEGER,
-			description TEXT,
-			name TEXT,
-			slug TEXT,
-			status TEXT,
-			subscriber_count INTEGER,
-			updated_at INTEGER,
-			parent_id TEXT
+		`CREATE INDEX IF NOT EXISTS "idx_email_blasts_parent_id" ON "email_blasts"("parent_id")`,
+		`CREATE TABLE IF NOT EXISTS "engagements" (
+			"id" TEXT PRIMARY KEY,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+			"date" DATETIME,
+			"total_clicks" INTEGER,
+			"total_opens" INTEGER,
+			"total_verified_clicks" INTEGER,
+			"unique_clicks" INTEGER,
+			"unique_opens" INTEGER,
+			"unique_verified_clicks" INTEGER
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_newsletter_lists_created_at ON newsletter_lists(created_at)`,
-		`CREATE INDEX IF NOT EXISTS idx_newsletter_lists_updated_at ON newsletter_lists(updated_at)`,
-		`CREATE INDEX IF NOT EXISTS idx_newsletter_lists_parent_id ON newsletter_lists(parent_id)`,
-		`CREATE VIRTUAL TABLE IF NOT EXISTS newsletter_lists_fts USING fts5(
-			description,
-			name,
+		`CREATE TABLE IF NOT EXISTS "exports" (
+			"id" TEXT PRIMARY KEY,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+			"completed" INTEGER,
+			"created" INTEGER,
+			"download_url" TEXT,
+			"failure_reason" TEXT,
+			"publication_id" TEXT,
+			"segment_id" TEXT,
+			"status" TEXT,
+			"updated" INTEGER,
+			"variant" TEXT,
+			"parent_id" TEXT
+		)`,
+		`CREATE INDEX IF NOT EXISTS "idx_exports_publication_id" ON "exports"("publication_id")`,
+		`CREATE INDEX IF NOT EXISTS "idx_exports_segment_id" ON "exports"("segment_id")`,
+		`CREATE INDEX IF NOT EXISTS "idx_exports_parent_id" ON "exports"("parent_id")`,
+		`CREATE TABLE IF NOT EXISTS "newsletter_lists" (
+			"id" TEXT PRIMARY KEY,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+			"auto_subscribe" INTEGER,
+			"created_at" INTEGER,
+			"description" TEXT,
+			"name" TEXT,
+			"slug" TEXT,
+			"status" TEXT,
+			"subscriber_count" INTEGER,
+			"updated_at" INTEGER,
+			"parent_id" TEXT
+		)`,
+		`CREATE INDEX IF NOT EXISTS "idx_newsletter_lists_created_at" ON "newsletter_lists"("created_at")`,
+		`CREATE INDEX IF NOT EXISTS "idx_newsletter_lists_updated_at" ON "newsletter_lists"("updated_at")`,
+		`CREATE INDEX IF NOT EXISTS "idx_newsletter_lists_parent_id" ON "newsletter_lists"("parent_id")`,
+		`CREATE VIRTUAL TABLE IF NOT EXISTS "newsletter_lists_fts" USING fts5(
+			"description",
+			"name",
 			content='newsletter_lists',
 			content_rowid='rowid'
 		)`,
-		`CREATE TRIGGER IF NOT EXISTS newsletter_lists_ai AFTER INSERT ON newsletter_lists BEGIN
-			INSERT INTO newsletter_lists_fts(rowid, description, name)
-			VALUES (new.rowid,new.description, new.name);
+		`CREATE TRIGGER IF NOT EXISTS "newsletter_lists_ai" AFTER INSERT ON "newsletter_lists" BEGIN
+			INSERT INTO "newsletter_lists_fts"(rowid, "description", "name")
+			VALUES (new.rowid,new."description", new."name");
 		END`,
-		`CREATE TRIGGER IF NOT EXISTS newsletter_lists_ad AFTER DELETE ON newsletter_lists BEGIN
-			INSERT INTO newsletter_lists_fts(newsletter_lists_fts, rowid, description, name)
-			VALUES ('delete', old.rowid,old.description, old.name);
+		`CREATE TRIGGER IF NOT EXISTS "newsletter_lists_ad" AFTER DELETE ON "newsletter_lists" BEGIN
+			INSERT INTO "newsletter_lists_fts"("newsletter_lists_fts", rowid, "description", "name")
+			VALUES ('delete', old.rowid,old."description", old."name");
 		END`,
-		`CREATE TRIGGER IF NOT EXISTS newsletter_lists_au AFTER UPDATE ON newsletter_lists BEGIN
-			INSERT INTO newsletter_lists_fts(newsletter_lists_fts, rowid, description, name)
-			VALUES ('delete', old.rowid,old.description, old.name);
-			INSERT INTO newsletter_lists_fts(rowid, description, name)
-			VALUES (new.rowid,new.description, new.name);
+		`CREATE TRIGGER IF NOT EXISTS "newsletter_lists_au" AFTER UPDATE ON "newsletter_lists" BEGIN
+			INSERT INTO "newsletter_lists_fts"("newsletter_lists_fts", rowid, "description", "name")
+			VALUES ('delete', old.rowid,old."description", old."name");
+			INSERT INTO "newsletter_lists_fts"(rowid, "description", "name")
+			VALUES (new.rowid,new."description", new."name");
 		END`,
-		`CREATE TABLE IF NOT EXISTS newsletter_lists_subscriptions (
-			id TEXT PRIMARY KEY,
-			newsletter_lists_id TEXT NOT NULL,
-			data JSON NOT NULL,
-			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			parent_id TEXT
+		`CREATE TABLE IF NOT EXISTS "newsletter_lists_subscriptions" (
+			"id" TEXT PRIMARY KEY,
+			"newsletter_lists_id" TEXT NOT NULL,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+			"parent_id" TEXT
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_newsletter_lists_subscriptions_newsletter_lists_id ON newsletter_lists_subscriptions(newsletter_lists_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_newsletter_lists_subscriptions_parent_id ON newsletter_lists_subscriptions(parent_id)`,
-		`CREATE TABLE IF NOT EXISTS polls (
-			id TEXT PRIMARY KEY,
-			data JSON NOT NULL,
-			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			created_at INTEGER,
-			description TEXT,
-			name TEXT,
-			poll_type TEXT,
-			question TEXT,
-			status TEXT,
-			total_responses INTEGER,
-			trivia_answer TEXT,
-			parent_id TEXT
+		`CREATE INDEX IF NOT EXISTS "idx_newsletter_lists_subscriptions_newsletter_lists_id" ON "newsletter_lists_subscriptions"("newsletter_lists_id")`,
+		`CREATE INDEX IF NOT EXISTS "idx_newsletter_lists_subscriptions_parent_id" ON "newsletter_lists_subscriptions"("parent_id")`,
+		`CREATE TABLE IF NOT EXISTS "podcasts" (
+			"id" TEXT PRIMARY KEY,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+			"artwork_url" TEXT,
+			"author" TEXT,
+			"copyright" TEXT,
+			"created" INTEGER,
+			"description" TEXT,
+			"imported" INTEGER,
+			"language" TEXT,
+			"slug" TEXT,
+			"status" TEXT,
+			"title" TEXT,
+			"type" TEXT,
+			"parent_id" TEXT
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_polls_created_at ON polls(created_at)`,
-		`CREATE INDEX IF NOT EXISTS idx_polls_parent_id ON polls(parent_id)`,
-		`CREATE VIRTUAL TABLE IF NOT EXISTS polls_fts USING fts5(
-			description,
-			name,
+		`CREATE INDEX IF NOT EXISTS "idx_podcasts_parent_id" ON "podcasts"("parent_id")`,
+		`CREATE VIRTUAL TABLE IF NOT EXISTS "podcasts_fts" USING fts5(
+			"description",
+			"title",
+			content='podcasts',
+			content_rowid='rowid'
+		)`,
+		`CREATE TRIGGER IF NOT EXISTS "podcasts_ai" AFTER INSERT ON "podcasts" BEGIN
+			INSERT INTO "podcasts_fts"(rowid, "description", "title")
+			VALUES (new.rowid,new."description", new."title");
+		END`,
+		`CREATE TRIGGER IF NOT EXISTS "podcasts_ad" AFTER DELETE ON "podcasts" BEGIN
+			INSERT INTO "podcasts_fts"("podcasts_fts", rowid, "description", "title")
+			VALUES ('delete', old.rowid,old."description", old."title");
+		END`,
+		`CREATE TRIGGER IF NOT EXISTS "podcasts_au" AFTER UPDATE ON "podcasts" BEGIN
+			INSERT INTO "podcasts_fts"("podcasts_fts", rowid, "description", "title")
+			VALUES ('delete', old.rowid,old."description", old."title");
+			INSERT INTO "podcasts_fts"(rowid, "description", "title")
+			VALUES (new.rowid,new."description", new."title");
+		END`,
+		`CREATE TABLE IF NOT EXISTS "episodes" (
+			"id" TEXT PRIMARY KEY,
+			"podcasts_id" TEXT NOT NULL,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS "idx_episodes_podcasts_id" ON "episodes"("podcasts_id")`,
+		`CREATE TABLE IF NOT EXISTS "private_feeds" (
+			"id" TEXT PRIMARY KEY,
+			"podcasts_id" TEXT NOT NULL,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS "idx_private_feeds_podcasts_id" ON "private_feeds"("podcasts_id")`,
+		`CREATE TABLE IF NOT EXISTS "polls" (
+			"id" TEXT PRIMARY KEY,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+			"created_at" INTEGER,
+			"description" TEXT,
+			"name" TEXT,
+			"poll_type" TEXT,
+			"question" TEXT,
+			"status" TEXT,
+			"total_responses" INTEGER,
+			"trivia_answer" TEXT,
+			"parent_id" TEXT
+		)`,
+		`CREATE INDEX IF NOT EXISTS "idx_polls_created_at" ON "polls"("created_at")`,
+		`CREATE INDEX IF NOT EXISTS "idx_polls_parent_id" ON "polls"("parent_id")`,
+		`CREATE VIRTUAL TABLE IF NOT EXISTS "polls_fts" USING fts5(
+			"description",
+			"name",
 			content='polls',
 			content_rowid='rowid'
 		)`,
-		`CREATE TRIGGER IF NOT EXISTS polls_ai AFTER INSERT ON polls BEGIN
-			INSERT INTO polls_fts(rowid, description, name)
-			VALUES (new.rowid,new.description, new.name);
+		`CREATE TRIGGER IF NOT EXISTS "polls_ai" AFTER INSERT ON "polls" BEGIN
+			INSERT INTO "polls_fts"(rowid, "description", "name")
+			VALUES (new.rowid,new."description", new."name");
 		END`,
-		`CREATE TRIGGER IF NOT EXISTS polls_ad AFTER DELETE ON polls BEGIN
-			INSERT INTO polls_fts(polls_fts, rowid, description, name)
-			VALUES ('delete', old.rowid,old.description, old.name);
+		`CREATE TRIGGER IF NOT EXISTS "polls_ad" AFTER DELETE ON "polls" BEGIN
+			INSERT INTO "polls_fts"("polls_fts", rowid, "description", "name")
+			VALUES ('delete', old.rowid,old."description", old."name");
 		END`,
-		`CREATE TRIGGER IF NOT EXISTS polls_au AFTER UPDATE ON polls BEGIN
-			INSERT INTO polls_fts(polls_fts, rowid, description, name)
-			VALUES ('delete', old.rowid,old.description, old.name);
-			INSERT INTO polls_fts(rowid, description, name)
-			VALUES (new.rowid,new.description, new.name);
+		`CREATE TRIGGER IF NOT EXISTS "polls_au" AFTER UPDATE ON "polls" BEGIN
+			INSERT INTO "polls_fts"("polls_fts", rowid, "description", "name")
+			VALUES ('delete', old.rowid,old."description", old."name");
+			INSERT INTO "polls_fts"(rowid, "description", "name")
+			VALUES (new.rowid,new."description", new."name");
 		END`,
-		`CREATE TABLE IF NOT EXISTS responses (
-			id TEXT PRIMARY KEY,
-			polls_id TEXT NOT NULL,
-			data JSON NOT NULL,
-			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			parent_id TEXT
+		`CREATE TABLE IF NOT EXISTS "responses" (
+			"id" TEXT PRIMARY KEY,
+			"polls_id" TEXT NOT NULL,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_responses_polls_id ON responses(polls_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_responses_parent_id ON responses(parent_id)`,
-		`CREATE TABLE IF NOT EXISTS post_templates (
-			id TEXT PRIMARY KEY,
-			data JSON NOT NULL,
-			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			name TEXT,
-			parent_id TEXT
+		`CREATE INDEX IF NOT EXISTS "idx_responses_polls_id" ON "responses"("polls_id")`,
+		`CREATE TABLE IF NOT EXISTS "post_templates" (
+			"id" TEXT PRIMARY KEY,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+			"name" TEXT,
+			"parent_id" TEXT
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_post_templates_parent_id ON post_templates(parent_id)`,
-		`CREATE TABLE IF NOT EXISTS posts (
-			id TEXT PRIMARY KEY,
-			data JSON NOT NULL,
-			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			audience TEXT,
-			created INTEGER,
-			displayed_date INTEGER,
-			email_capture_popup INTEGER,
-			enforce_gated_content INTEGER,
-			hidden_from_feed INTEGER,
-			meta_default_description TEXT,
-			meta_default_title TEXT,
-			newsletter_list_id TEXT,
-			platform TEXT,
-			preview_text TEXT,
-			publish_date INTEGER,
-			slug TEXT,
-			split_tested INTEGER,
-			status TEXT,
-			subject_line TEXT,
-			subtitle TEXT,
-			thumbnail_url TEXT,
-			title TEXT,
-			web_url TEXT,
-			parent_id TEXT
+		`CREATE INDEX IF NOT EXISTS "idx_post_templates_parent_id" ON "post_templates"("parent_id")`,
+		`CREATE TABLE IF NOT EXISTS "posts" (
+			"id" TEXT PRIMARY KEY,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+			"audience" TEXT,
+			"created" INTEGER,
+			"displayed_date" INTEGER,
+			"email_capture_popup" INTEGER,
+			"enforce_gated_content" INTEGER,
+			"hidden_from_feed" INTEGER,
+			"meta_default_description" TEXT,
+			"meta_default_title" TEXT,
+			"newsletter_list_id" TEXT,
+			"platform" TEXT,
+			"preview_text" TEXT,
+			"publish_date" INTEGER,
+			"slug" TEXT,
+			"split_tested" INTEGER,
+			"status" TEXT,
+			"subject_line" TEXT,
+			"subtitle" TEXT,
+			"thumbnail_url" TEXT,
+			"title" TEXT,
+			"web_url" TEXT,
+			"parent_id" TEXT
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_posts_newsletter_list_id ON posts(newsletter_list_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_posts_parent_id ON posts(parent_id)`,
-		`CREATE TABLE IF NOT EXISTS publications (
-			id TEXT PRIMARY KEY,
-			data JSON NOT NULL,
-			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			created REAL,
-			name TEXT,
-			organization_name TEXT,
-			referral_program_enabled INTEGER
+		`CREATE INDEX IF NOT EXISTS "idx_posts_newsletter_list_id" ON "posts"("newsletter_list_id")`,
+		`CREATE INDEX IF NOT EXISTS "idx_posts_parent_id" ON "posts"("parent_id")`,
+		`CREATE TABLE IF NOT EXISTS "preview" (
+			"id" TEXT PRIMARY KEY,
+			"posts_id" TEXT NOT NULL,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
-		`CREATE TABLE IF NOT EXISTS referral_program (
-			id TEXT PRIMARY KEY,
-			data JSON NOT NULL,
-			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			parent_id TEXT
+		`CREATE INDEX IF NOT EXISTS "idx_preview_posts_id" ON "preview"("posts_id")`,
+		`CREATE TABLE IF NOT EXISTS "test_sends" (
+			"id" TEXT PRIMARY KEY,
+			"posts_id" TEXT NOT NULL,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_referral_program_parent_id ON referral_program(parent_id)`,
-		`CREATE TABLE IF NOT EXISTS segments (
-			id TEXT PRIMARY KEY,
-			data JSON NOT NULL,
-			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			active INTEGER,
-			last_calculated INTEGER,
-			name TEXT,
-			status TEXT,
-			total_results INTEGER,
-			type TEXT,
-			parent_id TEXT
+		`CREATE INDEX IF NOT EXISTS "idx_test_sends_posts_id" ON "test_sends"("posts_id")`,
+		`CREATE TABLE IF NOT EXISTS "publications" (
+			"id" TEXT PRIMARY KEY,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+			"created" REAL,
+			"name" TEXT,
+			"organization_name" TEXT,
+			"referral_program_enabled" INTEGER
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_segments_parent_id ON segments(parent_id)`,
-		`CREATE TABLE IF NOT EXISTS members (
-			id TEXT PRIMARY KEY,
-			segments_id TEXT NOT NULL,
-			data JSON NOT NULL,
-			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			parent_id TEXT
+		`CREATE TABLE IF NOT EXISTS "referral_program" (
+			"id" TEXT PRIMARY KEY,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+			"parent_id" TEXT
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_members_segments_id ON members(segments_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_members_parent_id ON members(parent_id)`,
-		`CREATE TABLE IF NOT EXISTS recalculate (
-			id TEXT PRIMARY KEY,
-			segments_id TEXT NOT NULL,
-			data JSON NOT NULL,
-			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		`CREATE INDEX IF NOT EXISTS "idx_referral_program_parent_id" ON "referral_program"("parent_id")`,
+		`CREATE TABLE IF NOT EXISTS "segments" (
+			"id" TEXT PRIMARY KEY,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+			"active" INTEGER,
+			"last_calculated" INTEGER,
+			"name" TEXT,
+			"status" TEXT,
+			"total_results" INTEGER,
+			"type" TEXT,
+			"parent_id" TEXT
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_recalculate_segments_id ON recalculate(segments_id)`,
-		`CREATE TABLE IF NOT EXISTS results (
-			id TEXT PRIMARY KEY,
-			segments_id TEXT NOT NULL,
-			data JSON NOT NULL,
-			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			parent_id TEXT
+		`CREATE INDEX IF NOT EXISTS "idx_segments_parent_id" ON "segments"("parent_id")`,
+		`CREATE TABLE IF NOT EXISTS "members" (
+			"id" TEXT PRIMARY KEY,
+			"segments_id" TEXT NOT NULL,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_results_segments_id ON results(segments_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_results_parent_id ON results(parent_id)`,
-		`CREATE TABLE IF NOT EXISTS subscriptions (
-			id TEXT PRIMARY KEY,
-			data JSON NOT NULL,
-			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			created INTEGER,
-			email TEXT,
-			referral_code TEXT,
-			referring_site TEXT,
-			status TEXT,
-			subscription_tier TEXT,
-			utm_campaign TEXT,
-			utm_channel TEXT,
-			utm_content TEXT,
-			utm_medium TEXT,
-			utm_source TEXT,
-			utm_term TEXT
+		`CREATE INDEX IF NOT EXISTS "idx_members_segments_id" ON "members"("segments_id")`,
+		`CREATE TABLE IF NOT EXISTS "recalculate" (
+			"id" TEXT PRIMARY KEY,
+			"segments_id" TEXT NOT NULL,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
-		`CREATE TABLE IF NOT EXISTS jwt_token (
-			id TEXT PRIMARY KEY,
-			subscriptions_id TEXT NOT NULL,
-			data JSON NOT NULL,
-			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		`CREATE INDEX IF NOT EXISTS "idx_recalculate_segments_id" ON "recalculate"("segments_id")`,
+		`CREATE TABLE IF NOT EXISTS "results" (
+			"id" TEXT PRIMARY KEY,
+			"segments_id" TEXT NOT NULL,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_jwt_token_subscriptions_id ON jwt_token(subscriptions_id)`,
-		`CREATE TABLE IF NOT EXISTS tags (
-			id TEXT PRIMARY KEY,
-			subscriptions_id TEXT NOT NULL,
-			data JSON NOT NULL,
-			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		`CREATE INDEX IF NOT EXISTS "idx_results_segments_id" ON "results"("segments_id")`,
+		`CREATE TABLE IF NOT EXISTS "subscriptions" (
+			"id" TEXT PRIMARY KEY,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+			"created" INTEGER,
+			"email" TEXT,
+			"referral_code" TEXT,
+			"referring_site" TEXT,
+			"status" TEXT,
+			"subscription_tier" TEXT,
+			"utm_campaign" TEXT,
+			"utm_channel" TEXT,
+			"utm_content" TEXT,
+			"utm_medium" TEXT,
+			"utm_source" TEXT,
+			"utm_term" TEXT
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_tags_subscriptions_id ON tags(subscriptions_id)`,
-		`CREATE TABLE IF NOT EXISTS tiers (
-			id TEXT PRIMARY KEY,
-			data JSON NOT NULL,
-			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			description TEXT,
-			name TEXT,
-			status TEXT,
-			parent_id TEXT
+		`CREATE TABLE IF NOT EXISTS "jwt_token" (
+			"id" TEXT PRIMARY KEY,
+			"subscriptions_id" TEXT NOT NULL,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_tiers_parent_id ON tiers(parent_id)`,
-		`CREATE VIRTUAL TABLE IF NOT EXISTS tiers_fts USING fts5(
-			description,
-			name,
+		`CREATE INDEX IF NOT EXISTS "idx_jwt_token_subscriptions_id" ON "jwt_token"("subscriptions_id")`,
+		`CREATE TABLE IF NOT EXISTS "tags" (
+			"id" TEXT PRIMARY KEY,
+			"subscriptions_id" TEXT NOT NULL,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS "idx_tags_subscriptions_id" ON "tags"("subscriptions_id")`,
+		`CREATE TABLE IF NOT EXISTS "tiers" (
+			"id" TEXT PRIMARY KEY,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+			"description" TEXT,
+			"name" TEXT,
+			"status" TEXT,
+			"parent_id" TEXT
+		)`,
+		`CREATE INDEX IF NOT EXISTS "idx_tiers_parent_id" ON "tiers"("parent_id")`,
+		`CREATE VIRTUAL TABLE IF NOT EXISTS "tiers_fts" USING fts5(
+			"description",
+			"name",
 			content='tiers',
 			content_rowid='rowid'
 		)`,
-		`CREATE TRIGGER IF NOT EXISTS tiers_ai AFTER INSERT ON tiers BEGIN
-			INSERT INTO tiers_fts(rowid, description, name)
-			VALUES (new.rowid,new.description, new.name);
+		`CREATE TRIGGER IF NOT EXISTS "tiers_ai" AFTER INSERT ON "tiers" BEGIN
+			INSERT INTO "tiers_fts"(rowid, "description", "name")
+			VALUES (new.rowid,new."description", new."name");
 		END`,
-		`CREATE TRIGGER IF NOT EXISTS tiers_ad AFTER DELETE ON tiers BEGIN
-			INSERT INTO tiers_fts(tiers_fts, rowid, description, name)
-			VALUES ('delete', old.rowid,old.description, old.name);
+		`CREATE TRIGGER IF NOT EXISTS "tiers_ad" AFTER DELETE ON "tiers" BEGIN
+			INSERT INTO "tiers_fts"("tiers_fts", rowid, "description", "name")
+			VALUES ('delete', old.rowid,old."description", old."name");
 		END`,
-		`CREATE TRIGGER IF NOT EXISTS tiers_au AFTER UPDATE ON tiers BEGIN
-			INSERT INTO tiers_fts(tiers_fts, rowid, description, name)
-			VALUES ('delete', old.rowid,old.description, old.name);
-			INSERT INTO tiers_fts(rowid, description, name)
-			VALUES (new.rowid,new.description, new.name);
+		`CREATE TRIGGER IF NOT EXISTS "tiers_au" AFTER UPDATE ON "tiers" BEGIN
+			INSERT INTO "tiers_fts"("tiers_fts", rowid, "description", "name")
+			VALUES ('delete', old.rowid,old."description", old."name");
+			INSERT INTO "tiers_fts"(rowid, "description", "name")
+			VALUES (new.rowid,new."description", new."name");
 		END`,
-		`CREATE TABLE IF NOT EXISTS webhooks (
-			id TEXT PRIMARY KEY,
-			data JSON NOT NULL,
-			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			created INTEGER,
-			description TEXT,
-			updated INTEGER,
-			url TEXT,
-			parent_id TEXT
+		`CREATE TABLE IF NOT EXISTS "webhooks" (
+			"id" TEXT PRIMARY KEY,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+			"created" INTEGER,
+			"description" TEXT,
+			"updated" INTEGER,
+			"url" TEXT,
+			"parent_id" TEXT
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_webhooks_parent_id ON webhooks(parent_id)`,
-		`CREATE TABLE IF NOT EXISTS tests (
-			id TEXT PRIMARY KEY,
-			webhooks_id TEXT NOT NULL,
-			data JSON NOT NULL,
-			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		`CREATE INDEX IF NOT EXISTS "idx_webhooks_parent_id" ON "webhooks"("parent_id")`,
+		`CREATE TABLE IF NOT EXISTS "tests" (
+			"id" TEXT PRIMARY KEY,
+			"webhooks_id" TEXT NOT NULL,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_tests_webhooks_id ON tests(webhooks_id)`,
-		`CREATE TABLE IF NOT EXISTS workspaces (
-			id TEXT PRIMARY KEY,
-			data JSON NOT NULL,
-			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			publication_id TEXT,
-			publication_name TEXT,
-			status TEXT,
-			subscription_id TEXT
+		`CREATE INDEX IF NOT EXISTS "idx_tests_webhooks_id" ON "tests"("webhooks_id")`,
+		`CREATE TABLE IF NOT EXISTS "workspaces" (
+			"id" TEXT PRIMARY KEY,
+			"data" JSON NOT NULL,
+			"synced_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+			"publication_id" TEXT,
+			"publication_name" TEXT,
+			"status" TEXT,
+			"subscription_id" TEXT
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_workspaces_publication_id ON workspaces(publication_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_workspaces_subscription_id ON workspaces(subscription_id)`,
+		`CREATE INDEX IF NOT EXISTS "idx_workspaces_publication_id" ON "workspaces"("publication_id")`,
+		`CREATE INDEX IF NOT EXISTS "idx_workspaces_subscription_id" ON "workspaces"("subscription_id")`,
 	}
 
 	// Run every migration — including the column backfill and the
@@ -851,6 +1318,17 @@ func (s *Store) migrate(ctx context.Context) error {
 			return fmt.Errorf("database schema version %d is newer than supported version %d; upgrade the CLI binary or open an older database", current, StoreSchemaVersion)
 		}
 
+		if current < 2 {
+			if err := s.migrateResourcesCompositeKey(ctx, conn); err != nil {
+				return fmt.Errorf("migrating resources composite key: %w", err)
+			}
+		}
+		if current == 2 {
+			if err := s.migrateResourcesFTSRowIDs(ctx, conn); err != nil {
+				return fmt.Errorf("migrating resources FTS rowids: %w", err)
+			}
+		}
+
 		if err := s.backfillColumns(ctx, conn); err != nil {
 			return fmt.Errorf("backfilling columns: %w", err)
 		}
@@ -859,16 +1337,189 @@ func (s *Store) migrate(ctx context.Context) error {
 				return fmt.Errorf("migration failed: %w", err)
 			}
 		}
-		// Stamp the schema version. On a fresh DB this writes 1; on an
-		// already-stamped DB this is a no-op write of the same value.
-		// An older DB with user_version = 0 and pre-existing tables
-		// gets stamped here without any data rewrites because the
-		// migrations above are idempotent via CREATE TABLE IF NOT EXISTS.
+		if err := s.migrateExtras(ctx, conn); err != nil {
+			return fmt.Errorf("running extra migrations: %w", err)
+		}
+		if current < resourcesFTSContentSchemaVersion {
+			if err := s.migrateResourcesFTSContent(ctx, conn); err != nil {
+				return fmt.Errorf("migrating resources FTS content: %w", err)
+			}
+		}
+		// Stamp the schema version. On a fresh DB this writes the current
+		// StoreSchemaVersion; on an already-stamped DB this is a no-op
+		// write of the same value.
+		// An older DB with user_version = 0 and pre-existing tables gets
+		// stamped here after any version-gated rewrites and idempotent
+		// CREATE TABLE IF NOT EXISTS statements have completed.
 		if _, err := conn.ExecContext(ctx, fmt.Sprintf(`PRAGMA user_version = %d`, StoreSchemaVersion)); err != nil {
 			return fmt.Errorf("stamp user_version: %w", err)
 		}
 		return nil
 	})
+}
+
+func (s *Store) migrateResourcesCompositeKey(ctx context.Context, conn *sql.Conn) error {
+	exists, err := tableExists(ctx, conn, "resources")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil
+	}
+
+	composite, err := resourcesTableHasCompositeKey(ctx, conn)
+	if err != nil {
+		return err
+	}
+	if !composite {
+		if _, err := conn.ExecContext(ctx, `CREATE TABLE resources_v2 (
+			id TEXT NOT NULL,
+			resource_type TEXT NOT NULL,
+			data JSON NOT NULL,
+			synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (resource_type, id)
+		)`); err != nil {
+			return fmt.Errorf("creating resources_v2: %w", err)
+		}
+		if _, err := conn.ExecContext(ctx, `INSERT INTO resources_v2 (id, resource_type, data, synced_at, updated_at)
+			SELECT id, resource_type, data, synced_at, updated_at FROM resources`); err != nil {
+			return fmt.Errorf("copying resources rows: %w", err)
+		}
+		if _, err := conn.ExecContext(ctx, `DROP TABLE resources`); err != nil {
+			return fmt.Errorf("dropping old resources table: %w", err)
+		}
+		if _, err := conn.ExecContext(ctx, `ALTER TABLE resources_v2 RENAME TO resources`); err != nil {
+			return fmt.Errorf("renaming resources_v2: %w", err)
+		}
+	}
+
+	// Always rebuild FTS during the v2 transition. The resources table may
+	// already have the composite key, but v1 FTS rowids were scoped by id
+	// alone and must be replaced with resource_type + id rowids.
+	if _, err := conn.ExecContext(ctx, `DROP TABLE IF EXISTS resources_fts`); err != nil {
+		return fmt.Errorf("dropping resources_fts: %w", err)
+	}
+	if _, err := conn.ExecContext(ctx, resourcesFTSCreateSQL); err != nil {
+		return fmt.Errorf("creating resources_fts: %w", err)
+	}
+	if err := rebuildResourcesFTS(ctx, conn); err != nil {
+		return fmt.Errorf("rebuilding resources_fts: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) migrateResourcesFTSRowIDs(ctx context.Context, conn *sql.Conn) error {
+	exists, err := tableExists(ctx, conn, "resources")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil
+	}
+
+	if _, err := conn.ExecContext(ctx, `DROP TABLE IF EXISTS resources_fts`); err != nil {
+		return fmt.Errorf("dropping resources_fts: %w", err)
+	}
+	if _, err := conn.ExecContext(ctx, resourcesFTSCreateSQL); err != nil {
+		return fmt.Errorf("creating resources_fts: %w", err)
+	}
+	if err := rebuildResourcesFTS(ctx, conn); err != nil {
+		return fmt.Errorf("rebuilding resources_fts: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) migrateResourcesFTSContent(ctx context.Context, conn *sql.Conn) error {
+	exists, err := tableExists(ctx, conn, "resources")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil
+	}
+
+	if _, err := conn.ExecContext(ctx, `DROP TABLE IF EXISTS resources_fts`); err != nil {
+		return fmt.Errorf("dropping resources_fts: %w", err)
+	}
+	if _, err := conn.ExecContext(ctx, resourcesFTSCreateSQL); err != nil {
+		return fmt.Errorf("creating resources_fts: %w", err)
+	}
+	if err := rebuildResourcesFTS(ctx, conn); err != nil {
+		return fmt.Errorf("rebuilding resources_fts: %w", err)
+	}
+	return nil
+}
+
+func tableExists(ctx context.Context, conn *sql.Conn, name string) (bool, error) {
+	var count int
+	if err := conn.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, name).Scan(&count); err != nil {
+		return false, fmt.Errorf("checking table %s: %w", name, err)
+	}
+	return count > 0, nil
+}
+
+func resourcesTableHasCompositeKey(ctx context.Context, conn *sql.Conn) (bool, error) {
+	rows, err := conn.QueryContext(ctx, `PRAGMA table_info(resources)`)
+	if err != nil {
+		return false, fmt.Errorf("reading resources table info: %w", err)
+	}
+	defer rows.Close()
+
+	pk := map[string]int{}
+	for rows.Next() {
+		var cid int
+		var name, typ string
+		var notnull, pkOrder int
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &typ, &notnull, &dflt, &pkOrder); err != nil {
+			return false, fmt.Errorf("scanning resources table info: %w", err)
+		}
+		pk[name] = pkOrder
+	}
+	if err := rows.Err(); err != nil {
+		return false, fmt.Errorf("reading resources table info rows: %w", err)
+	}
+	return pk["resource_type"] == 1 && pk["id"] == 2, nil
+}
+
+func rebuildResourcesFTS(ctx context.Context, conn *sql.Conn) error {
+	rows, err := conn.QueryContext(ctx, `SELECT id, resource_type, data FROM resources`)
+	if err != nil {
+		return fmt.Errorf("querying resources: %w", err)
+	}
+
+	type resourceRow struct {
+		id           string
+		resourceType string
+		data         string
+	}
+	var resources []resourceRow
+	for rows.Next() {
+		var r resourceRow
+		if err := rows.Scan(&r.id, &r.resourceType, &r.data); err != nil {
+			_ = rows.Close()
+			return fmt.Errorf("scanning resource: %w", err)
+		}
+		resources = append(resources, r)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return fmt.Errorf("reading resource rows: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("closing resource rows: %w", err)
+	}
+
+	for _, r := range resources {
+		if _, err := conn.ExecContext(ctx,
+			`INSERT INTO resources_fts (rowid, id, resource_type, content) VALUES (?, ?, ?, ?)`,
+			ftsRowID(r.resourceType, r.id), r.id, r.resourceType, searchableResourceContent(json.RawMessage(r.data)),
+		); err != nil {
+			return fmt.Errorf("indexing resource %s/%s: %w", r.resourceType, r.id, err)
+		}
+	}
+	return nil
 }
 
 const (
@@ -982,14 +1633,14 @@ func (s *Store) upsertGenericResourceTx(tx *sql.Tx, resourceType, id string, dat
 	_, err := tx.Exec(
 		`INSERT INTO resources (id, resource_type, data, synced_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET data = excluded.data, synced_at = excluded.synced_at, updated_at = excluded.updated_at`,
-		id, resourceType, string(data), time.Now(), time.Now(),
+		 ON CONFLICT(resource_type, id) DO UPDATE SET data = excluded.data, synced_at = excluded.synced_at, updated_at = excluded.updated_at`,
+		id, resourceType, string(data), time.Now().UTC().Format(time.RFC3339), time.Now().UTC().Format(time.RFC3339),
 	)
 	if err != nil {
 		return err
 	}
 
-	ftsRowid := ftsRowID(id)
+	ftsRowid := ftsRowID(resourceType, id)
 	// Use explicit rowid for FTS5 compatibility with modernc.org/sqlite.
 	// Standard DELETE WHERE column=? may not work on FTS5 virtual tables.
 	if _, err = tx.Exec(`DELETE FROM resources_fts WHERE rowid = ?`, ftsRowid); err != nil {
@@ -999,7 +1650,7 @@ func (s *Store) upsertGenericResourceTx(tx *sql.Tx, resourceType, id string, dat
 	if _, err = tx.Exec(
 		`INSERT INTO resources_fts (rowid, id, resource_type, content)
 		 VALUES (?, ?, ?, ?)`,
-		ftsRowid, id, resourceType, string(data),
+		ftsRowid, id, resourceType, searchableResourceContent(data),
 	); err != nil {
 		// FTS insert failure is non-fatal
 		fmt.Fprintf(os.Stderr, "warning: FTS index update failed: %v\n", err)
@@ -1009,8 +1660,8 @@ func (s *Store) upsertGenericResourceTx(tx *sql.Tx, resourceType, id string, dat
 }
 
 func (s *Store) Upsert(resourceType, id string, data json.RawMessage) error {
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -1024,29 +1675,30 @@ func (s *Store) Upsert(resourceType, id string, data json.RawMessage) error {
 	return tx.Commit()
 }
 
+// Propagates sql.ErrNoRows on a miss so callers can distinguish absence from
+// other scan errors via errors.Is.
 func (s *Store) Get(resourceType, id string) (json.RawMessage, error) {
 	var data string
 	err := s.db.QueryRow(
 		`SELECT data FROM resources WHERE resource_type = ? AND id = ?`,
 		resourceType, id,
 	).Scan(&data)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
 	if err != nil {
 		return nil, err
 	}
 	return json.RawMessage(data), nil
 }
 
+// List returns resources of the given type. A positive limit caps the result
+// count; zero or negative means no limit.
 func (s *Store) List(resourceType string, limit int) ([]json.RawMessage, error) {
-	if limit <= 0 {
-		limit = 200
+	query := `SELECT data FROM resources WHERE resource_type = ? ORDER BY updated_at DESC`
+	args := []any{resourceType}
+	if limit > 0 {
+		query += ` LIMIT ?`
+		args = append(args, limit)
 	}
-	rows, err := s.db.Query(
-		`SELECT data FROM resources WHERE resource_type = ? ORDER BY updated_at DESC LIMIT ?`,
-		resourceType, limit,
-	)
+	rows, err := s.db.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -1063,17 +1715,50 @@ func (s *Store) List(resourceType string, limit int) ([]json.RawMessage, error) 
 	return results, rows.Err()
 }
 
-func (s *Store) Search(query string, limit int) ([]json.RawMessage, error) {
+func (s *Store) Search(query string, limit int, resourceTypes ...string) ([]json.RawMessage, error) {
 	if limit <= 0 {
 		limit = 50
 	}
+	matchQuery := FTSMatchQuery(query)
+	if matchQuery == "" {
+		return nil, nil
+	}
+	resourceType := ""
+	if len(resourceTypes) > 0 {
+		resourceType = strings.TrimSpace(resourceTypes[0])
+	}
+	if resourceType != "" {
+		rows, err := s.db.Query(
+			`SELECT r.data FROM resources r
+			 JOIN resources_fts f ON r.id = f.id AND r.resource_type = f.resource_type
+			 WHERE resources_fts MATCH ?
+			 AND r.resource_type = ?
+			 ORDER BY f.rank
+			 LIMIT ?`,
+			matchQuery, resourceType, limit,
+		)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+
+		var results []json.RawMessage
+		for rows.Next() {
+			var data string
+			if err := rows.Scan(&data); err != nil {
+				return nil, err
+			}
+			results = append(results, json.RawMessage(data))
+		}
+		return results, rows.Err()
+	}
 	rows, err := s.db.Query(
 		`SELECT r.data FROM resources r
-		 JOIN resources_fts f ON r.id = f.id
+		 JOIN resources_fts f ON r.id = f.id AND r.resource_type = f.resource_type
 		 WHERE resources_fts MATCH ?
-		 ORDER BY rank
+		 ORDER BY f.rank
 		 LIMIT ?`,
-		query, limit,
+		matchQuery, limit,
 	)
 	if err != nil {
 		return nil, err
@@ -1091,30 +1776,112 @@ func (s *Store) Search(query string, limit int) ([]json.RawMessage, error) {
 	return results, rows.Err()
 }
 
+func searchableResourceContent(data json.RawMessage) string {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.UseNumber()
+	var value any
+	if err := dec.Decode(&value); err != nil {
+		return ""
+	}
+	var parts []string
+	collectSearchableStrings(&parts, "", value)
+	return strings.Join(parts, " ")
+}
+
+func collectSearchableStrings(parts *[]string, key string, value any) {
+	switch v := value.(type) {
+	case map[string]any:
+		for childKey, child := range v {
+			collectSearchableStrings(parts, childKey, child)
+		}
+	case []any:
+		for _, child := range v {
+			collectSearchableStrings(parts, key, child)
+		}
+	case string:
+		if shouldIndexSearchString(key, v) {
+			*parts = append(*parts, strings.TrimSpace(v))
+		}
+	}
+}
+
+func shouldIndexSearchString(key, value string) bool {
+	s := strings.TrimSpace(value)
+	if len(s) < 2 {
+		return false
+	}
+	if isIdentifierKey(key) {
+		return false
+	}
+	lower := strings.ToLower(s)
+	switch {
+	case IsUUID(s):
+		return false
+	case isoDatePattern.MatchString(s):
+		return false
+	case strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://"):
+		return false
+	}
+	tokens := ftsQueryTokenRE.FindAllString(s, -1)
+	return len(tokens) > 0
+}
+
+func isIdentifierKey(key string) bool {
+	if key == "" {
+		return false
+	}
+	lower := strings.ToLower(key)
+	return lower == "id" ||
+		lower == "uuid" ||
+		strings.HasSuffix(lower, "_id") ||
+		strings.HasSuffix(lower, "-id") ||
+		strings.HasSuffix(key, "Id") ||
+		strings.HasSuffix(key, "ID")
+}
+
+// FTSMatchQuery converts arbitrary text into a safe FTS5 MATCH expression.
+func FTSMatchQuery(query string) string {
+	tokens := ftsQueryTokenRE.FindAllString(query, -1)
+	if len(tokens) == 0 {
+		return ""
+	}
+	quoted := make([]string, 0, len(tokens))
+	for _, token := range tokens {
+		quoted = append(quoted, `"`+token+`"`)
+	}
+	return strings.Join(quoted, " ")
+}
+
 func extractObjectID(obj map[string]any) string {
-	for _, key := range []string{"id", "ID", "uuid", "slug", "name"} {
+	for _, key := range []string{"id", "Id", "ID", "_id", "uuid", "slug", "name"} {
 		if v, ok := obj[key]; ok {
-			return fmt.Sprintf("%v", v)
+			if id := ResourceIDString(v); id != "" && id != "<nil>" {
+				return id
+			}
 		}
 	}
 	return ""
 }
 
 // ftsRowID derives a deterministic rowid from a string ID for use with FTS5.
+// Any change to this derivation requires a StoreSchemaVersion bump and a
+// resources_fts rebuild migration for already-stamped databases.
 // modernc.org/sqlite's FTS5 implementation may not support DELETE WHERE column=?
 // on virtual tables, so we use explicit rowids and DELETE WHERE rowid=? instead.
-func ftsRowID(id string) int64 {
-	var h uint64
-	for _, c := range id {
-		h = h*31 + uint64(c)
-	}
-	return int64(h & 0x7FFFFFFFFFFFFFFF) // ensure positive
+func ftsRowID(scope, id string) int64 {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(scope))
+	_, _ = h.Write([]byte{0}) // separator so ("ab","c") != ("a","bc")
+	_, _ = h.Write([]byte(id))
+	return int64(h.Sum64() & 0x7FFFFFFFFFFFFFFF) // ensure positive
 }
 
-// LookupFieldValue resolves a field value from a JSON object map, trying
-// the snake_case key first and the camelCase rendering second. Exported so
-// the sync command's extractID and the upsert path resolve fields the same
-// way — a divergence here produces silent drops on heterogeneous payloads.
+// LookupFieldValue resolves a field value from a JSON object map, trying the
+// snake_case key first, then the camelCase rendering, then the PascalCase
+// rendering. Exported so the sync command's extractID and the upsert path
+// resolve fields the same way — a divergence here produces silent drops on
+// heterogeneous payloads. The PascalCase pass handles .NET-shaped responses
+// (`Id`, `Name`, `OrderId`) without forcing each spec to declare casing.
 func LookupFieldValue(obj map[string]any, snakeKey string) any {
 	if v, ok := obj[snakeKey]; ok {
 		return sqliteFieldValue(v)
@@ -1126,16 +1893,25 @@ func LookupFieldValue(obj map[string]any, snakeKey string) any {
 		}
 		parts[i] = strings.ToUpper(parts[i][:1]) + parts[i][1:]
 	}
-	if v, ok := obj[strings.Join(parts, "")]; ok {
+	camel := strings.Join(parts, "")
+	if v, ok := obj[camel]; ok {
 		return sqliteFieldValue(v)
+	}
+	if parts[0] != "" {
+		pascal := strings.ToUpper(parts[0][:1]) + parts[0][1:] + strings.Join(parts[1:], "")
+		if v, ok := obj[pascal]; ok {
+			return sqliteFieldValue(v)
+		}
 	}
 	return nil
 }
 
 func sqliteFieldValue(v any) any {
-	switch v.(type) {
+	switch t := v.(type) {
 	case nil, string, bool, int, int64, float64, []byte:
 		return v
+	case json.Number:
+		return strings.TrimSpace(t.String())
 	default:
 		data, err := json.Marshal(v)
 		if err != nil {
@@ -1152,19 +1928,85 @@ func lookupFieldValue(obj map[string]any, snakeKey string) any {
 	return LookupFieldValue(obj, snakeKey)
 }
 
-// upsertAdvertisementOpportunitiesTx writes the typed-table portion of a advertisement_opportunities upsert
-// inside an existing transaction. The caller is responsible for the generic
-// resources insert (via upsertGenericResourceTx) and for committing the tx.
-// Splitting this out lets UpsertBatch dispatch typed inserts per item without
-// opening a per-item transaction.
+// DecodeJSONObject decodes data into an object while preserving JSON numbers.
+// Plain json.Unmarshal turns numbers into float64, and fmt on those values can
+// render large integer IDs as scientific notation before they reach resources.id.
+func DecodeJSONObject(data json.RawMessage) (map[string]any, error) {
+	var obj map[string]any
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.UseNumber()
+	if err := dec.Decode(&obj); err != nil {
+		return nil, err
+	}
+	return obj, nil
+}
+
+// ResourceIDString returns the stable text form used for resources.id.
+func ResourceIDString(v any) string {
+	switch t := v.(type) {
+	case nil:
+		return ""
+	case string:
+		return extendedJSONIDString(t)
+	case map[string]any:
+		return extendedJSONIDMapString(t)
+	case json.Number:
+		return strings.TrimSpace(t.String())
+	case float64:
+		if math.IsNaN(t) || math.IsInf(t, 0) {
+			return ""
+		}
+		return strconv.FormatFloat(t, 'f', -1, 64)
+	case float32:
+		f := float64(t)
+		if math.IsNaN(f) || math.IsInf(f, 0) {
+			return ""
+		}
+		return strconv.FormatFloat(f, 'f', -1, 32)
+	default:
+		// fmt.Sprint on typed nil pointers returns "<nil>"; callers still guard
+		// that sentinel so unresolved IDs do not become stored resource keys.
+		return strings.TrimSpace(fmt.Sprint(t))
+	}
+}
+
+func extendedJSONIDString(value string) string {
+	value = strings.TrimSpace(value)
+	if !strings.HasPrefix(value, "{") {
+		return value
+	}
+	var object map[string]any
+	if err := json.Unmarshal([]byte(value), &object); err != nil {
+		return value
+	}
+	if id := extendedJSONIDMapString(object); id != "" {
+		return id
+	}
+	return value
+}
+
+func extendedJSONIDMapString(object map[string]any) string {
+	for _, key := range []string{"$oid", "$numberLong", "$numberInt"} {
+		if value, ok := object[key]; ok {
+			return ResourceIDString(value)
+		}
+	}
+	return ""
+}
+
+// upsertAdvertisementOpportunitiesTx writes the per-resource domain-table portion of a
+// advertisement_opportunities upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
 func (s *Store) upsertAdvertisementOpportunitiesTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO advertisement_opportunities (id, data, synced_at, advertisement_kind, advertiser_name, payout_rate, send_by_window_end_at, send_by_window_start_at)
+		`INSERT INTO "advertisement_opportunities" ("id", "data", "synced_at", "advertisement_kind", "advertiser_name", "payout_rate", "send_by_window_end_at", "send_by_window_start_at")
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET data = excluded.data, synced_at = excluded.synced_at, advertisement_kind = excluded.advertisement_kind, advertiser_name = excluded.advertiser_name, payout_rate = excluded.payout_rate, send_by_window_end_at = excluded.send_by_window_end_at, send_by_window_start_at = excluded.send_by_window_start_at`,
+		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "advertisement_kind" = excluded."advertisement_kind", "advertiser_name" = excluded."advertiser_name", "payout_rate" = excluded."payout_rate", "send_by_window_end_at" = excluded."send_by_window_end_at", "send_by_window_start_at" = excluded."send_by_window_start_at"`,
 		id,
 		string(data),
-		time.Now(),
+		time.Now().UTC().Format(time.RFC3339),
 		lookupFieldValue(obj, "advertisement_kind"),
 		lookupFieldValue(obj, "advertiser_name"),
 		lookupFieldValue(obj, "payout_rate"),
@@ -1179,8 +2021,8 @@ func (s *Store) upsertAdvertisementOpportunitiesTx(tx *sql.Tx, id string, obj ma
 
 // UpsertAdvertisementOpportunities inserts or updates a advertisement_opportunities record with domain-specific columns.
 func (s *Store) UpsertAdvertisementOpportunities(data json.RawMessage) error {
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
 		return fmt.Errorf("unmarshaling advertisement_opportunities: %w", err)
 	}
 
@@ -1188,38 +2030,39 @@ func (s *Store) UpsertAdvertisementOpportunities(data json.RawMessage) error {
 	if id == "" {
 		return fmt.Errorf("missing id for advertisement_opportunities")
 	}
+	storageID := resourceStorageID("advertisement-opportunities", id, obj)
 
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if err := s.upsertGenericResourceTx(tx, "advertisement_opportunities", id, data); err != nil {
+	if err := s.upsertGenericResourceTx(tx, "advertisement-opportunities", storageID, data); err != nil {
 		return err
 	}
-	if err := s.upsertAdvertisementOpportunitiesTx(tx, id, obj, data); err != nil {
+	if err := s.upsertAdvertisementOpportunitiesTx(tx, storageID, obj, data); err != nil {
 		return err
 	}
 
 	return tx.Commit()
 }
 
-// upsertAuthorsTx writes the typed-table portion of a authors upsert
-// inside an existing transaction. The caller is responsible for the generic
-// resources insert (via upsertGenericResourceTx) and for committing the tx.
-// Splitting this out lets UpsertBatch dispatch typed inserts per item without
-// opening a per-item transaction.
+// upsertAuthorsTx writes the per-resource domain-table portion of a
+// authors upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
 func (s *Store) upsertAuthorsTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO authors (id, data, synced_at, bio, bio_image_url, name, type, parent_id)
+		`INSERT INTO "authors" ("id", "data", "synced_at", "bio", "bio_image_url", "name", "type", "parent_id")
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET data = excluded.data, synced_at = excluded.synced_at, bio = excluded.bio, bio_image_url = excluded.bio_image_url, name = excluded.name, type = excluded.type, parent_id = excluded.parent_id`,
+		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "bio" = excluded."bio", "bio_image_url" = excluded."bio_image_url", "name" = excluded."name", "type" = excluded."type", "parent_id" = excluded."parent_id"`,
 		id,
 		string(data),
-		time.Now(),
+		time.Now().UTC().Format(time.RFC3339),
 		lookupFieldValue(obj, "bio"),
 		lookupFieldValue(obj, "bio_image_url"),
 		lookupFieldValue(obj, "name"),
@@ -1234,8 +2077,8 @@ func (s *Store) upsertAuthorsTx(tx *sql.Tx, id string, obj map[string]any, data 
 
 // UpsertAuthors inserts or updates a authors record with domain-specific columns.
 func (s *Store) UpsertAuthors(data json.RawMessage) error {
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
 		return fmt.Errorf("unmarshaling authors: %w", err)
 	}
 
@@ -1243,38 +2086,39 @@ func (s *Store) UpsertAuthors(data json.RawMessage) error {
 	if id == "" {
 		return fmt.Errorf("missing id for authors")
 	}
+	storageID := resourceStorageID("authors", id, obj)
 
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if err := s.upsertGenericResourceTx(tx, "authors", id, data); err != nil {
+	if err := s.upsertGenericResourceTx(tx, "authors", storageID, data); err != nil {
 		return err
 	}
-	if err := s.upsertAuthorsTx(tx, id, obj, data); err != nil {
+	if err := s.upsertAuthorsTx(tx, storageID, obj, data); err != nil {
 		return err
 	}
 
 	return tx.Commit()
 }
 
-// upsertAutomationsTx writes the typed-table portion of a automations upsert
-// inside an existing transaction. The caller is responsible for the generic
-// resources insert (via upsertGenericResourceTx) and for committing the tx.
-// Splitting this out lets UpsertBatch dispatch typed inserts per item without
-// opening a per-item transaction.
+// upsertAutomationsTx writes the per-resource domain-table portion of a
+// automations upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
 func (s *Store) upsertAutomationsTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO automations (id, data, synced_at, description, name, status, parent_id)
+		`INSERT INTO "automations" ("id", "data", "synced_at", "description", "name", "status", "parent_id")
 		 VALUES (?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET data = excluded.data, synced_at = excluded.synced_at, description = excluded.description, name = excluded.name, status = excluded.status, parent_id = excluded.parent_id`,
+		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "description" = excluded."description", "name" = excluded."name", "status" = excluded."status", "parent_id" = excluded."parent_id"`,
 		id,
 		string(data),
-		time.Now(),
+		time.Now().UTC().Format(time.RFC3339),
 		lookupFieldValue(obj, "description"),
 		lookupFieldValue(obj, "name"),
 		lookupFieldValue(obj, "status"),
@@ -1288,8 +2132,8 @@ func (s *Store) upsertAutomationsTx(tx *sql.Tx, id string, obj map[string]any, d
 
 // UpsertAutomations inserts or updates a automations record with domain-specific columns.
 func (s *Store) UpsertAutomations(data json.RawMessage) error {
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
 		return fmt.Errorf("unmarshaling automations: %w", err)
 	}
 
@@ -1297,40 +2141,40 @@ func (s *Store) UpsertAutomations(data json.RawMessage) error {
 	if id == "" {
 		return fmt.Errorf("missing id for automations")
 	}
+	storageID := resourceStorageID("automations", id, obj)
 
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if err := s.upsertGenericResourceTx(tx, "automations", id, data); err != nil {
+	if err := s.upsertGenericResourceTx(tx, "automations", storageID, data); err != nil {
 		return err
 	}
-	if err := s.upsertAutomationsTx(tx, id, obj, data); err != nil {
+	if err := s.upsertAutomationsTx(tx, storageID, obj, data); err != nil {
 		return err
 	}
 
 	return tx.Commit()
 }
 
-// upsertEmailsTx writes the typed-table portion of a emails upsert
-// inside an existing transaction. The caller is responsible for the generic
-// resources insert (via upsertGenericResourceTx) and for committing the tx.
-// Splitting this out lets UpsertBatch dispatch typed inserts per item without
-// opening a per-item transaction.
+// upsertEmailsTx writes the per-resource domain-table portion of a
+// emails upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
 func (s *Store) upsertEmailsTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO emails (id, automations_id, data, synced_at, parent_id)
-		 VALUES (?, ?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET automations_id = excluded.automations_id, data = excluded.data, synced_at = excluded.synced_at, parent_id = excluded.parent_id`,
+		`INSERT INTO "emails" ("id", "automations_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?)
+		 ON CONFLICT("id") DO UPDATE SET "automations_id" = excluded."automations_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
 		id,
-		string(data),
-		time.Now(),
 		lookupFieldValue(obj, "automations_id"),
-		lookupFieldValue(obj, "parent_id"),
+		string(data),
+		time.Now().UTC().Format(time.RFC3339),
 	); err != nil {
 		return fmt.Errorf("insert into emails: %w", err)
 	}
@@ -1340,8 +2184,8 @@ func (s *Store) upsertEmailsTx(tx *sql.Tx, id string, obj map[string]any, data j
 
 // UpsertEmails inserts or updates a emails record with domain-specific columns.
 func (s *Store) UpsertEmails(data json.RawMessage) error {
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
 		return fmt.Errorf("unmarshaling emails: %w", err)
 	}
 
@@ -1349,40 +2193,40 @@ func (s *Store) UpsertEmails(data json.RawMessage) error {
 	if id == "" {
 		return fmt.Errorf("missing id for emails")
 	}
+	storageID := resourceStorageID("emails", id, obj)
 
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if err := s.upsertGenericResourceTx(tx, "emails", id, data); err != nil {
+	if err := s.upsertGenericResourceTx(tx, "emails", storageID, data); err != nil {
 		return err
 	}
-	if err := s.upsertEmailsTx(tx, id, obj, data); err != nil {
+	if err := s.upsertEmailsTx(tx, storageID, obj, data); err != nil {
 		return err
 	}
 
 	return tx.Commit()
 }
 
-// upsertJourneysTx writes the typed-table portion of a journeys upsert
-// inside an existing transaction. The caller is responsible for the generic
-// resources insert (via upsertGenericResourceTx) and for committing the tx.
-// Splitting this out lets UpsertBatch dispatch typed inserts per item without
-// opening a per-item transaction.
+// upsertJourneysTx writes the per-resource domain-table portion of a
+// journeys upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
 func (s *Store) upsertJourneysTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO journeys (id, automations_id, data, synced_at, parent_id)
-		 VALUES (?, ?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET automations_id = excluded.automations_id, data = excluded.data, synced_at = excluded.synced_at, parent_id = excluded.parent_id`,
+		`INSERT INTO "journeys" ("id", "automations_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?)
+		 ON CONFLICT("id") DO UPDATE SET "automations_id" = excluded."automations_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
 		id,
-		string(data),
-		time.Now(),
 		lookupFieldValue(obj, "automations_id"),
-		lookupFieldValue(obj, "parent_id"),
+		string(data),
+		time.Now().UTC().Format(time.RFC3339),
 	); err != nil {
 		return fmt.Errorf("insert into journeys: %w", err)
 	}
@@ -1392,8 +2236,8 @@ func (s *Store) upsertJourneysTx(tx *sql.Tx, id string, obj map[string]any, data
 
 // UpsertJourneys inserts or updates a journeys record with domain-specific columns.
 func (s *Store) UpsertJourneys(data json.RawMessage) error {
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
 		return fmt.Errorf("unmarshaling journeys: %w", err)
 	}
 
@@ -1401,38 +2245,39 @@ func (s *Store) UpsertJourneys(data json.RawMessage) error {
 	if id == "" {
 		return fmt.Errorf("missing id for journeys")
 	}
+	storageID := resourceStorageID("journeys", id, obj)
 
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if err := s.upsertGenericResourceTx(tx, "journeys", id, data); err != nil {
+	if err := s.upsertGenericResourceTx(tx, "journeys", storageID, data); err != nil {
 		return err
 	}
-	if err := s.upsertJourneysTx(tx, id, obj, data); err != nil {
+	if err := s.upsertJourneysTx(tx, storageID, obj, data); err != nil {
 		return err
 	}
 
 	return tx.Commit()
 }
 
-// upsertBulkSubscriptionUpdatesTx writes the typed-table portion of a bulk_subscription_updates upsert
-// inside an existing transaction. The caller is responsible for the generic
-// resources insert (via upsertGenericResourceTx) and for committing the tx.
-// Splitting this out lets UpsertBatch dispatch typed inserts per item without
-// opening a per-item transaction.
+// upsertBulkSubscriptionUpdatesTx writes the per-resource domain-table portion of a
+// bulk_subscription_updates upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
 func (s *Store) upsertBulkSubscriptionUpdatesTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO bulk_subscription_updates (id, data, synced_at, completed, created, failure_reason, params, publication_id, status, type, updated)
+		`INSERT INTO "bulk_subscription_updates" ("id", "data", "synced_at", "completed", "created", "failure_reason", "params", "publication_id", "status", "type", "updated")
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET data = excluded.data, synced_at = excluded.synced_at, completed = excluded.completed, created = excluded.created, failure_reason = excluded.failure_reason, params = excluded.params, publication_id = excluded.publication_id, status = excluded.status, type = excluded.type, updated = excluded.updated`,
+		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "completed" = excluded."completed", "created" = excluded."created", "failure_reason" = excluded."failure_reason", "params" = excluded."params", "publication_id" = excluded."publication_id", "status" = excluded."status", "type" = excluded."type", "updated" = excluded."updated"`,
 		id,
 		string(data),
-		time.Now(),
+		time.Now().UTC().Format(time.RFC3339),
 		lookupFieldValue(obj, "completed"),
 		lookupFieldValue(obj, "created"),
 		lookupFieldValue(obj, "failure_reason"),
@@ -1450,8 +2295,8 @@ func (s *Store) upsertBulkSubscriptionUpdatesTx(tx *sql.Tx, id string, obj map[s
 
 // UpsertBulkSubscriptionUpdates inserts or updates a bulk_subscription_updates record with domain-specific columns.
 func (s *Store) UpsertBulkSubscriptionUpdates(data json.RawMessage) error {
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
 		return fmt.Errorf("unmarshaling bulk_subscription_updates: %w", err)
 	}
 
@@ -1459,38 +2304,39 @@ func (s *Store) UpsertBulkSubscriptionUpdates(data json.RawMessage) error {
 	if id == "" {
 		return fmt.Errorf("missing id for bulk_subscription_updates")
 	}
+	storageID := resourceStorageID("bulk-subscription-updates", id, obj)
 
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if err := s.upsertGenericResourceTx(tx, "bulk_subscription_updates", id, data); err != nil {
+	if err := s.upsertGenericResourceTx(tx, "bulk-subscription-updates", storageID, data); err != nil {
 		return err
 	}
-	if err := s.upsertBulkSubscriptionUpdatesTx(tx, id, obj, data); err != nil {
+	if err := s.upsertBulkSubscriptionUpdatesTx(tx, storageID, obj, data); err != nil {
 		return err
 	}
 
 	return tx.Commit()
 }
 
-// upsertBulkSubscriptionsTx writes the typed-table portion of a bulk_subscriptions upsert
-// inside an existing transaction. The caller is responsible for the generic
-// resources insert (via upsertGenericResourceTx) and for committing the tx.
-// Splitting this out lets UpsertBatch dispatch typed inserts per item without
-// opening a per-item transaction.
+// upsertBulkSubscriptionsTx writes the per-resource domain-table portion of a
+// bulk_subscriptions upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
 func (s *Store) upsertBulkSubscriptionsTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO bulk_subscriptions (id, data, synced_at, import_id, message)
+		`INSERT INTO "bulk_subscriptions" ("id", "data", "synced_at", "import_id", "message")
 		 VALUES (?, ?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET data = excluded.data, synced_at = excluded.synced_at, import_id = excluded.import_id, message = excluded.message`,
+		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "import_id" = excluded."import_id", "message" = excluded."message"`,
 		id,
 		string(data),
-		time.Now(),
+		time.Now().UTC().Format(time.RFC3339),
 		lookupFieldValue(obj, "import_id"),
 		lookupFieldValue(obj, "message"),
 	); err != nil {
@@ -1502,8 +2348,8 @@ func (s *Store) upsertBulkSubscriptionsTx(tx *sql.Tx, id string, obj map[string]
 
 // UpsertBulkSubscriptions inserts or updates a bulk_subscriptions record with domain-specific columns.
 func (s *Store) UpsertBulkSubscriptions(data json.RawMessage) error {
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
 		return fmt.Errorf("unmarshaling bulk_subscriptions: %w", err)
 	}
 
@@ -1511,38 +2357,95 @@ func (s *Store) UpsertBulkSubscriptions(data json.RawMessage) error {
 	if id == "" {
 		return fmt.Errorf("missing id for bulk_subscriptions")
 	}
+	storageID := resourceStorageID("bulk-subscriptions", id, obj)
 
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if err := s.upsertGenericResourceTx(tx, "bulk_subscriptions", id, data); err != nil {
+	if err := s.upsertGenericResourceTx(tx, "bulk-subscriptions", storageID, data); err != nil {
 		return err
 	}
-	if err := s.upsertBulkSubscriptionsTx(tx, id, obj, data); err != nil {
+	if err := s.upsertBulkSubscriptionsTx(tx, storageID, obj, data); err != nil {
 		return err
 	}
 
 	return tx.Commit()
 }
 
-// upsertConditionSetsTx writes the typed-table portion of a condition_sets upsert
-// inside an existing transaction. The caller is responsible for the generic
-// resources insert (via upsertGenericResourceTx) and for committing the tx.
-// Splitting this out lets UpsertBatch dispatch typed inserts per item without
-// opening a per-item transaction.
-func (s *Store) upsertConditionSetsTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
+// upsertComplimentaryAccessTx writes the per-resource domain-table portion of a
+// complimentary_access upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
+func (s *Store) upsertComplimentaryAccessTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO condition_sets (id, data, synced_at, created, name, purpose, status, updated, parent_id)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET data = excluded.data, synced_at = excluded.synced_at, created = excluded.created, name = excluded.name, purpose = excluded.purpose, status = excluded.status, updated = excluded.updated, parent_id = excluded.parent_id`,
+		`INSERT INTO "complimentary_access" ("id", "data", "synced_at", "description", "duration", "tier_id", "time_unit", "parent_id")
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "description" = excluded."description", "duration" = excluded."duration", "tier_id" = excluded."tier_id", "time_unit" = excluded."time_unit", "parent_id" = excluded."parent_id"`,
 		id,
 		string(data),
-		time.Now(),
+		time.Now().UTC().Format(time.RFC3339),
+		lookupFieldValue(obj, "description"),
+		lookupFieldValue(obj, "duration"),
+		lookupFieldValue(obj, "tier_id"),
+		lookupFieldValue(obj, "time_unit"),
+		lookupFieldValue(obj, "parent_id"),
+	); err != nil {
+		return fmt.Errorf("insert into complimentary_access: %w", err)
+	}
+
+	return nil
+}
+
+// UpsertComplimentaryAccess inserts or updates a complimentary_access record with domain-specific columns.
+func (s *Store) UpsertComplimentaryAccess(data json.RawMessage) error {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
+		return fmt.Errorf("unmarshaling complimentary_access: %w", err)
+	}
+
+	id := extractObjectID(obj)
+	if id == "" {
+		return fmt.Errorf("missing id for complimentary_access")
+	}
+	storageID := resourceStorageID("complimentary-access", id, obj)
+
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if err := s.upsertGenericResourceTx(tx, "complimentary-access", storageID, data); err != nil {
+		return err
+	}
+	if err := s.upsertComplimentaryAccessTx(tx, storageID, obj, data); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+// upsertConditionSetsTx writes the per-resource domain-table portion of a
+// condition_sets upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
+func (s *Store) upsertConditionSetsTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
+	if _, err := tx.Exec(
+		`INSERT INTO "condition_sets" ("id", "data", "synced_at", "created", "name", "purpose", "status", "updated", "parent_id")
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "created" = excluded."created", "name" = excluded."name", "purpose" = excluded."purpose", "status" = excluded."status", "updated" = excluded."updated", "parent_id" = excluded."parent_id"`,
+		id,
+		string(data),
+		time.Now().UTC().Format(time.RFC3339),
 		lookupFieldValue(obj, "created"),
 		lookupFieldValue(obj, "name"),
 		lookupFieldValue(obj, "purpose"),
@@ -1558,8 +2461,8 @@ func (s *Store) upsertConditionSetsTx(tx *sql.Tx, id string, obj map[string]any,
 
 // UpsertConditionSets inserts or updates a condition_sets record with domain-specific columns.
 func (s *Store) UpsertConditionSets(data json.RawMessage) error {
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
 		return fmt.Errorf("unmarshaling condition_sets: %w", err)
 	}
 
@@ -1567,38 +2470,39 @@ func (s *Store) UpsertConditionSets(data json.RawMessage) error {
 	if id == "" {
 		return fmt.Errorf("missing id for condition_sets")
 	}
+	storageID := resourceStorageID("condition-sets", id, obj)
 
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if err := s.upsertGenericResourceTx(tx, "condition_sets", id, data); err != nil {
+	if err := s.upsertGenericResourceTx(tx, "condition-sets", storageID, data); err != nil {
 		return err
 	}
-	if err := s.upsertConditionSetsTx(tx, id, obj, data); err != nil {
+	if err := s.upsertConditionSetsTx(tx, storageID, obj, data); err != nil {
 		return err
 	}
 
 	return tx.Commit()
 }
 
-// upsertCustomFieldsTx writes the typed-table portion of a custom_fields upsert
-// inside an existing transaction. The caller is responsible for the generic
-// resources insert (via upsertGenericResourceTx) and for committing the tx.
-// Splitting this out lets UpsertBatch dispatch typed inserts per item without
-// opening a per-item transaction.
+// upsertCustomFieldsTx writes the per-resource domain-table portion of a
+// custom_fields upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
 func (s *Store) upsertCustomFieldsTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO custom_fields (id, data, synced_at, created, display, kind)
+		`INSERT INTO "custom_fields" ("id", "data", "synced_at", "created", "display", "kind")
 		 VALUES (?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET data = excluded.data, synced_at = excluded.synced_at, created = excluded.created, display = excluded.display, kind = excluded.kind`,
+		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "created" = excluded."created", "display" = excluded."display", "kind" = excluded."kind"`,
 		id,
 		string(data),
-		time.Now(),
+		time.Now().UTC().Format(time.RFC3339),
 		lookupFieldValue(obj, "created"),
 		lookupFieldValue(obj, "display"),
 		lookupFieldValue(obj, "kind"),
@@ -1611,8 +2515,8 @@ func (s *Store) upsertCustomFieldsTx(tx *sql.Tx, id string, obj map[string]any, 
 
 // UpsertCustomFields inserts or updates a custom_fields record with domain-specific columns.
 func (s *Store) UpsertCustomFields(data json.RawMessage) error {
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
 		return fmt.Errorf("unmarshaling custom_fields: %w", err)
 	}
 
@@ -1620,38 +2524,39 @@ func (s *Store) UpsertCustomFields(data json.RawMessage) error {
 	if id == "" {
 		return fmt.Errorf("missing id for custom_fields")
 	}
+	storageID := resourceStorageID("custom-fields", id, obj)
 
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if err := s.upsertGenericResourceTx(tx, "custom_fields", id, data); err != nil {
+	if err := s.upsertGenericResourceTx(tx, "custom-fields", storageID, data); err != nil {
 		return err
 	}
-	if err := s.upsertCustomFieldsTx(tx, id, obj, data); err != nil {
+	if err := s.upsertCustomFieldsTx(tx, storageID, obj, data); err != nil {
 		return err
 	}
 
 	return tx.Commit()
 }
 
-// upsertDataPrivacyTx writes the typed-table portion of a data_privacy upsert
-// inside an existing transaction. The caller is responsible for the generic
-// resources insert (via upsertGenericResourceTx) and for committing the tx.
-// Splitting this out lets UpsertBatch dispatch typed inserts per item without
-// opening a per-item transaction.
+// upsertDataPrivacyTx writes the per-resource domain-table portion of a
+// data_privacy upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
 func (s *Store) upsertDataPrivacyTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO data_privacy (id, data, synced_at, completed_at, created_at, email, requested_at, scheduled_for_processing_at, source, status)
+		`INSERT INTO "data_privacy" ("id", "data", "synced_at", "completed_at", "created_at", "email", "requested_at", "scheduled_for_processing_at", "source", "status")
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET data = excluded.data, synced_at = excluded.synced_at, completed_at = excluded.completed_at, created_at = excluded.created_at, email = excluded.email, requested_at = excluded.requested_at, scheduled_for_processing_at = excluded.scheduled_for_processing_at, source = excluded.source, status = excluded.status`,
+		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "completed_at" = excluded."completed_at", "created_at" = excluded."created_at", "email" = excluded."email", "requested_at" = excluded."requested_at", "scheduled_for_processing_at" = excluded."scheduled_for_processing_at", "source" = excluded."source", "status" = excluded."status"`,
 		id,
 		string(data),
-		time.Now(),
+		time.Now().UTC().Format(time.RFC3339),
 		lookupFieldValue(obj, "completed_at"),
 		lookupFieldValue(obj, "created_at"),
 		lookupFieldValue(obj, "email"),
@@ -1668,8 +2573,8 @@ func (s *Store) upsertDataPrivacyTx(tx *sql.Tx, id string, obj map[string]any, d
 
 // UpsertDataPrivacy inserts or updates a data_privacy record with domain-specific columns.
 func (s *Store) UpsertDataPrivacy(data json.RawMessage) error {
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
 		return fmt.Errorf("unmarshaling data_privacy: %w", err)
 	}
 
@@ -1677,38 +2582,39 @@ func (s *Store) UpsertDataPrivacy(data json.RawMessage) error {
 	if id == "" {
 		return fmt.Errorf("missing id for data_privacy")
 	}
+	storageID := resourceStorageID("data-privacy", id, obj)
 
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if err := s.upsertGenericResourceTx(tx, "data_privacy", id, data); err != nil {
+	if err := s.upsertGenericResourceTx(tx, "data-privacy", storageID, data); err != nil {
 		return err
 	}
-	if err := s.upsertDataPrivacyTx(tx, id, obj, data); err != nil {
+	if err := s.upsertDataPrivacyTx(tx, storageID, obj, data); err != nil {
 		return err
 	}
 
 	return tx.Commit()
 }
 
-// upsertEmailBlastsTx writes the typed-table portion of a email_blasts upsert
-// inside an existing transaction. The caller is responsible for the generic
-// resources insert (via upsertGenericResourceTx) and for committing the tx.
-// Splitting this out lets UpsertBatch dispatch typed inserts per item without
-// opening a per-item transaction.
+// upsertEmailBlastsTx writes the per-resource domain-table portion of a
+// email_blasts upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
 func (s *Store) upsertEmailBlastsTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO email_blasts (id, data, synced_at, created, last_sent, preview_text, status, subject_line, parent_id)
+		`INSERT INTO "email_blasts" ("id", "data", "synced_at", "created", "last_sent", "preview_text", "status", "subject_line", "parent_id")
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET data = excluded.data, synced_at = excluded.synced_at, created = excluded.created, last_sent = excluded.last_sent, preview_text = excluded.preview_text, status = excluded.status, subject_line = excluded.subject_line, parent_id = excluded.parent_id`,
+		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "created" = excluded."created", "last_sent" = excluded."last_sent", "preview_text" = excluded."preview_text", "status" = excluded."status", "subject_line" = excluded."subject_line", "parent_id" = excluded."parent_id"`,
 		id,
 		string(data),
-		time.Now(),
+		time.Now().UTC().Format(time.RFC3339),
 		lookupFieldValue(obj, "created"),
 		lookupFieldValue(obj, "last_sent"),
 		lookupFieldValue(obj, "preview_text"),
@@ -1724,8 +2630,8 @@ func (s *Store) upsertEmailBlastsTx(tx *sql.Tx, id string, obj map[string]any, d
 
 // UpsertEmailBlasts inserts or updates a email_blasts record with domain-specific columns.
 func (s *Store) UpsertEmailBlasts(data json.RawMessage) error {
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
 		return fmt.Errorf("unmarshaling email_blasts: %w", err)
 	}
 
@@ -1733,38 +2639,39 @@ func (s *Store) UpsertEmailBlasts(data json.RawMessage) error {
 	if id == "" {
 		return fmt.Errorf("missing id for email_blasts")
 	}
+	storageID := resourceStorageID("email-blasts", id, obj)
 
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if err := s.upsertGenericResourceTx(tx, "email_blasts", id, data); err != nil {
+	if err := s.upsertGenericResourceTx(tx, "email-blasts", storageID, data); err != nil {
 		return err
 	}
-	if err := s.upsertEmailBlastsTx(tx, id, obj, data); err != nil {
+	if err := s.upsertEmailBlastsTx(tx, storageID, obj, data); err != nil {
 		return err
 	}
 
 	return tx.Commit()
 }
 
-// upsertEngagementsTx writes the typed-table portion of a engagements upsert
-// inside an existing transaction. The caller is responsible for the generic
-// resources insert (via upsertGenericResourceTx) and for committing the tx.
-// Splitting this out lets UpsertBatch dispatch typed inserts per item without
-// opening a per-item transaction.
+// upsertEngagementsTx writes the per-resource domain-table portion of a
+// engagements upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
 func (s *Store) upsertEngagementsTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO engagements (id, data, synced_at, date, total_clicks, total_opens, total_verified_clicks, unique_clicks, unique_opens, unique_verified_clicks)
+		`INSERT INTO "engagements" ("id", "data", "synced_at", "date", "total_clicks", "total_opens", "total_verified_clicks", "unique_clicks", "unique_opens", "unique_verified_clicks")
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET data = excluded.data, synced_at = excluded.synced_at, date = excluded.date, total_clicks = excluded.total_clicks, total_opens = excluded.total_opens, total_verified_clicks = excluded.total_verified_clicks, unique_clicks = excluded.unique_clicks, unique_opens = excluded.unique_opens, unique_verified_clicks = excluded.unique_verified_clicks`,
+		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "date" = excluded."date", "total_clicks" = excluded."total_clicks", "total_opens" = excluded."total_opens", "total_verified_clicks" = excluded."total_verified_clicks", "unique_clicks" = excluded."unique_clicks", "unique_opens" = excluded."unique_opens", "unique_verified_clicks" = excluded."unique_verified_clicks"`,
 		id,
 		string(data),
-		time.Now(),
+		time.Now().UTC().Format(time.RFC3339),
 		lookupFieldValue(obj, "date"),
 		lookupFieldValue(obj, "total_clicks"),
 		lookupFieldValue(obj, "total_opens"),
@@ -1781,8 +2688,8 @@ func (s *Store) upsertEngagementsTx(tx *sql.Tx, id string, obj map[string]any, d
 
 // UpsertEngagements inserts or updates a engagements record with domain-specific columns.
 func (s *Store) UpsertEngagements(data json.RawMessage) error {
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
 		return fmt.Errorf("unmarshaling engagements: %w", err)
 	}
 
@@ -1790,38 +2697,100 @@ func (s *Store) UpsertEngagements(data json.RawMessage) error {
 	if id == "" {
 		return fmt.Errorf("missing id for engagements")
 	}
+	storageID := resourceStorageID("engagements", id, obj)
 
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if err := s.upsertGenericResourceTx(tx, "engagements", id, data); err != nil {
+	if err := s.upsertGenericResourceTx(tx, "engagements", storageID, data); err != nil {
 		return err
 	}
-	if err := s.upsertEngagementsTx(tx, id, obj, data); err != nil {
+	if err := s.upsertEngagementsTx(tx, storageID, obj, data); err != nil {
 		return err
 	}
 
 	return tx.Commit()
 }
 
-// upsertNewsletterListsTx writes the typed-table portion of a newsletter_lists upsert
-// inside an existing transaction. The caller is responsible for the generic
-// resources insert (via upsertGenericResourceTx) and for committing the tx.
-// Splitting this out lets UpsertBatch dispatch typed inserts per item without
-// opening a per-item transaction.
-func (s *Store) upsertNewsletterListsTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
+// upsertExportsTx writes the per-resource domain-table portion of a
+// exports upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
+func (s *Store) upsertExportsTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO newsletter_lists (id, data, synced_at, auto_subscribe, created_at, description, name, slug, status, subscriber_count, updated_at, parent_id)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET data = excluded.data, synced_at = excluded.synced_at, auto_subscribe = excluded.auto_subscribe, created_at = excluded.created_at, description = excluded.description, name = excluded.name, slug = excluded.slug, status = excluded.status, subscriber_count = excluded.subscriber_count, updated_at = excluded.updated_at, parent_id = excluded.parent_id`,
+		`INSERT INTO "exports" ("id", "data", "synced_at", "completed", "created", "download_url", "failure_reason", "publication_id", "segment_id", "status", "updated", "variant", "parent_id")
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "completed" = excluded."completed", "created" = excluded."created", "download_url" = excluded."download_url", "failure_reason" = excluded."failure_reason", "publication_id" = excluded."publication_id", "segment_id" = excluded."segment_id", "status" = excluded."status", "updated" = excluded."updated", "variant" = excluded."variant", "parent_id" = excluded."parent_id"`,
 		id,
 		string(data),
-		time.Now(),
+		time.Now().UTC().Format(time.RFC3339),
+		lookupFieldValue(obj, "completed"),
+		lookupFieldValue(obj, "created"),
+		lookupFieldValue(obj, "download_url"),
+		lookupFieldValue(obj, "failure_reason"),
+		lookupFieldValue(obj, "publication_id"),
+		lookupFieldValue(obj, "segment_id"),
+		lookupFieldValue(obj, "status"),
+		lookupFieldValue(obj, "updated"),
+		lookupFieldValue(obj, "variant"),
+		lookupFieldValue(obj, "parent_id"),
+	); err != nil {
+		return fmt.Errorf("insert into exports: %w", err)
+	}
+
+	return nil
+}
+
+// UpsertExports inserts or updates a exports record with domain-specific columns.
+func (s *Store) UpsertExports(data json.RawMessage) error {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
+		return fmt.Errorf("unmarshaling exports: %w", err)
+	}
+
+	id := extractObjectID(obj)
+	if id == "" {
+		return fmt.Errorf("missing id for exports")
+	}
+	storageID := resourceStorageID("exports", id, obj)
+
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if err := s.upsertGenericResourceTx(tx, "exports", storageID, data); err != nil {
+		return err
+	}
+	if err := s.upsertExportsTx(tx, storageID, obj, data); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+// upsertNewsletterListsTx writes the per-resource domain-table portion of a
+// newsletter_lists upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
+func (s *Store) upsertNewsletterListsTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
+	if _, err := tx.Exec(
+		`INSERT INTO "newsletter_lists" ("id", "data", "synced_at", "auto_subscribe", "created_at", "description", "name", "slug", "status", "subscriber_count", "updated_at", "parent_id")
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "auto_subscribe" = excluded."auto_subscribe", "created_at" = excluded."created_at", "description" = excluded."description", "name" = excluded."name", "slug" = excluded."slug", "status" = excluded."status", "subscriber_count" = excluded."subscriber_count", "updated_at" = excluded."updated_at", "parent_id" = excluded."parent_id"`,
+		id,
+		string(data),
+		time.Now().UTC().Format(time.RFC3339),
 		lookupFieldValue(obj, "auto_subscribe"),
 		lookupFieldValue(obj, "created_at"),
 		lookupFieldValue(obj, "description"),
@@ -1840,8 +2809,8 @@ func (s *Store) upsertNewsletterListsTx(tx *sql.Tx, id string, obj map[string]an
 
 // UpsertNewsletterLists inserts or updates a newsletter_lists record with domain-specific columns.
 func (s *Store) UpsertNewsletterLists(data json.RawMessage) error {
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
 		return fmt.Errorf("unmarshaling newsletter_lists: %w", err)
 	}
 
@@ -1849,39 +2818,40 @@ func (s *Store) UpsertNewsletterLists(data json.RawMessage) error {
 	if id == "" {
 		return fmt.Errorf("missing id for newsletter_lists")
 	}
+	storageID := resourceStorageID("newsletter-lists", id, obj)
 
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if err := s.upsertGenericResourceTx(tx, "newsletter_lists", id, data); err != nil {
+	if err := s.upsertGenericResourceTx(tx, "newsletter-lists", storageID, data); err != nil {
 		return err
 	}
-	if err := s.upsertNewsletterListsTx(tx, id, obj, data); err != nil {
+	if err := s.upsertNewsletterListsTx(tx, storageID, obj, data); err != nil {
 		return err
 	}
 
 	return tx.Commit()
 }
 
-// upsertNewsletterListsSubscriptionsTx writes the typed-table portion of a newsletter_lists_subscriptions upsert
-// inside an existing transaction. The caller is responsible for the generic
-// resources insert (via upsertGenericResourceTx) and for committing the tx.
-// Splitting this out lets UpsertBatch dispatch typed inserts per item without
-// opening a per-item transaction.
+// upsertNewsletterListsSubscriptionsTx writes the per-resource domain-table portion of a
+// newsletter_lists_subscriptions upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
 func (s *Store) upsertNewsletterListsSubscriptionsTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO newsletter_lists_subscriptions (id, newsletter_lists_id, data, synced_at, parent_id)
+		`INSERT INTO "newsletter_lists_subscriptions" ("id", "newsletter_lists_id", "data", "synced_at", "parent_id")
 		 VALUES (?, ?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET newsletter_lists_id = excluded.newsletter_lists_id, data = excluded.data, synced_at = excluded.synced_at, parent_id = excluded.parent_id`,
+		 ON CONFLICT("id") DO UPDATE SET "newsletter_lists_id" = excluded."newsletter_lists_id", "data" = excluded."data", "synced_at" = excluded."synced_at", "parent_id" = excluded."parent_id"`,
 		id,
-		string(data),
-		time.Now(),
 		lookupFieldValue(obj, "newsletter_lists_id"),
+		string(data),
+		time.Now().UTC().Format(time.RFC3339),
 		lookupFieldValue(obj, "parent_id"),
 	); err != nil {
 		return fmt.Errorf("insert into newsletter_lists_subscriptions: %w", err)
@@ -1892,8 +2862,8 @@ func (s *Store) upsertNewsletterListsSubscriptionsTx(tx *sql.Tx, id string, obj 
 
 // UpsertNewsletterListsSubscriptions inserts or updates a newsletter_lists_subscriptions record with domain-specific columns.
 func (s *Store) UpsertNewsletterListsSubscriptions(data json.RawMessage) error {
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
 		return fmt.Errorf("unmarshaling newsletter_lists_subscriptions: %w", err)
 	}
 
@@ -1901,38 +2871,206 @@ func (s *Store) UpsertNewsletterListsSubscriptions(data json.RawMessage) error {
 	if id == "" {
 		return fmt.Errorf("missing id for newsletter_lists_subscriptions")
 	}
+	storageID := resourceStorageID("newsletter_lists_subscriptions", id, obj)
 
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if err := s.upsertGenericResourceTx(tx, "newsletter_lists_subscriptions", id, data); err != nil {
+	if err := s.upsertGenericResourceTx(tx, "newsletter_lists_subscriptions", storageID, data); err != nil {
 		return err
 	}
-	if err := s.upsertNewsletterListsSubscriptionsTx(tx, id, obj, data); err != nil {
+	if err := s.upsertNewsletterListsSubscriptionsTx(tx, storageID, obj, data); err != nil {
 		return err
 	}
 
 	return tx.Commit()
 }
 
-// upsertPollsTx writes the typed-table portion of a polls upsert
-// inside an existing transaction. The caller is responsible for the generic
-// resources insert (via upsertGenericResourceTx) and for committing the tx.
-// Splitting this out lets UpsertBatch dispatch typed inserts per item without
-// opening a per-item transaction.
-func (s *Store) upsertPollsTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
+// upsertPodcastsTx writes the per-resource domain-table portion of a
+// podcasts upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
+func (s *Store) upsertPodcastsTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO polls (id, data, synced_at, created_at, description, name, poll_type, question, status, total_responses, trivia_answer, parent_id)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET data = excluded.data, synced_at = excluded.synced_at, created_at = excluded.created_at, description = excluded.description, name = excluded.name, poll_type = excluded.poll_type, question = excluded.question, status = excluded.status, total_responses = excluded.total_responses, trivia_answer = excluded.trivia_answer, parent_id = excluded.parent_id`,
+		`INSERT INTO "podcasts" ("id", "data", "synced_at", "artwork_url", "author", "copyright", "created", "description", "imported", "language", "slug", "status", "title", "type", "parent_id")
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "artwork_url" = excluded."artwork_url", "author" = excluded."author", "copyright" = excluded."copyright", "created" = excluded."created", "description" = excluded."description", "imported" = excluded."imported", "language" = excluded."language", "slug" = excluded."slug", "status" = excluded."status", "title" = excluded."title", "type" = excluded."type", "parent_id" = excluded."parent_id"`,
 		id,
 		string(data),
-		time.Now(),
+		time.Now().UTC().Format(time.RFC3339),
+		lookupFieldValue(obj, "artwork_url"),
+		lookupFieldValue(obj, "author"),
+		lookupFieldValue(obj, "copyright"),
+		lookupFieldValue(obj, "created"),
+		lookupFieldValue(obj, "description"),
+		lookupFieldValue(obj, "imported"),
+		lookupFieldValue(obj, "language"),
+		lookupFieldValue(obj, "slug"),
+		lookupFieldValue(obj, "status"),
+		lookupFieldValue(obj, "title"),
+		lookupFieldValue(obj, "type"),
+		lookupFieldValue(obj, "parent_id"),
+	); err != nil {
+		return fmt.Errorf("insert into podcasts: %w", err)
+	}
+
+	return nil
+}
+
+// UpsertPodcasts inserts or updates a podcasts record with domain-specific columns.
+func (s *Store) UpsertPodcasts(data json.RawMessage) error {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
+		return fmt.Errorf("unmarshaling podcasts: %w", err)
+	}
+
+	id := extractObjectID(obj)
+	if id == "" {
+		return fmt.Errorf("missing id for podcasts")
+	}
+	storageID := resourceStorageID("podcasts", id, obj)
+
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if err := s.upsertGenericResourceTx(tx, "podcasts", storageID, data); err != nil {
+		return err
+	}
+	if err := s.upsertPodcastsTx(tx, storageID, obj, data); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+// upsertEpisodesTx writes the per-resource domain-table portion of a
+// episodes upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
+func (s *Store) upsertEpisodesTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
+	if _, err := tx.Exec(
+		`INSERT INTO "episodes" ("id", "podcasts_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?)
+		 ON CONFLICT("id") DO UPDATE SET "podcasts_id" = excluded."podcasts_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		id,
+		lookupFieldValue(obj, "podcasts_id"),
+		string(data),
+		time.Now().UTC().Format(time.RFC3339),
+	); err != nil {
+		return fmt.Errorf("insert into episodes: %w", err)
+	}
+
+	return nil
+}
+
+// UpsertEpisodes inserts or updates a episodes record with domain-specific columns.
+func (s *Store) UpsertEpisodes(data json.RawMessage) error {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
+		return fmt.Errorf("unmarshaling episodes: %w", err)
+	}
+
+	id := extractObjectID(obj)
+	if id == "" {
+		return fmt.Errorf("missing id for episodes")
+	}
+	storageID := resourceStorageID("episodes", id, obj)
+
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if err := s.upsertGenericResourceTx(tx, "episodes", storageID, data); err != nil {
+		return err
+	}
+	if err := s.upsertEpisodesTx(tx, storageID, obj, data); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+// upsertPrivateFeedsTx writes the per-resource domain-table portion of a
+// private_feeds upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
+func (s *Store) upsertPrivateFeedsTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
+	if _, err := tx.Exec(
+		`INSERT INTO "private_feeds" ("id", "podcasts_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?)
+		 ON CONFLICT("id") DO UPDATE SET "podcasts_id" = excluded."podcasts_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		id,
+		lookupFieldValue(obj, "podcasts_id"),
+		string(data),
+		time.Now().UTC().Format(time.RFC3339),
+	); err != nil {
+		return fmt.Errorf("insert into private_feeds: %w", err)
+	}
+
+	return nil
+}
+
+// UpsertPrivateFeeds inserts or updates a private_feeds record with domain-specific columns.
+func (s *Store) UpsertPrivateFeeds(data json.RawMessage) error {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
+		return fmt.Errorf("unmarshaling private_feeds: %w", err)
+	}
+
+	id := extractObjectID(obj)
+	if id == "" {
+		return fmt.Errorf("missing id for private_feeds")
+	}
+	storageID := resourceStorageID("private_feeds", id, obj)
+
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if err := s.upsertGenericResourceTx(tx, "private_feeds", storageID, data); err != nil {
+		return err
+	}
+	if err := s.upsertPrivateFeedsTx(tx, storageID, obj, data); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+// upsertPollsTx writes the per-resource domain-table portion of a
+// polls upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
+func (s *Store) upsertPollsTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
+	if _, err := tx.Exec(
+		`INSERT INTO "polls" ("id", "data", "synced_at", "created_at", "description", "name", "poll_type", "question", "status", "total_responses", "trivia_answer", "parent_id")
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "created_at" = excluded."created_at", "description" = excluded."description", "name" = excluded."name", "poll_type" = excluded."poll_type", "question" = excluded."question", "status" = excluded."status", "total_responses" = excluded."total_responses", "trivia_answer" = excluded."trivia_answer", "parent_id" = excluded."parent_id"`,
+		id,
+		string(data),
+		time.Now().UTC().Format(time.RFC3339),
 		lookupFieldValue(obj, "created_at"),
 		lookupFieldValue(obj, "description"),
 		lookupFieldValue(obj, "name"),
@@ -1951,8 +3089,8 @@ func (s *Store) upsertPollsTx(tx *sql.Tx, id string, obj map[string]any, data js
 
 // UpsertPolls inserts or updates a polls record with domain-specific columns.
 func (s *Store) UpsertPolls(data json.RawMessage) error {
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
 		return fmt.Errorf("unmarshaling polls: %w", err)
 	}
 
@@ -1960,40 +3098,40 @@ func (s *Store) UpsertPolls(data json.RawMessage) error {
 	if id == "" {
 		return fmt.Errorf("missing id for polls")
 	}
+	storageID := resourceStorageID("polls", id, obj)
 
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if err := s.upsertGenericResourceTx(tx, "polls", id, data); err != nil {
+	if err := s.upsertGenericResourceTx(tx, "polls", storageID, data); err != nil {
 		return err
 	}
-	if err := s.upsertPollsTx(tx, id, obj, data); err != nil {
+	if err := s.upsertPollsTx(tx, storageID, obj, data); err != nil {
 		return err
 	}
 
 	return tx.Commit()
 }
 
-// upsertResponsesTx writes the typed-table portion of a responses upsert
-// inside an existing transaction. The caller is responsible for the generic
-// resources insert (via upsertGenericResourceTx) and for committing the tx.
-// Splitting this out lets UpsertBatch dispatch typed inserts per item without
-// opening a per-item transaction.
+// upsertResponsesTx writes the per-resource domain-table portion of a
+// responses upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
 func (s *Store) upsertResponsesTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO responses (id, polls_id, data, synced_at, parent_id)
-		 VALUES (?, ?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET polls_id = excluded.polls_id, data = excluded.data, synced_at = excluded.synced_at, parent_id = excluded.parent_id`,
+		`INSERT INTO "responses" ("id", "polls_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?)
+		 ON CONFLICT("id") DO UPDATE SET "polls_id" = excluded."polls_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
 		id,
-		string(data),
-		time.Now(),
 		lookupFieldValue(obj, "polls_id"),
-		lookupFieldValue(obj, "parent_id"),
+		string(data),
+		time.Now().UTC().Format(time.RFC3339),
 	); err != nil {
 		return fmt.Errorf("insert into responses: %w", err)
 	}
@@ -2003,8 +3141,8 @@ func (s *Store) upsertResponsesTx(tx *sql.Tx, id string, obj map[string]any, dat
 
 // UpsertResponses inserts or updates a responses record with domain-specific columns.
 func (s *Store) UpsertResponses(data json.RawMessage) error {
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
 		return fmt.Errorf("unmarshaling responses: %w", err)
 	}
 
@@ -2012,38 +3150,39 @@ func (s *Store) UpsertResponses(data json.RawMessage) error {
 	if id == "" {
 		return fmt.Errorf("missing id for responses")
 	}
+	storageID := resourceStorageID("responses", id, obj)
 
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if err := s.upsertGenericResourceTx(tx, "responses", id, data); err != nil {
+	if err := s.upsertGenericResourceTx(tx, "responses", storageID, data); err != nil {
 		return err
 	}
-	if err := s.upsertResponsesTx(tx, id, obj, data); err != nil {
+	if err := s.upsertResponsesTx(tx, storageID, obj, data); err != nil {
 		return err
 	}
 
 	return tx.Commit()
 }
 
-// upsertPostTemplatesTx writes the typed-table portion of a post_templates upsert
-// inside an existing transaction. The caller is responsible for the generic
-// resources insert (via upsertGenericResourceTx) and for committing the tx.
-// Splitting this out lets UpsertBatch dispatch typed inserts per item without
-// opening a per-item transaction.
+// upsertPostTemplatesTx writes the per-resource domain-table portion of a
+// post_templates upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
 func (s *Store) upsertPostTemplatesTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO post_templates (id, data, synced_at, name, parent_id)
+		`INSERT INTO "post_templates" ("id", "data", "synced_at", "name", "parent_id")
 		 VALUES (?, ?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET data = excluded.data, synced_at = excluded.synced_at, name = excluded.name, parent_id = excluded.parent_id`,
+		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "name" = excluded."name", "parent_id" = excluded."parent_id"`,
 		id,
 		string(data),
-		time.Now(),
+		time.Now().UTC().Format(time.RFC3339),
 		lookupFieldValue(obj, "name"),
 		lookupFieldValue(obj, "parent_id"),
 	); err != nil {
@@ -2055,8 +3194,8 @@ func (s *Store) upsertPostTemplatesTx(tx *sql.Tx, id string, obj map[string]any,
 
 // UpsertPostTemplates inserts or updates a post_templates record with domain-specific columns.
 func (s *Store) UpsertPostTemplates(data json.RawMessage) error {
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
 		return fmt.Errorf("unmarshaling post_templates: %w", err)
 	}
 
@@ -2064,38 +3203,39 @@ func (s *Store) UpsertPostTemplates(data json.RawMessage) error {
 	if id == "" {
 		return fmt.Errorf("missing id for post_templates")
 	}
+	storageID := resourceStorageID("post-templates", id, obj)
 
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if err := s.upsertGenericResourceTx(tx, "post_templates", id, data); err != nil {
+	if err := s.upsertGenericResourceTx(tx, "post-templates", storageID, data); err != nil {
 		return err
 	}
-	if err := s.upsertPostTemplatesTx(tx, id, obj, data); err != nil {
+	if err := s.upsertPostTemplatesTx(tx, storageID, obj, data); err != nil {
 		return err
 	}
 
 	return tx.Commit()
 }
 
-// upsertPostsTx writes the typed-table portion of a posts upsert
-// inside an existing transaction. The caller is responsible for the generic
-// resources insert (via upsertGenericResourceTx) and for committing the tx.
-// Splitting this out lets UpsertBatch dispatch typed inserts per item without
-// opening a per-item transaction.
+// upsertPostsTx writes the per-resource domain-table portion of a
+// posts upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
 func (s *Store) upsertPostsTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO posts (id, data, synced_at, audience, created, displayed_date, email_capture_popup, enforce_gated_content, hidden_from_feed, meta_default_description, meta_default_title, newsletter_list_id, platform, preview_text, publish_date, slug, split_tested, status, subject_line, subtitle, thumbnail_url, title, web_url, parent_id)
+		`INSERT INTO "posts" ("id", "data", "synced_at", "audience", "created", "displayed_date", "email_capture_popup", "enforce_gated_content", "hidden_from_feed", "meta_default_description", "meta_default_title", "newsletter_list_id", "platform", "preview_text", "publish_date", "slug", "split_tested", "status", "subject_line", "subtitle", "thumbnail_url", "title", "web_url", "parent_id")
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET data = excluded.data, synced_at = excluded.synced_at, audience = excluded.audience, created = excluded.created, displayed_date = excluded.displayed_date, email_capture_popup = excluded.email_capture_popup, enforce_gated_content = excluded.enforce_gated_content, hidden_from_feed = excluded.hidden_from_feed, meta_default_description = excluded.meta_default_description, meta_default_title = excluded.meta_default_title, newsletter_list_id = excluded.newsletter_list_id, platform = excluded.platform, preview_text = excluded.preview_text, publish_date = excluded.publish_date, slug = excluded.slug, split_tested = excluded.split_tested, status = excluded.status, subject_line = excluded.subject_line, subtitle = excluded.subtitle, thumbnail_url = excluded.thumbnail_url, title = excluded.title, web_url = excluded.web_url, parent_id = excluded.parent_id`,
+		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "audience" = excluded."audience", "created" = excluded."created", "displayed_date" = excluded."displayed_date", "email_capture_popup" = excluded."email_capture_popup", "enforce_gated_content" = excluded."enforce_gated_content", "hidden_from_feed" = excluded."hidden_from_feed", "meta_default_description" = excluded."meta_default_description", "meta_default_title" = excluded."meta_default_title", "newsletter_list_id" = excluded."newsletter_list_id", "platform" = excluded."platform", "preview_text" = excluded."preview_text", "publish_date" = excluded."publish_date", "slug" = excluded."slug", "split_tested" = excluded."split_tested", "status" = excluded."status", "subject_line" = excluded."subject_line", "subtitle" = excluded."subtitle", "thumbnail_url" = excluded."thumbnail_url", "title" = excluded."title", "web_url" = excluded."web_url", "parent_id" = excluded."parent_id"`,
 		id,
 		string(data),
-		time.Now(),
+		time.Now().UTC().Format(time.RFC3339),
 		lookupFieldValue(obj, "audience"),
 		lookupFieldValue(obj, "created"),
 		lookupFieldValue(obj, "displayed_date"),
@@ -2126,8 +3266,8 @@ func (s *Store) upsertPostsTx(tx *sql.Tx, id string, obj map[string]any, data js
 
 // UpsertPosts inserts or updates a posts record with domain-specific columns.
 func (s *Store) UpsertPosts(data json.RawMessage) error {
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
 		return fmt.Errorf("unmarshaling posts: %w", err)
 	}
 
@@ -2135,38 +3275,143 @@ func (s *Store) UpsertPosts(data json.RawMessage) error {
 	if id == "" {
 		return fmt.Errorf("missing id for posts")
 	}
+	storageID := resourceStorageID("posts", id, obj)
 
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if err := s.upsertGenericResourceTx(tx, "posts", id, data); err != nil {
+	if err := s.upsertGenericResourceTx(tx, "posts", storageID, data); err != nil {
 		return err
 	}
-	if err := s.upsertPostsTx(tx, id, obj, data); err != nil {
+	if err := s.upsertPostsTx(tx, storageID, obj, data); err != nil {
 		return err
 	}
 
 	return tx.Commit()
 }
 
-// upsertPublicationsTx writes the typed-table portion of a publications upsert
-// inside an existing transaction. The caller is responsible for the generic
-// resources insert (via upsertGenericResourceTx) and for committing the tx.
-// Splitting this out lets UpsertBatch dispatch typed inserts per item without
-// opening a per-item transaction.
+// upsertPreviewTx writes the per-resource domain-table portion of a
+// preview upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
+func (s *Store) upsertPreviewTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
+	if _, err := tx.Exec(
+		`INSERT INTO "preview" ("id", "posts_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?)
+		 ON CONFLICT("id") DO UPDATE SET "posts_id" = excluded."posts_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		id,
+		lookupFieldValue(obj, "posts_id"),
+		string(data),
+		time.Now().UTC().Format(time.RFC3339),
+	); err != nil {
+		return fmt.Errorf("insert into preview: %w", err)
+	}
+
+	return nil
+}
+
+// UpsertPreview inserts or updates a preview record with domain-specific columns.
+func (s *Store) UpsertPreview(data json.RawMessage) error {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
+		return fmt.Errorf("unmarshaling preview: %w", err)
+	}
+
+	id := extractObjectID(obj)
+	if id == "" {
+		return fmt.Errorf("missing id for preview")
+	}
+	storageID := resourceStorageID("preview", id, obj)
+
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if err := s.upsertGenericResourceTx(tx, "preview", storageID, data); err != nil {
+		return err
+	}
+	if err := s.upsertPreviewTx(tx, storageID, obj, data); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+// upsertTestSendsTx writes the per-resource domain-table portion of a
+// test_sends upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
+func (s *Store) upsertTestSendsTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
+	if _, err := tx.Exec(
+		`INSERT INTO "test_sends" ("id", "posts_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?)
+		 ON CONFLICT("id") DO UPDATE SET "posts_id" = excluded."posts_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
+		id,
+		lookupFieldValue(obj, "posts_id"),
+		string(data),
+		time.Now().UTC().Format(time.RFC3339),
+	); err != nil {
+		return fmt.Errorf("insert into test_sends: %w", err)
+	}
+
+	return nil
+}
+
+// UpsertTestSends inserts or updates a test_sends record with domain-specific columns.
+func (s *Store) UpsertTestSends(data json.RawMessage) error {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
+		return fmt.Errorf("unmarshaling test_sends: %w", err)
+	}
+
+	id := extractObjectID(obj)
+	if id == "" {
+		return fmt.Errorf("missing id for test_sends")
+	}
+	storageID := resourceStorageID("test_sends", id, obj)
+
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if err := s.upsertGenericResourceTx(tx, "test_sends", storageID, data); err != nil {
+		return err
+	}
+	if err := s.upsertTestSendsTx(tx, storageID, obj, data); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+// upsertPublicationsTx writes the per-resource domain-table portion of a
+// publications upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
 func (s *Store) upsertPublicationsTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO publications (id, data, synced_at, created, name, organization_name, referral_program_enabled)
+		`INSERT INTO "publications" ("id", "data", "synced_at", "created", "name", "organization_name", "referral_program_enabled")
 		 VALUES (?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET data = excluded.data, synced_at = excluded.synced_at, created = excluded.created, name = excluded.name, organization_name = excluded.organization_name, referral_program_enabled = excluded.referral_program_enabled`,
+		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "created" = excluded."created", "name" = excluded."name", "organization_name" = excluded."organization_name", "referral_program_enabled" = excluded."referral_program_enabled"`,
 		id,
 		string(data),
-		time.Now(),
+		time.Now().UTC().Format(time.RFC3339),
 		lookupFieldValue(obj, "created"),
 		lookupFieldValue(obj, "name"),
 		lookupFieldValue(obj, "organization_name"),
@@ -2180,8 +3425,8 @@ func (s *Store) upsertPublicationsTx(tx *sql.Tx, id string, obj map[string]any, 
 
 // UpsertPublications inserts or updates a publications record with domain-specific columns.
 func (s *Store) UpsertPublications(data json.RawMessage) error {
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
 		return fmt.Errorf("unmarshaling publications: %w", err)
 	}
 
@@ -2189,38 +3434,39 @@ func (s *Store) UpsertPublications(data json.RawMessage) error {
 	if id == "" {
 		return fmt.Errorf("missing id for publications")
 	}
+	storageID := resourceStorageID("publications", id, obj)
 
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if err := s.upsertGenericResourceTx(tx, "publications", id, data); err != nil {
+	if err := s.upsertGenericResourceTx(tx, "publications", storageID, data); err != nil {
 		return err
 	}
-	if err := s.upsertPublicationsTx(tx, id, obj, data); err != nil {
+	if err := s.upsertPublicationsTx(tx, storageID, obj, data); err != nil {
 		return err
 	}
 
 	return tx.Commit()
 }
 
-// upsertReferralProgramTx writes the typed-table portion of a referral_program upsert
-// inside an existing transaction. The caller is responsible for the generic
-// resources insert (via upsertGenericResourceTx) and for committing the tx.
-// Splitting this out lets UpsertBatch dispatch typed inserts per item without
-// opening a per-item transaction.
+// upsertReferralProgramTx writes the per-resource domain-table portion of a
+// referral_program upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
 func (s *Store) upsertReferralProgramTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO referral_program (id, data, synced_at, parent_id)
+		`INSERT INTO "referral_program" ("id", "data", "synced_at", "parent_id")
 		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET data = excluded.data, synced_at = excluded.synced_at, parent_id = excluded.parent_id`,
+		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "parent_id" = excluded."parent_id"`,
 		id,
 		string(data),
-		time.Now(),
+		time.Now().UTC().Format(time.RFC3339),
 		lookupFieldValue(obj, "parent_id"),
 	); err != nil {
 		return fmt.Errorf("insert into referral_program: %w", err)
@@ -2231,8 +3477,8 @@ func (s *Store) upsertReferralProgramTx(tx *sql.Tx, id string, obj map[string]an
 
 // UpsertReferralProgram inserts or updates a referral_program record with domain-specific columns.
 func (s *Store) UpsertReferralProgram(data json.RawMessage) error {
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
 		return fmt.Errorf("unmarshaling referral_program: %w", err)
 	}
 
@@ -2240,38 +3486,39 @@ func (s *Store) UpsertReferralProgram(data json.RawMessage) error {
 	if id == "" {
 		return fmt.Errorf("missing id for referral_program")
 	}
+	storageID := resourceStorageID("referral-program", id, obj)
 
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if err := s.upsertGenericResourceTx(tx, "referral_program", id, data); err != nil {
+	if err := s.upsertGenericResourceTx(tx, "referral-program", storageID, data); err != nil {
 		return err
 	}
-	if err := s.upsertReferralProgramTx(tx, id, obj, data); err != nil {
+	if err := s.upsertReferralProgramTx(tx, storageID, obj, data); err != nil {
 		return err
 	}
 
 	return tx.Commit()
 }
 
-// upsertSegmentsTx writes the typed-table portion of a segments upsert
-// inside an existing transaction. The caller is responsible for the generic
-// resources insert (via upsertGenericResourceTx) and for committing the tx.
-// Splitting this out lets UpsertBatch dispatch typed inserts per item without
-// opening a per-item transaction.
+// upsertSegmentsTx writes the per-resource domain-table portion of a
+// segments upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
 func (s *Store) upsertSegmentsTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO segments (id, data, synced_at, active, last_calculated, name, status, total_results, type, parent_id)
+		`INSERT INTO "segments" ("id", "data", "synced_at", "active", "last_calculated", "name", "status", "total_results", "type", "parent_id")
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET data = excluded.data, synced_at = excluded.synced_at, active = excluded.active, last_calculated = excluded.last_calculated, name = excluded.name, status = excluded.status, total_results = excluded.total_results, type = excluded.type, parent_id = excluded.parent_id`,
+		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "active" = excluded."active", "last_calculated" = excluded."last_calculated", "name" = excluded."name", "status" = excluded."status", "total_results" = excluded."total_results", "type" = excluded."type", "parent_id" = excluded."parent_id"`,
 		id,
 		string(data),
-		time.Now(),
+		time.Now().UTC().Format(time.RFC3339),
 		lookupFieldValue(obj, "active"),
 		lookupFieldValue(obj, "last_calculated"),
 		lookupFieldValue(obj, "name"),
@@ -2288,8 +3535,8 @@ func (s *Store) upsertSegmentsTx(tx *sql.Tx, id string, obj map[string]any, data
 
 // UpsertSegments inserts or updates a segments record with domain-specific columns.
 func (s *Store) UpsertSegments(data json.RawMessage) error {
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
 		return fmt.Errorf("unmarshaling segments: %w", err)
 	}
 
@@ -2297,40 +3544,40 @@ func (s *Store) UpsertSegments(data json.RawMessage) error {
 	if id == "" {
 		return fmt.Errorf("missing id for segments")
 	}
+	storageID := resourceStorageID("segments", id, obj)
 
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if err := s.upsertGenericResourceTx(tx, "segments", id, data); err != nil {
+	if err := s.upsertGenericResourceTx(tx, "segments", storageID, data); err != nil {
 		return err
 	}
-	if err := s.upsertSegmentsTx(tx, id, obj, data); err != nil {
+	if err := s.upsertSegmentsTx(tx, storageID, obj, data); err != nil {
 		return err
 	}
 
 	return tx.Commit()
 }
 
-// upsertMembersTx writes the typed-table portion of a members upsert
-// inside an existing transaction. The caller is responsible for the generic
-// resources insert (via upsertGenericResourceTx) and for committing the tx.
-// Splitting this out lets UpsertBatch dispatch typed inserts per item without
-// opening a per-item transaction.
+// upsertMembersTx writes the per-resource domain-table portion of a
+// members upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
 func (s *Store) upsertMembersTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO members (id, segments_id, data, synced_at, parent_id)
-		 VALUES (?, ?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET segments_id = excluded.segments_id, data = excluded.data, synced_at = excluded.synced_at, parent_id = excluded.parent_id`,
+		`INSERT INTO "members" ("id", "segments_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?)
+		 ON CONFLICT("id") DO UPDATE SET "segments_id" = excluded."segments_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
 		id,
-		string(data),
-		time.Now(),
 		lookupFieldValue(obj, "segments_id"),
-		lookupFieldValue(obj, "parent_id"),
+		string(data),
+		time.Now().UTC().Format(time.RFC3339),
 	); err != nil {
 		return fmt.Errorf("insert into members: %w", err)
 	}
@@ -2340,8 +3587,8 @@ func (s *Store) upsertMembersTx(tx *sql.Tx, id string, obj map[string]any, data 
 
 // UpsertMembers inserts or updates a members record with domain-specific columns.
 func (s *Store) UpsertMembers(data json.RawMessage) error {
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
 		return fmt.Errorf("unmarshaling members: %w", err)
 	}
 
@@ -2349,39 +3596,40 @@ func (s *Store) UpsertMembers(data json.RawMessage) error {
 	if id == "" {
 		return fmt.Errorf("missing id for members")
 	}
+	storageID := resourceStorageID("members", id, obj)
 
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if err := s.upsertGenericResourceTx(tx, "members", id, data); err != nil {
+	if err := s.upsertGenericResourceTx(tx, "members", storageID, data); err != nil {
 		return err
 	}
-	if err := s.upsertMembersTx(tx, id, obj, data); err != nil {
+	if err := s.upsertMembersTx(tx, storageID, obj, data); err != nil {
 		return err
 	}
 
 	return tx.Commit()
 }
 
-// upsertRecalculateTx writes the typed-table portion of a recalculate upsert
-// inside an existing transaction. The caller is responsible for the generic
-// resources insert (via upsertGenericResourceTx) and for committing the tx.
-// Splitting this out lets UpsertBatch dispatch typed inserts per item without
-// opening a per-item transaction.
+// upsertRecalculateTx writes the per-resource domain-table portion of a
+// recalculate upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
 func (s *Store) upsertRecalculateTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO recalculate (id, segments_id, data, synced_at)
+		`INSERT INTO "recalculate" ("id", "segments_id", "data", "synced_at")
 		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET segments_id = excluded.segments_id, data = excluded.data, synced_at = excluded.synced_at`,
+		 ON CONFLICT("id") DO UPDATE SET "segments_id" = excluded."segments_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
 		id,
-		string(data),
-		time.Now(),
 		lookupFieldValue(obj, "segments_id"),
+		string(data),
+		time.Now().UTC().Format(time.RFC3339),
 	); err != nil {
 		return fmt.Errorf("insert into recalculate: %w", err)
 	}
@@ -2391,8 +3639,8 @@ func (s *Store) upsertRecalculateTx(tx *sql.Tx, id string, obj map[string]any, d
 
 // UpsertRecalculate inserts or updates a recalculate record with domain-specific columns.
 func (s *Store) UpsertRecalculate(data json.RawMessage) error {
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
 		return fmt.Errorf("unmarshaling recalculate: %w", err)
 	}
 
@@ -2400,40 +3648,40 @@ func (s *Store) UpsertRecalculate(data json.RawMessage) error {
 	if id == "" {
 		return fmt.Errorf("missing id for recalculate")
 	}
+	storageID := resourceStorageID("recalculate", id, obj)
 
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if err := s.upsertGenericResourceTx(tx, "recalculate", id, data); err != nil {
+	if err := s.upsertGenericResourceTx(tx, "recalculate", storageID, data); err != nil {
 		return err
 	}
-	if err := s.upsertRecalculateTx(tx, id, obj, data); err != nil {
+	if err := s.upsertRecalculateTx(tx, storageID, obj, data); err != nil {
 		return err
 	}
 
 	return tx.Commit()
 }
 
-// upsertResultsTx writes the typed-table portion of a results upsert
-// inside an existing transaction. The caller is responsible for the generic
-// resources insert (via upsertGenericResourceTx) and for committing the tx.
-// Splitting this out lets UpsertBatch dispatch typed inserts per item without
-// opening a per-item transaction.
+// upsertResultsTx writes the per-resource domain-table portion of a
+// results upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
 func (s *Store) upsertResultsTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO results (id, segments_id, data, synced_at, parent_id)
-		 VALUES (?, ?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET segments_id = excluded.segments_id, data = excluded.data, synced_at = excluded.synced_at, parent_id = excluded.parent_id`,
+		`INSERT INTO "results" ("id", "segments_id", "data", "synced_at")
+		 VALUES (?, ?, ?, ?)
+		 ON CONFLICT("id") DO UPDATE SET "segments_id" = excluded."segments_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
 		id,
-		string(data),
-		time.Now(),
 		lookupFieldValue(obj, "segments_id"),
-		lookupFieldValue(obj, "parent_id"),
+		string(data),
+		time.Now().UTC().Format(time.RFC3339),
 	); err != nil {
 		return fmt.Errorf("insert into results: %w", err)
 	}
@@ -2443,8 +3691,8 @@ func (s *Store) upsertResultsTx(tx *sql.Tx, id string, obj map[string]any, data 
 
 // UpsertResults inserts or updates a results record with domain-specific columns.
 func (s *Store) UpsertResults(data json.RawMessage) error {
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
 		return fmt.Errorf("unmarshaling results: %w", err)
 	}
 
@@ -2452,38 +3700,39 @@ func (s *Store) UpsertResults(data json.RawMessage) error {
 	if id == "" {
 		return fmt.Errorf("missing id for results")
 	}
+	storageID := resourceStorageID("results", id, obj)
 
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if err := s.upsertGenericResourceTx(tx, "results", id, data); err != nil {
+	if err := s.upsertGenericResourceTx(tx, "results", storageID, data); err != nil {
 		return err
 	}
-	if err := s.upsertResultsTx(tx, id, obj, data); err != nil {
+	if err := s.upsertResultsTx(tx, storageID, obj, data); err != nil {
 		return err
 	}
 
 	return tx.Commit()
 }
 
-// upsertSubscriptionsTx writes the typed-table portion of a subscriptions upsert
-// inside an existing transaction. The caller is responsible for the generic
-// resources insert (via upsertGenericResourceTx) and for committing the tx.
-// Splitting this out lets UpsertBatch dispatch typed inserts per item without
-// opening a per-item transaction.
+// upsertSubscriptionsTx writes the per-resource domain-table portion of a
+// subscriptions upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
 func (s *Store) upsertSubscriptionsTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO subscriptions (id, data, synced_at, created, email, referral_code, referring_site, status, subscription_tier, utm_campaign, utm_channel, utm_content, utm_medium, utm_source, utm_term)
+		`INSERT INTO "subscriptions" ("id", "data", "synced_at", "created", "email", "referral_code", "referring_site", "status", "subscription_tier", "utm_campaign", "utm_channel", "utm_content", "utm_medium", "utm_source", "utm_term")
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET data = excluded.data, synced_at = excluded.synced_at, created = excluded.created, email = excluded.email, referral_code = excluded.referral_code, referring_site = excluded.referring_site, status = excluded.status, subscription_tier = excluded.subscription_tier, utm_campaign = excluded.utm_campaign, utm_channel = excluded.utm_channel, utm_content = excluded.utm_content, utm_medium = excluded.utm_medium, utm_source = excluded.utm_source, utm_term = excluded.utm_term`,
+		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "created" = excluded."created", "email" = excluded."email", "referral_code" = excluded."referral_code", "referring_site" = excluded."referring_site", "status" = excluded."status", "subscription_tier" = excluded."subscription_tier", "utm_campaign" = excluded."utm_campaign", "utm_channel" = excluded."utm_channel", "utm_content" = excluded."utm_content", "utm_medium" = excluded."utm_medium", "utm_source" = excluded."utm_source", "utm_term" = excluded."utm_term"`,
 		id,
 		string(data),
-		time.Now(),
+		time.Now().UTC().Format(time.RFC3339),
 		lookupFieldValue(obj, "created"),
 		lookupFieldValue(obj, "email"),
 		lookupFieldValue(obj, "referral_code"),
@@ -2505,8 +3754,8 @@ func (s *Store) upsertSubscriptionsTx(tx *sql.Tx, id string, obj map[string]any,
 
 // UpsertSubscriptions inserts or updates a subscriptions record with domain-specific columns.
 func (s *Store) UpsertSubscriptions(data json.RawMessage) error {
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
 		return fmt.Errorf("unmarshaling subscriptions: %w", err)
 	}
 
@@ -2514,39 +3763,40 @@ func (s *Store) UpsertSubscriptions(data json.RawMessage) error {
 	if id == "" {
 		return fmt.Errorf("missing id for subscriptions")
 	}
+	storageID := resourceStorageID("subscriptions", id, obj)
 
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if err := s.upsertGenericResourceTx(tx, "subscriptions", id, data); err != nil {
+	if err := s.upsertGenericResourceTx(tx, "subscriptions", storageID, data); err != nil {
 		return err
 	}
-	if err := s.upsertSubscriptionsTx(tx, id, obj, data); err != nil {
+	if err := s.upsertSubscriptionsTx(tx, storageID, obj, data); err != nil {
 		return err
 	}
 
 	return tx.Commit()
 }
 
-// upsertJwtTokenTx writes the typed-table portion of a jwt_token upsert
-// inside an existing transaction. The caller is responsible for the generic
-// resources insert (via upsertGenericResourceTx) and for committing the tx.
-// Splitting this out lets UpsertBatch dispatch typed inserts per item without
-// opening a per-item transaction.
+// upsertJwtTokenTx writes the per-resource domain-table portion of a
+// jwt_token upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
 func (s *Store) upsertJwtTokenTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO jwt_token (id, subscriptions_id, data, synced_at)
+		`INSERT INTO "jwt_token" ("id", "subscriptions_id", "data", "synced_at")
 		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET subscriptions_id = excluded.subscriptions_id, data = excluded.data, synced_at = excluded.synced_at`,
+		 ON CONFLICT("id") DO UPDATE SET "subscriptions_id" = excluded."subscriptions_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
 		id,
-		string(data),
-		time.Now(),
 		lookupFieldValue(obj, "subscriptions_id"),
+		string(data),
+		time.Now().UTC().Format(time.RFC3339),
 	); err != nil {
 		return fmt.Errorf("insert into jwt_token: %w", err)
 	}
@@ -2556,8 +3806,8 @@ func (s *Store) upsertJwtTokenTx(tx *sql.Tx, id string, obj map[string]any, data
 
 // UpsertJwtToken inserts or updates a jwt_token record with domain-specific columns.
 func (s *Store) UpsertJwtToken(data json.RawMessage) error {
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
 		return fmt.Errorf("unmarshaling jwt_token: %w", err)
 	}
 
@@ -2565,39 +3815,40 @@ func (s *Store) UpsertJwtToken(data json.RawMessage) error {
 	if id == "" {
 		return fmt.Errorf("missing id for jwt_token")
 	}
+	storageID := resourceStorageID("jwt_token", id, obj)
 
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if err := s.upsertGenericResourceTx(tx, "jwt_token", id, data); err != nil {
+	if err := s.upsertGenericResourceTx(tx, "jwt_token", storageID, data); err != nil {
 		return err
 	}
-	if err := s.upsertJwtTokenTx(tx, id, obj, data); err != nil {
+	if err := s.upsertJwtTokenTx(tx, storageID, obj, data); err != nil {
 		return err
 	}
 
 	return tx.Commit()
 }
 
-// upsertTagsTx writes the typed-table portion of a tags upsert
-// inside an existing transaction. The caller is responsible for the generic
-// resources insert (via upsertGenericResourceTx) and for committing the tx.
-// Splitting this out lets UpsertBatch dispatch typed inserts per item without
-// opening a per-item transaction.
+// upsertTagsTx writes the per-resource domain-table portion of a
+// tags upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
 func (s *Store) upsertTagsTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO tags (id, subscriptions_id, data, synced_at)
+		`INSERT INTO "tags" ("id", "subscriptions_id", "data", "synced_at")
 		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET subscriptions_id = excluded.subscriptions_id, data = excluded.data, synced_at = excluded.synced_at`,
+		 ON CONFLICT("id") DO UPDATE SET "subscriptions_id" = excluded."subscriptions_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
 		id,
-		string(data),
-		time.Now(),
 		lookupFieldValue(obj, "subscriptions_id"),
+		string(data),
+		time.Now().UTC().Format(time.RFC3339),
 	); err != nil {
 		return fmt.Errorf("insert into tags: %w", err)
 	}
@@ -2607,8 +3858,8 @@ func (s *Store) upsertTagsTx(tx *sql.Tx, id string, obj map[string]any, data jso
 
 // UpsertTags inserts or updates a tags record with domain-specific columns.
 func (s *Store) UpsertTags(data json.RawMessage) error {
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
 		return fmt.Errorf("unmarshaling tags: %w", err)
 	}
 
@@ -2616,38 +3867,39 @@ func (s *Store) UpsertTags(data json.RawMessage) error {
 	if id == "" {
 		return fmt.Errorf("missing id for tags")
 	}
+	storageID := resourceStorageID("tags", id, obj)
 
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if err := s.upsertGenericResourceTx(tx, "tags", id, data); err != nil {
+	if err := s.upsertGenericResourceTx(tx, "tags", storageID, data); err != nil {
 		return err
 	}
-	if err := s.upsertTagsTx(tx, id, obj, data); err != nil {
+	if err := s.upsertTagsTx(tx, storageID, obj, data); err != nil {
 		return err
 	}
 
 	return tx.Commit()
 }
 
-// upsertTiersTx writes the typed-table portion of a tiers upsert
-// inside an existing transaction. The caller is responsible for the generic
-// resources insert (via upsertGenericResourceTx) and for committing the tx.
-// Splitting this out lets UpsertBatch dispatch typed inserts per item without
-// opening a per-item transaction.
+// upsertTiersTx writes the per-resource domain-table portion of a
+// tiers upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
 func (s *Store) upsertTiersTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO tiers (id, data, synced_at, description, name, status, parent_id)
+		`INSERT INTO "tiers" ("id", "data", "synced_at", "description", "name", "status", "parent_id")
 		 VALUES (?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET data = excluded.data, synced_at = excluded.synced_at, description = excluded.description, name = excluded.name, status = excluded.status, parent_id = excluded.parent_id`,
+		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "description" = excluded."description", "name" = excluded."name", "status" = excluded."status", "parent_id" = excluded."parent_id"`,
 		id,
 		string(data),
-		time.Now(),
+		time.Now().UTC().Format(time.RFC3339),
 		lookupFieldValue(obj, "description"),
 		lookupFieldValue(obj, "name"),
 		lookupFieldValue(obj, "status"),
@@ -2661,8 +3913,8 @@ func (s *Store) upsertTiersTx(tx *sql.Tx, id string, obj map[string]any, data js
 
 // UpsertTiers inserts or updates a tiers record with domain-specific columns.
 func (s *Store) UpsertTiers(data json.RawMessage) error {
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
 		return fmt.Errorf("unmarshaling tiers: %w", err)
 	}
 
@@ -2670,38 +3922,39 @@ func (s *Store) UpsertTiers(data json.RawMessage) error {
 	if id == "" {
 		return fmt.Errorf("missing id for tiers")
 	}
+	storageID := resourceStorageID("tiers", id, obj)
 
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if err := s.upsertGenericResourceTx(tx, "tiers", id, data); err != nil {
+	if err := s.upsertGenericResourceTx(tx, "tiers", storageID, data); err != nil {
 		return err
 	}
-	if err := s.upsertTiersTx(tx, id, obj, data); err != nil {
+	if err := s.upsertTiersTx(tx, storageID, obj, data); err != nil {
 		return err
 	}
 
 	return tx.Commit()
 }
 
-// upsertWebhooksTx writes the typed-table portion of a webhooks upsert
-// inside an existing transaction. The caller is responsible for the generic
-// resources insert (via upsertGenericResourceTx) and for committing the tx.
-// Splitting this out lets UpsertBatch dispatch typed inserts per item without
-// opening a per-item transaction.
+// upsertWebhooksTx writes the per-resource domain-table portion of a
+// webhooks upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
 func (s *Store) upsertWebhooksTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO webhooks (id, data, synced_at, created, description, updated, url, parent_id)
+		`INSERT INTO "webhooks" ("id", "data", "synced_at", "created", "description", "updated", "url", "parent_id")
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET data = excluded.data, synced_at = excluded.synced_at, created = excluded.created, description = excluded.description, updated = excluded.updated, url = excluded.url, parent_id = excluded.parent_id`,
+		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "created" = excluded."created", "description" = excluded."description", "updated" = excluded."updated", "url" = excluded."url", "parent_id" = excluded."parent_id"`,
 		id,
 		string(data),
-		time.Now(),
+		time.Now().UTC().Format(time.RFC3339),
 		lookupFieldValue(obj, "created"),
 		lookupFieldValue(obj, "description"),
 		lookupFieldValue(obj, "updated"),
@@ -2716,8 +3969,8 @@ func (s *Store) upsertWebhooksTx(tx *sql.Tx, id string, obj map[string]any, data
 
 // UpsertWebhooks inserts or updates a webhooks record with domain-specific columns.
 func (s *Store) UpsertWebhooks(data json.RawMessage) error {
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
 		return fmt.Errorf("unmarshaling webhooks: %w", err)
 	}
 
@@ -2725,39 +3978,40 @@ func (s *Store) UpsertWebhooks(data json.RawMessage) error {
 	if id == "" {
 		return fmt.Errorf("missing id for webhooks")
 	}
+	storageID := resourceStorageID("webhooks", id, obj)
 
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if err := s.upsertGenericResourceTx(tx, "webhooks", id, data); err != nil {
+	if err := s.upsertGenericResourceTx(tx, "webhooks", storageID, data); err != nil {
 		return err
 	}
-	if err := s.upsertWebhooksTx(tx, id, obj, data); err != nil {
+	if err := s.upsertWebhooksTx(tx, storageID, obj, data); err != nil {
 		return err
 	}
 
 	return tx.Commit()
 }
 
-// upsertTestsTx writes the typed-table portion of a tests upsert
-// inside an existing transaction. The caller is responsible for the generic
-// resources insert (via upsertGenericResourceTx) and for committing the tx.
-// Splitting this out lets UpsertBatch dispatch typed inserts per item without
-// opening a per-item transaction.
+// upsertTestsTx writes the per-resource domain-table portion of a
+// tests upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
 func (s *Store) upsertTestsTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO tests (id, webhooks_id, data, synced_at)
+		`INSERT INTO "tests" ("id", "webhooks_id", "data", "synced_at")
 		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET webhooks_id = excluded.webhooks_id, data = excluded.data, synced_at = excluded.synced_at`,
+		 ON CONFLICT("id") DO UPDATE SET "webhooks_id" = excluded."webhooks_id", "data" = excluded."data", "synced_at" = excluded."synced_at"`,
 		id,
-		string(data),
-		time.Now(),
 		lookupFieldValue(obj, "webhooks_id"),
+		string(data),
+		time.Now().UTC().Format(time.RFC3339),
 	); err != nil {
 		return fmt.Errorf("insert into tests: %w", err)
 	}
@@ -2767,8 +4021,8 @@ func (s *Store) upsertTestsTx(tx *sql.Tx, id string, obj map[string]any, data js
 
 // UpsertTests inserts or updates a tests record with domain-specific columns.
 func (s *Store) UpsertTests(data json.RawMessage) error {
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
 		return fmt.Errorf("unmarshaling tests: %w", err)
 	}
 
@@ -2776,38 +4030,39 @@ func (s *Store) UpsertTests(data json.RawMessage) error {
 	if id == "" {
 		return fmt.Errorf("missing id for tests")
 	}
+	storageID := resourceStorageID("tests", id, obj)
 
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if err := s.upsertGenericResourceTx(tx, "tests", id, data); err != nil {
+	if err := s.upsertGenericResourceTx(tx, "tests", storageID, data); err != nil {
 		return err
 	}
-	if err := s.upsertTestsTx(tx, id, obj, data); err != nil {
+	if err := s.upsertTestsTx(tx, storageID, obj, data); err != nil {
 		return err
 	}
 
 	return tx.Commit()
 }
 
-// upsertWorkspacesTx writes the typed-table portion of a workspaces upsert
-// inside an existing transaction. The caller is responsible for the generic
-// resources insert (via upsertGenericResourceTx) and for committing the tx.
-// Splitting this out lets UpsertBatch dispatch typed inserts per item without
-// opening a per-item transaction.
+// upsertWorkspacesTx writes the per-resource domain-table portion of a
+// workspaces upsert inside an existing transaction. The caller is
+// responsible for the generic resources insert (via upsertGenericResourceTx)
+// and for committing the tx. Splitting this out lets UpsertBatch dispatch
+// domain inserts per item without opening a per-item transaction.
 func (s *Store) upsertWorkspacesTx(tx *sql.Tx, id string, obj map[string]any, data json.RawMessage) error {
 	if _, err := tx.Exec(
-		`INSERT INTO workspaces (id, data, synced_at, publication_id, publication_name, status, subscription_id)
+		`INSERT INTO "workspaces" ("id", "data", "synced_at", "publication_id", "publication_name", "status", "subscription_id")
 		 VALUES (?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(id) DO UPDATE SET data = excluded.data, synced_at = excluded.synced_at, publication_id = excluded.publication_id, publication_name = excluded.publication_name, status = excluded.status, subscription_id = excluded.subscription_id`,
+		 ON CONFLICT("id") DO UPDATE SET "data" = excluded."data", "synced_at" = excluded."synced_at", "publication_id" = excluded."publication_id", "publication_name" = excluded."publication_name", "status" = excluded."status", "subscription_id" = excluded."subscription_id"`,
 		id,
 		string(data),
-		time.Now(),
+		time.Now().UTC().Format(time.RFC3339),
 		lookupFieldValue(obj, "publication_id"),
 		lookupFieldValue(obj, "publication_name"),
 		lookupFieldValue(obj, "status"),
@@ -2821,8 +4076,8 @@ func (s *Store) upsertWorkspacesTx(tx *sql.Tx, id string, obj map[string]any, da
 
 // UpsertWorkspaces inserts or updates a workspaces record with domain-specific columns.
 func (s *Store) UpsertWorkspaces(data json.RawMessage) error {
-	var obj map[string]any
-	if err := json.Unmarshal(data, &obj); err != nil {
+	obj, err := DecodeJSONObject(data)
+	if err != nil {
 		return fmt.Errorf("unmarshaling workspaces: %w", err)
 	}
 
@@ -2830,19 +4085,20 @@ func (s *Store) UpsertWorkspaces(data json.RawMessage) error {
 	if id == "" {
 		return fmt.Errorf("missing id for workspaces")
 	}
+	storageID := resourceStorageID("workspaces", id, obj)
 
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if err := s.upsertGenericResourceTx(tx, "workspaces", id, data); err != nil {
+	if err := s.upsertGenericResourceTx(tx, "workspaces", storageID, data); err != nil {
 		return err
 	}
-	if err := s.upsertWorkspacesTx(tx, id, obj, data); err != nil {
+	if err := s.upsertWorkspacesTx(tx, storageID, obj, data); err != nil {
 		return err
 	}
 
@@ -2861,56 +4117,378 @@ func (s *Store) UpsertWorkspaces(data json.RawMessage) error {
 var resourceIDFieldOverrides = map[string]string{
 	"authors":                        "id",
 	"automations":                    "id",
+	"automations_emails":             "id",
+	"automations_journeys":           "id",
+	"complimentary_access":           "id",
 	"condition_sets":                 "id",
 	"email_blasts":                   "id",
-	"emails":                         "id",
-	"journeys":                       "id",
-	"members":                        "id",
+	"exports":                        "id",
 	"newsletter_lists":               "id",
 	"newsletter_lists_subscriptions": "id",
+	"podcasts":                       "id",
+	"podcasts_episodes":              "id",
 	"polls":                          "id",
+	"polls_responses":                "id",
 	"post_templates":                 "id",
 	"posts":                          "id",
 	"publications":                   "id",
 	"publications_subscriptions":     "id",
 	"referral_program":               "id",
-	"responses":                      "id",
 	"segments":                       "id",
+	"segments_members":               "id",
 	"tiers":                          "id",
 	"webhooks":                       "id",
 }
 
-// genericIDFieldFallbacks is the runtime safety net for resources that did
-// NOT receive a templated IDField. API-specific names belong in spec
-// annotations (x-resource-id), not this list.
-var genericIDFieldFallbacks = []string{"id", "ID", "name", "uuid", "slug", "key", "code", "uid"}
+// Generic ID fields are split around the resource-specific suffix probe.
+// Stable vendor identifiers win first; then fields derived from the resource
+// name (accountId, workspaceId); descriptive fallbacks are last. Keeping name
+// ahead of the resource-specific probe silently keys rows by display labels.
+var genericIDFieldFallbacks = []string{"id", "ID", "_id", "gid", "sid", "uid", "uuid", "guid", "api_id"}
+var genericDescriptiveIDFieldFallbacks = []string{"name", "slug", "key", "code"}
 
-// UpsertBatch inserts or replaces multiple records in a single transaction
-// and returns (stored, extractFailures, err). stored counts rows actually
-// landed; extractFailures counts items that survived JSON unmarshal but had
-// no extractable primary key (templated IDField AND generic fallback both
-// missed). callers (sync.go.tmpl) compare these against len(items) to emit
-// the per-item primary_key_unresolved warning and the F4b
-// stored_count_zero_after_extraction probe.
+// resourceIDBaseOverrides preserves the complete final collection name for
+// composed dependents whose child segment is itself multiword.
+var resourceIDBaseOverrides = map[string]string{
+	"authors":                        "authors",
+	"automations":                    "automations",
+	"automations_emails":             "emails",
+	"automations_journeys":           "journeys",
+	"complimentary_access":           "complimentary_access",
+	"condition_sets":                 "condition_sets",
+	"email_blasts":                   "email_blasts",
+	"exports":                        "subscriptions",
+	"newsletter_lists":               "newsletter_lists",
+	"newsletter_lists_subscriptions": "subscriptions",
+	"podcasts":                       "podcasts",
+	"podcasts_episodes":              "episodes",
+	"polls":                          "polls",
+	"polls_responses":                "responses",
+	"post_templates":                 "post_templates",
+	"posts":                          "posts",
+	"publications_subscriptions":     "subscriptions",
+	"referral_program":               "referral_program",
+	"segments":                       "segments",
+	"segments_members":               "members",
+	"tiers":                          "tiers",
+	"webhooks":                       "webhooks",
+}
+
+// resourceParentKeyColumns identifies generated dependent resources whose
+// local mirror rows need the parent context in the storage key. Without this,
+// many-to-many sub-collections collapse every parent association onto the
+// child's bare id and silently keep only the last synced parent.
+var resourceParentKeyColumns = map[string][]string{
+	"authors":                        {"parent_id"},
+	"automations":                    {"parent_id"},
+	"automations_emails":             {"parent_id"},
+	"automations_journeys":           {"parent_id"},
+	"complimentary-access":           {"parent_id"},
+	"complimentary_access":           {"parent_id"},
+	"condition-sets":                 {"parent_id"},
+	"condition_sets":                 {"parent_id"},
+	"email-blasts":                   {"parent_id"},
+	"email_blasts":                   {"parent_id"},
+	"emails":                         {"automations_id"},
+	"episodes":                       {"podcasts_id"},
+	"exports":                        {"parent_id"},
+	"journeys":                       {"automations_id"},
+	"jwt_token":                      {"subscriptions_id"},
+	"members":                        {"segments_id"},
+	"newsletter-lists":               {"parent_id"},
+	"newsletter_lists":               {"parent_id"},
+	"newsletter_lists_subscriptions": {"parent_id", "newsletter_lists_id"},
+	"podcasts":                       {"parent_id"},
+	"podcasts_episodes":              {"parent_id"},
+	"polls":                          {"parent_id"},
+	"polls_responses":                {"parent_id"},
+	"post-templates":                 {"parent_id"},
+	"post_templates":                 {"parent_id"},
+	"posts":                          {"parent_id"},
+	"preview":                        {"posts_id"},
+	"private_feeds":                  {"podcasts_id"},
+	"publications_subscriptions":     {"parent_id"},
+	"recalculate":                    {"segments_id"},
+	"referral-program":               {"parent_id"},
+	"referral_program":               {"parent_id"},
+	"responses":                      {"polls_id"},
+	"results":                        {"segments_id"},
+	"segments":                       {"parent_id"},
+	"segments_members":               {"parent_id"},
+	"tags":                           {"subscriptions_id"},
+	"test_sends":                     {"posts_id"},
+	"tests":                          {"webhooks_id"},
+	"tiers":                          {"parent_id"},
+	"webhooks":                       {"parent_id"},
+}
+
+// ExtractResourceID resolves the bare resource id field that UpsertBatch
+// extracts from a resource item. For dependent resource types, UpsertBatch
+// derives the actual storage key by combining this id with the parent value;
+// use resourceStorageID if you need the key as it appears in the database.
+// Callers that need to gate best-effort writes can use this to avoid passing
+// non-entity envelopes into the batch path.
+func ExtractResourceID(resourceType string, obj map[string]any) string {
+	if override, ok := resourceIDFieldOverrides[resourceType]; ok && override != "" {
+		if v := lookupFieldValue(obj, override); v != nil {
+			s := ResourceIDString(v)
+			if s != "" && s != "<nil>" {
+				return s
+			}
+		}
+	}
+	for _, key := range genericIDFieldFallbacks {
+		if v := lookupFieldValue(obj, key); v != nil {
+			s := ResourceIDString(v)
+			if s != "" && s != "<nil>" {
+				return s
+			}
+		}
+	}
+	if s := suffixIDFieldFallback(resourceType, obj); s != "" {
+		return s
+	}
+	for _, key := range genericDescriptiveIDFieldFallbacks {
+		if v := lookupFieldValue(obj, key); v != nil {
+			s := ResourceIDString(v)
+			if s != "" && s != "<nil>" {
+				return s
+			}
+		}
+	}
+	return ""
+}
+
+// suffixIDFieldFallback resolves an id-less resource that keys on its own
+// "<name>_code" / "<name>_id" / "<name>_key" / "<name>_slug" field (e.g. the
+// "currencies" resource keying on "currency_code" — see #2327). It is scoped to
+// the resource's OWN name so a foreign key like account_id/parent_id is never
+// promoted to the primary key, and it uses direct map lookups in a fixed suffix
+// order so the chosen id is deterministic.
+func suffixIDFieldFallback(resourceType string, obj map[string]any) string {
+	for _, base := range resourceIDBaseNames(resourceType) {
+		for _, suffix := range []string{"_id", "_code", "_key", "_slug"} {
+			if v, ok := obj[base+suffix]; ok {
+				if s := scalarIDString(v); s != "" && s != "<nil>" {
+					return s
+				}
+			}
+		}
+		camelBase := lowerCamelResourceIDBase(base)
+		for _, suffix := range []string{"Id", "Code", "Key", "Slug"} {
+			if v, ok := obj[camelBase+suffix]; ok {
+				if s := scalarIDString(v); s != "" && s != "<nil>" {
+					return s
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// resourceIDBaseNames returns lowercase candidate singular/plural stems of a
+// resource name to build "<base>_id"-style key probes from (e.g. "currencies"
+// -> ["currencies","currency"]). Composed dependent names also probe their
+// final segment ("containers_workspaces" -> "workspaces","workspace"), which
+// is the child entity's own ID convention. OpenAPI-/path-derived names can
+// carry a leading verb token ("get-currencies"), so the same probes are also
+// attempted on the de-verbed stem.
+func resourceIDBaseNames(resourceType string) []string {
+	r := strings.ToLower(strings.TrimSpace(resourceType))
+	if r == "" {
+		return nil
+	}
+	var stems []string
+	addStem := func(stem string) {
+		if stem == "" {
+			return
+		}
+		for _, existing := range stems {
+			if existing == stem {
+				return
+			}
+		}
+		stems = append(stems, stem)
+	}
+	addStem(resourceIDBaseOverrides[r])
+	addStem(r)
+	if d := stripLeadingResourceVerb(r); d != "" && d != r {
+		addStem(d)
+	}
+	var bases []string
+	seen := map[string]bool{}
+	add := func(s string) {
+		if s != "" && !seen[s] {
+			seen[s] = true
+			bases = append(bases, s)
+		}
+	}
+	for _, stem := range stems {
+		add(stem)
+		add(depluralizeResourceStem(stem))
+		if i := strings.LastIndexAny(stem, "_-"); i >= 0 && i+1 < len(stem) {
+			leaf := stem[i+1:]
+			add(leaf)
+			add(depluralizeResourceStem(leaf))
+		}
+	}
+	return bases
+}
+
+func stripLeadingResourceVerb(r string) string {
+	for _, verb := range []string{"get", "list", "fetch", "find", "retrieve", "read", "show", "all"} {
+		for _, sep := range []string{"-", "_"} {
+			prefix := verb + sep
+			if strings.HasPrefix(r, prefix) && len(r) > len(prefix) {
+				return r[len(prefix):]
+			}
+		}
+	}
+	return ""
+}
+
+func depluralizeResourceStem(r string) string {
+	switch {
+	case strings.HasSuffix(r, "ies") && len(r) > 3:
+		return strings.TrimSuffix(r, "ies") + "y" // currencies -> currency
+	// Plurals formed by adding "es" to a base ending in s/x/z/ch/sh. The
+	// double-s "sses" guard (not bare "ses") keeps soft-e plurals — where the
+	// singular already ends in a silent "e" (cases, databases, licenses,
+	// purchases) — out of this branch; they fall through to the "-s" case below
+	// (cases -> case, not cas). Trade-off: a genuine "-es" plural of an s-ending
+	// singular (buses, statuses) depluralizes imperfectly, but those are rare as
+	// resource names and this stem only feeds best-effort id-field probing.
+	case strings.HasSuffix(r, "sses") || strings.HasSuffix(r, "xes") ||
+		strings.HasSuffix(r, "zes") || strings.HasSuffix(r, "ches") ||
+		strings.HasSuffix(r, "shes"):
+		return strings.TrimSuffix(r, "es") // classes -> class, boxes -> box, dishes -> dish
+	case strings.HasSuffix(r, "s") && !strings.HasSuffix(r, "ss") && len(r) > 1:
+		return strings.TrimSuffix(r, "s") // languages -> language, cases -> case
+	}
+	return r
+}
+
+func lowerCamelResourceIDBase(base string) string {
+	parts := strings.FieldsFunc(base, func(r rune) bool {
+		return r == '_' || r == '-'
+	})
+	if len(parts) == 0 {
+		return base
+	}
+	for i := range parts {
+		if i == 0 {
+			parts[i] = strings.ToLower(parts[i])
+			continue
+		}
+		parts[i] = strings.ToUpper(parts[i][:1]) + strings.ToLower(parts[i][1:])
+	}
+	return strings.Join(parts, "")
+}
+
+func scalarIDString(value any) string {
+	switch value.(type) {
+	case string, bool, int, int8, int16, int32, int64,
+		uint, uint8, uint16, uint32, uint64,
+		float32, float64, json.Number, []byte:
+		return ResourceIDString(value)
+	default:
+		return ""
+	}
+}
+
+func resourceStorageID(resourceType, id string, obj map[string]any) string {
+	for _, parentKey := range resourceParentKeyColumns[resourceType] {
+		parentValue := ResourceIDString(lookupFieldValue(obj, parentKey))
+		if parentValue != "" && parentValue != "<nil>" {
+			return id + string([]byte{0}) + parentValue
+		}
+	}
+	return id
+}
+
+// BareResourceID strips the NUL-delimited parent suffix that resourceStorageID
+// appends to dependent resource types, returning the bare entity id. ListIDs
+// returns composite keys for parent-keyed resources, so callers comparing those
+// ids against bare API ids must run them through this first. For non-composite
+// ids it returns the input unchanged, so it is safe to apply to every id.
+func BareResourceID(storageID string) string {
+	if i := strings.IndexByte(storageID, 0); i >= 0 {
+		return storageID[:i]
+	}
+	return storageID
+}
+
+// childScopeColumnSources maps a typed child table's path-placeholder scope
+// column (the FK the dependent sync injects per item, e.g. "projects_id") to
+// the singular parent-reference field the API body carries natively (e.g.
+// "project"). deriveScopeColumns consults this so write-through cache paths —
+// which pass RAW API items to UpsertBatch and never carry the path-injected
+// scope column — still satisfy the typed table's NOT NULL scope column instead
+// of stranding the row in generic resources.
+var childScopeColumnSources = map[string]string{
+	"automations_id":      "automation",
+	"newsletter_lists_id": "newsletter_list",
+	"podcasts_id":         "podcast",
+	"polls_id":            "poll",
+	"publications_id":     "publication",
+	"segments_id":         "segment",
+}
+
+// deriveScopeColumns backfills a typed child table's scope column from the
+// item's own parent reference when path injection is absent. A value already
+// present (valid injection) is never overwritten.
+func deriveScopeColumns(obj map[string]any) {
+	for scopeKey, sourceKey := range childScopeColumnSources {
+		if v := lookupFieldValue(obj, scopeKey); v != nil {
+			if s, ok := v.(string); !ok || s != "" {
+				continue // path injection already supplied a usable value
+			}
+		}
+		src := lookupFieldValue(obj, sourceKey)
+		if src == nil {
+			continue
+		}
+		if s, ok := src.(string); ok && s == "" {
+			continue
+		}
+		obj[scopeKey] = src
+	}
+}
+
+// UpsertBatch inserts or replaces multiple records in a single transaction.
+// The detailed variant also reports typed-table projection failures so sync can
+// treat a generic-only write as an incomplete local mirror.
 //
 // For resource types that have a domain-specific typed table, the per-item
 // generic insert is followed by a dispatch to the matching upsert<Pascal>Tx
 // inside the same transaction. Without that dispatch, paginated syncs would
 // only populate the generic resources table — typed tables (and indexed
 // columns like parent_id added by dependent-resource sync) would stay empty.
+//
+// Each typed-table dispatch runs inside a per-item SAVEPOINT so a constraint
+// failure in the typed insert (e.g. NOT NULL parent FK when the generator
+// didn't populate the parent path placeholder) rolls back only that typed
+// upsert. The generic resources row inserted just above it survives the
+// rollback, so successful API fetches never strand in memory because one
+// downstream typed table is misconfigured.
 func (s *Store) UpsertBatch(resourceType string, items []json.RawMessage) (int, int, error) {
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	stored, extractFailures, _, err := s.UpsertBatchDetailed(resourceType, items)
+	return stored, extractFailures, err
+}
+
+func (s *Store) UpsertBatchDetailed(resourceType string, items []json.RawMessage) (int, int, int, error) {
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	tx, err := s.db.Begin()
 	if err != nil {
-		return 0, 0, fmt.Errorf("starting batch transaction: %w", err)
+		return 0, 0, 0, fmt.Errorf("starting batch transaction: %w", err)
 	}
 	defer tx.Rollback()
 
-	var stored, skippedCount, extractFailures int
-	for _, item := range items {
-		var obj map[string]any
-		if err := json.Unmarshal(item, &obj); err != nil {
+	var stored, skippedCount, extractFailures, typedFailures int
+	for i, item := range items {
+		obj, err := DecodeJSONObject(item)
+		if err != nil {
 			skippedCount++
 			continue
 		}
@@ -2918,24 +4496,12 @@ func (s *Store) UpsertBatch(resourceType string, items []json.RawMessage) (int, 
 		// the override is empty OR the override field is absent on this
 		// particular item (response shape mismatches happen even when the
 		// spec declares x-resource-id).
-		var id string
-		if override, ok := resourceIDFieldOverrides[resourceType]; ok && override != "" {
-			if v := lookupFieldValue(obj, override); v != nil {
-				s := fmt.Sprintf("%v", v)
-				if s != "" && s != "<nil>" {
-					id = s
-				}
-			}
-		}
+		id := ExtractResourceID(resourceType, obj)
 		if id == "" {
-			for _, key := range genericIDFieldFallbacks {
-				if v := lookupFieldValue(obj, key); v != nil {
-					s := fmt.Sprintf("%v", v)
-					if s != "" && s != "<nil>" {
-						id = s
-						break
-					}
-				}
+			if keyObj, rowObj, rowItem, ok := unwrapIDBearingEnvelopeItem(resourceType, item, obj); ok {
+				id = ExtractResourceID(resourceType, keyObj)
+				obj = rowObj
+				item = rowItem
 			}
 		}
 		if id == "" {
@@ -2943,150 +4509,173 @@ func (s *Store) UpsertBatch(resourceType string, items []json.RawMessage) (int, 
 			extractFailures++
 			continue
 		}
+		storageID := resourceStorageID(resourceType, id, obj)
 
-		if err := s.upsertGenericResourceTx(tx, resourceType, id, item); err != nil {
-			return 0, extractFailures, fmt.Errorf("upserting %s/%s: %w", resourceType, id, err)
-		}
-
-		switch resourceType {
-		case "advertisement_opportunities":
-			if err := s.upsertAdvertisementOpportunitiesTx(tx, id, obj, item); err != nil {
-				return 0, extractFailures, fmt.Errorf("typed upsert for %s/%s: %w", resourceType, id, err)
-			}
-		case "authors":
-			if err := s.upsertAuthorsTx(tx, id, obj, item); err != nil {
-				return 0, extractFailures, fmt.Errorf("typed upsert for %s/%s: %w", resourceType, id, err)
-			}
-		case "automations":
-			if err := s.upsertAutomationsTx(tx, id, obj, item); err != nil {
-				return 0, extractFailures, fmt.Errorf("typed upsert for %s/%s: %w", resourceType, id, err)
-			}
-		case "emails":
-			if err := s.upsertEmailsTx(tx, id, obj, item); err != nil {
-				return 0, extractFailures, fmt.Errorf("typed upsert for %s/%s: %w", resourceType, id, err)
-			}
-		case "journeys":
-			if err := s.upsertJourneysTx(tx, id, obj, item); err != nil {
-				return 0, extractFailures, fmt.Errorf("typed upsert for %s/%s: %w", resourceType, id, err)
-			}
-		case "bulk_subscription_updates":
-			if err := s.upsertBulkSubscriptionUpdatesTx(tx, id, obj, item); err != nil {
-				return 0, extractFailures, fmt.Errorf("typed upsert for %s/%s: %w", resourceType, id, err)
-			}
-		case "bulk_subscriptions":
-			if err := s.upsertBulkSubscriptionsTx(tx, id, obj, item); err != nil {
-				return 0, extractFailures, fmt.Errorf("typed upsert for %s/%s: %w", resourceType, id, err)
-			}
-		case "condition_sets":
-			if err := s.upsertConditionSetsTx(tx, id, obj, item); err != nil {
-				return 0, extractFailures, fmt.Errorf("typed upsert for %s/%s: %w", resourceType, id, err)
-			}
-		case "custom_fields":
-			if err := s.upsertCustomFieldsTx(tx, id, obj, item); err != nil {
-				return 0, extractFailures, fmt.Errorf("typed upsert for %s/%s: %w", resourceType, id, err)
-			}
-		case "data_privacy":
-			if err := s.upsertDataPrivacyTx(tx, id, obj, item); err != nil {
-				return 0, extractFailures, fmt.Errorf("typed upsert for %s/%s: %w", resourceType, id, err)
-			}
-		case "email_blasts":
-			if err := s.upsertEmailBlastsTx(tx, id, obj, item); err != nil {
-				return 0, extractFailures, fmt.Errorf("typed upsert for %s/%s: %w", resourceType, id, err)
-			}
-		case "engagements":
-			if err := s.upsertEngagementsTx(tx, id, obj, item); err != nil {
-				return 0, extractFailures, fmt.Errorf("typed upsert for %s/%s: %w", resourceType, id, err)
-			}
-		case "newsletter_lists":
-			if err := s.upsertNewsletterListsTx(tx, id, obj, item); err != nil {
-				return 0, extractFailures, fmt.Errorf("typed upsert for %s/%s: %w", resourceType, id, err)
-			}
-		case "newsletter_lists_subscriptions":
-			if err := s.upsertNewsletterListsSubscriptionsTx(tx, id, obj, item); err != nil {
-				return 0, extractFailures, fmt.Errorf("typed upsert for %s/%s: %w", resourceType, id, err)
-			}
-		case "polls":
-			if err := s.upsertPollsTx(tx, id, obj, item); err != nil {
-				return 0, extractFailures, fmt.Errorf("typed upsert for %s/%s: %w", resourceType, id, err)
-			}
-		case "responses":
-			if err := s.upsertResponsesTx(tx, id, obj, item); err != nil {
-				return 0, extractFailures, fmt.Errorf("typed upsert for %s/%s: %w", resourceType, id, err)
-			}
-		case "post_templates":
-			if err := s.upsertPostTemplatesTx(tx, id, obj, item); err != nil {
-				return 0, extractFailures, fmt.Errorf("typed upsert for %s/%s: %w", resourceType, id, err)
-			}
-		case "posts":
-			if err := s.upsertPostsTx(tx, id, obj, item); err != nil {
-				return 0, extractFailures, fmt.Errorf("typed upsert for %s/%s: %w", resourceType, id, err)
-			}
-		case "publications":
-			if err := s.upsertPublicationsTx(tx, id, obj, item); err != nil {
-				return 0, extractFailures, fmt.Errorf("typed upsert for %s/%s: %w", resourceType, id, err)
-			}
-		case "referral_program":
-			if err := s.upsertReferralProgramTx(tx, id, obj, item); err != nil {
-				return 0, extractFailures, fmt.Errorf("typed upsert for %s/%s: %w", resourceType, id, err)
-			}
-		case "segments":
-			if err := s.upsertSegmentsTx(tx, id, obj, item); err != nil {
-				return 0, extractFailures, fmt.Errorf("typed upsert for %s/%s: %w", resourceType, id, err)
-			}
-		case "members":
-			if err := s.upsertMembersTx(tx, id, obj, item); err != nil {
-				return 0, extractFailures, fmt.Errorf("typed upsert for %s/%s: %w", resourceType, id, err)
-			}
-		case "recalculate":
-			if err := s.upsertRecalculateTx(tx, id, obj, item); err != nil {
-				return 0, extractFailures, fmt.Errorf("typed upsert for %s/%s: %w", resourceType, id, err)
-			}
-		case "results":
-			if err := s.upsertResultsTx(tx, id, obj, item); err != nil {
-				return 0, extractFailures, fmt.Errorf("typed upsert for %s/%s: %w", resourceType, id, err)
-			}
-		case "subscriptions":
-			if err := s.upsertSubscriptionsTx(tx, id, obj, item); err != nil {
-				return 0, extractFailures, fmt.Errorf("typed upsert for %s/%s: %w", resourceType, id, err)
-			}
-		case "jwt_token":
-			if err := s.upsertJwtTokenTx(tx, id, obj, item); err != nil {
-				return 0, extractFailures, fmt.Errorf("typed upsert for %s/%s: %w", resourceType, id, err)
-			}
-		case "tags":
-			if err := s.upsertTagsTx(tx, id, obj, item); err != nil {
-				return 0, extractFailures, fmt.Errorf("typed upsert for %s/%s: %w", resourceType, id, err)
-			}
-		case "tiers":
-			if err := s.upsertTiersTx(tx, id, obj, item); err != nil {
-				return 0, extractFailures, fmt.Errorf("typed upsert for %s/%s: %w", resourceType, id, err)
-			}
-		case "webhooks":
-			if err := s.upsertWebhooksTx(tx, id, obj, item); err != nil {
-				return 0, extractFailures, fmt.Errorf("typed upsert for %s/%s: %w", resourceType, id, err)
-			}
-		case "tests":
-			if err := s.upsertTestsTx(tx, id, obj, item); err != nil {
-				return 0, extractFailures, fmt.Errorf("typed upsert for %s/%s: %w", resourceType, id, err)
-			}
-		case "workspaces":
-			if err := s.upsertWorkspacesTx(tx, id, obj, item); err != nil {
-				return 0, extractFailures, fmt.Errorf("typed upsert for %s/%s: %w", resourceType, id, err)
-			}
+		if err := s.upsertGenericResourceTx(tx, resourceType, storageID, item); err != nil {
+			// Return the running stored count rather than zero so callers
+			// inspecting partial progress on failure see what already
+			// landed in earlier loop iterations.
+			return stored, extractFailures, typedFailures, fmt.Errorf("upserting %s/%s: %w", resourceType, storageID, err)
 		}
 		stored++
+
+		// Backfill the typed child table's NOT NULL scope column from the item's
+		// own parent reference when the dependent-sync path injection is absent
+		// (write-through cache feeds RAW API items here).
+		deriveScopeColumns(obj)
+
+		savepoint := fmt.Sprintf("pp_typed_%d", i)
+		if _, err := tx.Exec("SAVEPOINT " + savepoint); err != nil {
+			return stored, extractFailures, typedFailures, fmt.Errorf("savepoint begin for %s/%s: %w", resourceType, storageID, err)
+		}
+
+		var typedErr error
+		switch resourceType {
+		case "advertisement-opportunities":
+			typedErr = s.upsertAdvertisementOpportunitiesTx(tx, storageID, obj, item)
+		case "authors":
+			typedErr = s.upsertAuthorsTx(tx, storageID, obj, item)
+		case "automations":
+			typedErr = s.upsertAutomationsTx(tx, storageID, obj, item)
+		case "emails":
+			typedErr = s.upsertEmailsTx(tx, storageID, obj, item)
+		case "journeys":
+			typedErr = s.upsertJourneysTx(tx, storageID, obj, item)
+		case "bulk-subscription-updates":
+			typedErr = s.upsertBulkSubscriptionUpdatesTx(tx, storageID, obj, item)
+		case "bulk-subscriptions":
+			typedErr = s.upsertBulkSubscriptionsTx(tx, storageID, obj, item)
+		case "complimentary-access":
+			typedErr = s.upsertComplimentaryAccessTx(tx, storageID, obj, item)
+		case "condition-sets":
+			typedErr = s.upsertConditionSetsTx(tx, storageID, obj, item)
+		case "custom-fields":
+			typedErr = s.upsertCustomFieldsTx(tx, storageID, obj, item)
+		case "data-privacy":
+			typedErr = s.upsertDataPrivacyTx(tx, storageID, obj, item)
+		case "email-blasts":
+			typedErr = s.upsertEmailBlastsTx(tx, storageID, obj, item)
+		case "engagements":
+			typedErr = s.upsertEngagementsTx(tx, storageID, obj, item)
+		case "exports":
+			typedErr = s.upsertExportsTx(tx, storageID, obj, item)
+		case "newsletter-lists":
+			typedErr = s.upsertNewsletterListsTx(tx, storageID, obj, item)
+		case "newsletter_lists_subscriptions":
+			typedErr = s.upsertNewsletterListsSubscriptionsTx(tx, storageID, obj, item)
+		case "podcasts":
+			typedErr = s.upsertPodcastsTx(tx, storageID, obj, item)
+		case "episodes":
+			typedErr = s.upsertEpisodesTx(tx, storageID, obj, item)
+		case "private_feeds":
+			typedErr = s.upsertPrivateFeedsTx(tx, storageID, obj, item)
+		case "polls":
+			typedErr = s.upsertPollsTx(tx, storageID, obj, item)
+		case "responses":
+			typedErr = s.upsertResponsesTx(tx, storageID, obj, item)
+		case "post-templates":
+			typedErr = s.upsertPostTemplatesTx(tx, storageID, obj, item)
+		case "posts":
+			typedErr = s.upsertPostsTx(tx, storageID, obj, item)
+		case "preview":
+			typedErr = s.upsertPreviewTx(tx, storageID, obj, item)
+		case "test_sends":
+			typedErr = s.upsertTestSendsTx(tx, storageID, obj, item)
+		case "publications":
+			typedErr = s.upsertPublicationsTx(tx, storageID, obj, item)
+		case "referral-program":
+			typedErr = s.upsertReferralProgramTx(tx, storageID, obj, item)
+		case "segments":
+			typedErr = s.upsertSegmentsTx(tx, storageID, obj, item)
+		case "members":
+			typedErr = s.upsertMembersTx(tx, storageID, obj, item)
+		case "recalculate":
+			typedErr = s.upsertRecalculateTx(tx, storageID, obj, item)
+		case "results":
+			typedErr = s.upsertResultsTx(tx, storageID, obj, item)
+		case "subscriptions":
+			typedErr = s.upsertSubscriptionsTx(tx, storageID, obj, item)
+		case "jwt_token":
+			typedErr = s.upsertJwtTokenTx(tx, storageID, obj, item)
+		case "tags":
+			typedErr = s.upsertTagsTx(tx, storageID, obj, item)
+		case "tiers":
+			typedErr = s.upsertTiersTx(tx, storageID, obj, item)
+		case "webhooks":
+			typedErr = s.upsertWebhooksTx(tx, storageID, obj, item)
+		case "tests":
+			typedErr = s.upsertTestsTx(tx, storageID, obj, item)
+		case "workspaces":
+			typedErr = s.upsertWorkspacesTx(tx, storageID, obj, item)
+		}
+
+		if typedErr != nil {
+			if _, rbErr := tx.Exec("ROLLBACK TO SAVEPOINT " + savepoint); rbErr != nil {
+				return stored, extractFailures, typedFailures, fmt.Errorf("rollback to savepoint for %s/%s (typed err: %v): %w", resourceType, storageID, typedErr, rbErr)
+			}
+			if _, relErr := tx.Exec("RELEASE SAVEPOINT " + savepoint); relErr != nil {
+				return stored, extractFailures, typedFailures, fmt.Errorf("release savepoint after rollback for %s/%s: %w", resourceType, storageID, relErr)
+			}
+			typedFailures++
+			continue
+		}
+		if _, err := tx.Exec("RELEASE SAVEPOINT " + savepoint); err != nil {
+			return stored, extractFailures, typedFailures, fmt.Errorf("release savepoint for %s/%s: %w", resourceType, storageID, err)
+		}
 	}
 
-	// Warn when most items in a batch lack an extractable ID — this likely
-	// means the API uses a primary key field we don't recognize yet.
-	if skippedCount > 0 && len(items) > 0 && skippedCount*2 > len(items) {
-		fmt.Fprintf(os.Stderr, "warning: %d/%d %s items skipped (no extractable ID field found)\n", skippedCount, len(items), resourceType)
+	// Warn when every decoded item in a batch lacks an extractable ID — this
+	// likely means the API uses a primary key field we don't recognize yet.
+	// Partial misses still surface through extractFailures so sync can emit
+	// a structured primary_key_unresolved anomaly without spamming stderr for
+	// write-through cache batches that did persist useful rows.
+	if extractFailures > 0 && stored == 0 && len(items) > 0 {
+		fmt.Fprintf(os.Stderr, "warning: %d/%d %s items returned but not cached locally (no extractable ID field; offline lookup against these rows will be incomplete; live queries unaffected)\n", skippedCount, len(items), resourceType)
+	}
+	// Surface typed-table failures without aborting the batch. Generic rows
+	// already committed; only the typed projection failed.
+	if typedFailures > 0 {
+		fmt.Fprintf(os.Stderr, "warning: %d/%d %s items: typed-table upsert failed; generic resources rows preserved\n", typedFailures, len(items), resourceType)
 	}
 
 	if err := tx.Commit(); err != nil {
-		return 0, extractFailures, err
+		return 0, extractFailures, typedFailures, err
 	}
-	return stored, extractFailures, nil
+	return stored, extractFailures, typedFailures, nil
+}
+
+// Multi-field wrappers keep their outer row because scalar siblings may be
+// resource data; true single-field envelopes unwrap to the inner object.
+func unwrapIDBearingEnvelopeItem(resourceType string, item json.RawMessage, obj map[string]any) (map[string]any, map[string]any, json.RawMessage, bool) {
+	var candidate map[string]any
+	candidateKey := ""
+	candidates := 0
+	for key, value := range obj {
+		inner, ok := value.(map[string]any)
+		if !ok {
+			continue
+		}
+		if ExtractResourceID(resourceType, inner) != "" {
+			candidate = inner
+			candidateKey = key
+			candidates++
+		}
+	}
+	if candidates != 1 || candidate == nil || candidateKey == "" {
+		return nil, nil, nil, false
+	}
+	if len(obj) != 1 {
+		return candidate, obj, item, true
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(item, &raw); err != nil {
+		return nil, nil, nil, false
+	}
+	data, ok := raw[candidateKey]
+	if !ok {
+		return nil, nil, nil, false
+	}
+	return candidate, candidate, data, true
 }
 
 // SearchAutomations searches the automations_fts index with optional filters.
@@ -3094,12 +4683,16 @@ func (s *Store) SearchAutomations(query string, limit int) ([]json.RawMessage, e
 	if limit <= 0 {
 		limit = 50
 	}
+	matchQuery := FTSMatchQuery(query)
+	if matchQuery == "" {
+		return nil, nil
+	}
 	rows, err := s.db.Query(
-		`SELECT t.data FROM automations t
-		 JOIN automations_fts ON automations_fts.rowid = t.rowid
-		 WHERE automations_fts MATCH ?
-		 ORDER BY rank LIMIT ?`,
-		query, limit,
+		`SELECT t.data FROM "automations" t
+		 JOIN "automations_fts" ON "automations_fts".rowid = t.rowid
+		 WHERE "automations_fts" MATCH ?
+		 ORDER BY "automations_fts".rank LIMIT ?`,
+		matchQuery, limit,
 	)
 	if err != nil {
 		return nil, err
@@ -3122,12 +4715,48 @@ func (s *Store) SearchNewsletterLists(query string, limit int) ([]json.RawMessag
 	if limit <= 0 {
 		limit = 50
 	}
+	matchQuery := FTSMatchQuery(query)
+	if matchQuery == "" {
+		return nil, nil
+	}
 	rows, err := s.db.Query(
-		`SELECT t.data FROM newsletter_lists t
-		 JOIN newsletter_lists_fts ON newsletter_lists_fts.rowid = t.rowid
-		 WHERE newsletter_lists_fts MATCH ?
-		 ORDER BY rank LIMIT ?`,
-		query, limit,
+		`SELECT t.data FROM "newsletter_lists" t
+		 JOIN "newsletter_lists_fts" ON "newsletter_lists_fts".rowid = t.rowid
+		 WHERE "newsletter_lists_fts" MATCH ?
+		 ORDER BY "newsletter_lists_fts".rank LIMIT ?`,
+		matchQuery, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []json.RawMessage
+	for rows.Next() {
+		var data string
+		if err := rows.Scan(&data); err != nil {
+			return nil, err
+		}
+		results = append(results, json.RawMessage(data))
+	}
+	return results, rows.Err()
+}
+
+// SearchPodcasts searches the podcasts_fts index with optional filters.
+func (s *Store) SearchPodcasts(query string, limit int) ([]json.RawMessage, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	matchQuery := FTSMatchQuery(query)
+	if matchQuery == "" {
+		return nil, nil
+	}
+	rows, err := s.db.Query(
+		`SELECT t.data FROM "podcasts" t
+		 JOIN "podcasts_fts" ON "podcasts_fts".rowid = t.rowid
+		 WHERE "podcasts_fts" MATCH ?
+		 ORDER BY "podcasts_fts".rank LIMIT ?`,
+		matchQuery, limit,
 	)
 	if err != nil {
 		return nil, err
@@ -3150,12 +4779,16 @@ func (s *Store) SearchPolls(query string, limit int) ([]json.RawMessage, error) 
 	if limit <= 0 {
 		limit = 50
 	}
+	matchQuery := FTSMatchQuery(query)
+	if matchQuery == "" {
+		return nil, nil
+	}
 	rows, err := s.db.Query(
-		`SELECT t.data FROM polls t
-		 JOIN polls_fts ON polls_fts.rowid = t.rowid
-		 WHERE polls_fts MATCH ?
-		 ORDER BY rank LIMIT ?`,
-		query, limit,
+		`SELECT t.data FROM "polls" t
+		 JOIN "polls_fts" ON "polls_fts".rowid = t.rowid
+		 WHERE "polls_fts" MATCH ?
+		 ORDER BY "polls_fts".rank LIMIT ?`,
+		matchQuery, limit,
 	)
 	if err != nil {
 		return nil, err
@@ -3178,12 +4811,16 @@ func (s *Store) SearchTiers(query string, limit int) ([]json.RawMessage, error) 
 	if limit <= 0 {
 		limit = 50
 	}
+	matchQuery := FTSMatchQuery(query)
+	if matchQuery == "" {
+		return nil, nil
+	}
 	rows, err := s.db.Query(
-		`SELECT t.data FROM tiers t
-		 JOIN tiers_fts ON tiers_fts.rowid = t.rowid
-		 WHERE tiers_fts MATCH ?
-		 ORDER BY rank LIMIT ?`,
-		query, limit,
+		`SELECT t.data FROM "tiers" t
+		 JOIN "tiers_fts" ON "tiers_fts".rowid = t.rowid
+		 WHERE "tiers_fts" MATCH ?
+		 ORDER BY "tiers_fts".rank LIMIT ?`,
+		matchQuery, limit,
 	)
 	if err != nil {
 		return nil, err
@@ -3202,14 +4839,37 @@ func (s *Store) SearchTiers(query string, limit int) ([]json.RawMessage, error) 
 }
 
 func (s *Store) SaveSyncState(resourceType, cursor string, count int) error {
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	return s.SaveSyncStateAt(resourceType, cursor, count, time.Now().UTC())
+}
+
+// SaveSyncStateAt stores both pagination progress and the incremental
+// watermark represented by at. Callers use this when the watermark belongs to
+// the data just fetched rather than to the instant the checkpoint is written.
+func (s *Store) SaveSyncStateAt(resourceType, cursor string, count int, at time.Time) error {
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	_, err := s.db.Exec(
 		`INSERT INTO sync_state (resource_type, last_cursor, last_synced_at, total_count)
 		 VALUES (?, ?, ?, ?)
 		 ON CONFLICT(resource_type) DO UPDATE SET last_cursor = excluded.last_cursor,
 		 last_synced_at = excluded.last_synced_at, total_count = excluded.total_count`,
-		resourceType, cursor, time.Now(), count,
+		resourceType, cursor, at.UTC().Format(time.RFC3339), count,
+	)
+	return err
+}
+
+// SaveSyncProgress stores pagination progress without changing the
+// incremental watermark. A new row gets a parseable zero timestamp so
+// GetSyncState can scan it into time.Time without a NULL conversion error.
+func (s *Store) SaveSyncProgress(resourceType, cursor string, count int) error {
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
+	_, err := s.db.Exec(
+		`INSERT INTO sync_state (resource_type, last_cursor, last_synced_at, total_count)
+		 VALUES (?, ?, ?, ?)
+		 ON CONFLICT(resource_type) DO UPDATE SET last_cursor = excluded.last_cursor,
+		 total_count = excluded.total_count`,
+		resourceType, cursor, time.Time{}.UTC().Format(time.RFC3339), count,
 	)
 	return err
 }
@@ -3227,13 +4887,14 @@ func (s *Store) GetSyncState(resourceType string) (cursor string, lastSynced tim
 
 // SaveSyncCursor stores the pagination cursor for a resource type.
 func (s *Store) SaveSyncCursor(resourceType, cursor string) error {
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
+	now := time.Now().UTC().Format(time.RFC3339)
 	_, err := s.db.Exec(
 		`INSERT INTO sync_state (resource_type, last_cursor, last_synced_at, total_count)
-		 VALUES (?, ?, CURRENT_TIMESTAMP, 0)
-		 ON CONFLICT(resource_type) DO UPDATE SET last_cursor = ?, last_synced_at = CURRENT_TIMESTAMP`,
-		resourceType, cursor, cursor,
+		 VALUES (?, ?, ?, 0)
+		 ON CONFLICT(resource_type) DO UPDATE SET last_cursor = ?, last_synced_at = ?`,
+		resourceType, cursor, now, cursor, now,
 	)
 	return err
 }
@@ -3250,11 +4911,23 @@ func (s *Store) GetSyncCursor(resourceType string) string {
 
 // ListIDs returns all IDs from a resource's domain table, or from the generic
 // resources table if no domain table exists. Used by dependent sync to iterate parents.
+// For parent-keyed resource types these are composite storage keys; run them
+// through BareResourceID before comparing against bare API ids.
+//
+// resourceType is never interpolated into SQL directly. We resolve it to a real
+// table name via a parameterized sqlite_master lookup; only that trusted name is
+// substituted (double-quoted) into the SELECT. Callers may pass any string.
 func (s *Store) ListIDs(resourceType string) ([]string, error) {
-	// Try domain table first (tables are named after the resource type)
-	query := fmt.Sprintf("SELECT id FROM %s", resourceType)
-	rows, err := s.db.Query(query)
-	if err != nil {
+	var table string
+	err := s.db.QueryRow(
+		`SELECT name FROM sqlite_master WHERE type='table' AND name=?`,
+		resourceType,
+	).Scan(&table)
+	var rows *sql.Rows
+	if err == nil && table != "" {
+		rows, err = s.db.Query(fmt.Sprintf(`SELECT id FROM "%s"`, strings.ReplaceAll(table, `"`, `""`)))
+	}
+	if err != nil || table == "" {
 		// Fall back to generic resources table
 		rows, err = s.db.Query("SELECT id FROM resources WHERE resource_type = ?", resourceType)
 		if err != nil {
@@ -3274,37 +4947,212 @@ func (s *Store) ListIDs(resourceType string) ([]string, error) {
 	return ids, rows.Err()
 }
 
-// ResourceParentRef records a synced resource ID and the parent_id stored in
-// its raw JSON payload.
-type ResourceParentRef struct {
-	ID       string
-	ParentID string
+// ListIDsScoped is ListIDs with an optional tenant filter. scopeValue=="" =>
+// unscoped (identical to ListIDs). When the typed table exists AND has
+// scopeColumn (validated via validIdentifierRE + pragma_table_info), the IDs are
+// filtered by that bound column. When the typed table exists but LACKS the
+// column, it degrades to unscoped ListIDs (never silently returns zero parents).
+// When no typed table exists, it filters the generic resources table via
+// json_extract. scopeColumn is validated; scopeValue is always bound.
+func (s *Store) ListIDsScoped(resourceType, scopeColumn, scopeValue string) ([]string, error) {
+	if scopeValue == "" || scopeColumn == "" {
+		return s.ListIDs(resourceType)
+	}
+	if !validIdentifierRE.MatchString(scopeColumn) {
+		return nil, fmt.Errorf("ListIDsScoped: invalid scope column %q", scopeColumn)
+	}
+	var table string
+	err := s.db.QueryRow(
+		`SELECT name FROM sqlite_master WHERE type='table' AND name=?`,
+		resourceType,
+	).Scan(&table)
+	if err == nil && table != "" {
+		var colName string
+		colErr := s.db.QueryRow(
+			`SELECT name FROM pragma_table_info(?) WHERE name=?`,
+			table, scopeColumn,
+		).Scan(&colName)
+		if colErr != nil || colName == "" {
+			// Typed table exists but lacks the scope column: degrade to unscoped
+			// rather than returning zero parents.
+			return s.ListIDs(resourceType)
+		}
+		qTable := strings.ReplaceAll(table, `"`, `""`)
+		qCol := strings.ReplaceAll(colName, `"`, `""`)
+		rows, qerr := s.db.Query(
+			fmt.Sprintf(`SELECT id FROM "%s" WHERE "%s" = ?`, qTable, qCol), scopeValue)
+		if qerr != nil {
+			return nil, qerr
+		}
+		defer rows.Close()
+		var ids []string
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				continue
+			}
+			ids = append(ids, id)
+		}
+		return ids, rows.Err()
+	}
+	// No typed table: filter the generic resources table by body field.
+	rows, qerr := s.db.Query(
+		fmt.Sprintf(`SELECT id FROM resources WHERE resource_type = ? AND (CASE WHEN json_valid(data) THEN json_extract(data, '$.%s') END) = ?`, scopeColumn),
+		resourceType, scopeValue,
+	)
+	if qerr != nil {
+		return nil, qerr
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			continue
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }
 
-// ListResourceParentRefs returns IDs plus their generic-store parent_id values.
-// Dependent sync uses this for nested paths such as
-// /publications/{publicationId}/automations/{automationId}/emails, where the
-// automation ID and publication ID are both required.
-func (s *Store) ListResourceParentRefs(resourceType string) ([]ResourceParentRef, error) {
-	rows, err := s.db.Query(`
-		SELECT id, COALESCE(CAST(json_extract(data, '$.parent_id') AS TEXT), '')
-		FROM resources
-		WHERE resource_type = ?
-	`, resourceType)
+// ListField returns values of a named field from a resource's domain table,
+// or from the generic resources table via json_extract when no typed column
+// exists. Used by dependent sync to iterate parents when a spec-declared
+// walker extracts a non-PK field (Endpoint.Walker.KeyField in the upstream
+// printing-press repo) for the child path's placeholder.
+//
+// Defense in depth: field is validated against validIdentifierRE at entry
+// — the regex pins it to SQL-safe identifier shape covering both the
+// typed-column primary path AND the json_extract fallback (where
+// pragma_table_info validation would never run if the parent's domain
+// table doesn't exist yet). resourceType is never interpolated into SQL
+// directly; we resolve it to a real table name via a parameterized
+// sqlite_master lookup. Only validated names are substituted
+// (double-quoted) into the SELECT. Mirrors ListIDs's defense pattern so
+// callers may pass any string.
+func (s *Store) ListField(resourceType, field string) ([]string, error) {
+	if !validIdentifierRE.MatchString(field) {
+		return nil, fmt.Errorf("ListField: invalid field name %q (must match %s)", field, validIdentifierRE.String())
+	}
+	var table string
+	err := s.db.QueryRow(
+		`SELECT name FROM sqlite_master WHERE type='table' AND name=?`,
+		resourceType,
+	).Scan(&table)
+	var rows *sql.Rows
+	if err == nil && table != "" {
+		// Validate the column exists on the resolved table before splicing
+		// it into the SELECT. pragma_table_info is parameterizable.
+		var colName string
+		colErr := s.db.QueryRow(
+			`SELECT name FROM pragma_table_info(?) WHERE name=?`,
+			table, field,
+		).Scan(&colName)
+		if colErr == nil && colName != "" {
+			qTable := strings.ReplaceAll(table, `"`, `""`)
+			qCol := strings.ReplaceAll(colName, `"`, `""`)
+			// DISTINCT: callers iterate the returned values as parent keys
+			// for child-resource fan-out. Multiple parent rows sharing a
+			// key_field value (legal for non-PK fields) would otherwise
+			// cause the child endpoint to be fetched once per duplicate row.
+			rows, err = s.db.Query(fmt.Sprintf(
+				`SELECT DISTINCT "%s" FROM "%s" WHERE "%s" IS NOT NULL AND "%s" != ''`,
+				qCol, qTable, qCol, qCol,
+			))
+		} else {
+			err = colErr
+		}
+	}
+	if err != nil || rows == nil {
+		// Fall back to generic resources table via json_extract. Path is
+		// Sprintf'd into the SQL string (matches ResolveByName below).
+		// DISTINCT for the same reason as the typed-column path above.
+		fallback := fmt.Sprintf(
+			`SELECT DISTINCT json_extract(data, '$.%s') FROM resources WHERE resource_type = ? AND json_extract(data, '$.%s') IS NOT NULL`,
+			field, field,
+		)
+		rows, err = s.db.Query(fallback, resourceType)
+		if err != nil {
+			return nil, err
+		}
+	}
+	defer rows.Close()
+
+	var values []string
+	for rows.Next() {
+		var v sql.NullString
+		if err := rows.Scan(&v); err == nil && v.Valid && v.String != "" {
+			values = append(values, v.String)
+		}
+	}
+	return values, rows.Err()
+}
+
+// ListFieldSets returns row-correlated values from the generic resources
+// table. Dependent sync uses this for multi-placeholder paths where values
+// such as owner/repo or server/webapp must stay paired per parent row.
+func (s *Store) ListFieldSets(resourceType string, fields []string) ([]map[string]string, error) {
+	if len(fields) == 0 {
+		return nil, nil
+	}
+	for _, field := range fields {
+		if !validIdentifierRE.MatchString(field) {
+			return nil, fmt.Errorf("ListFieldSets: invalid field name %q (must match %s)", field, validIdentifierRE.String())
+		}
+	}
+
+	rows, err := s.db.Query(`SELECT id, data FROM resources WHERE resource_type = ?`, resourceType)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var refs []ResourceParentRef
+	var out []map[string]string
+	seenRows := map[string]bool{}
 	for rows.Next() {
-		var ref ResourceParentRef
-		if err := rows.Scan(&ref.ID, &ref.ParentID); err != nil {
-			continue
+		var id string
+		var data []byte
+		if err := rows.Scan(&id, &data); err != nil {
+			return nil, err
 		}
-		refs = append(refs, ref)
+		var obj map[string]any
+		if len(data) > 0 {
+			var err error
+			obj, err = DecodeJSONObject(data)
+			if err != nil {
+				return nil, fmt.Errorf("decode %s parent row %s: %w", resourceType, id, err)
+			}
+		}
+		values := make(map[string]string, len(fields))
+		complete := true
+		for _, field := range fields {
+			var value any
+			if field == "id" {
+				value = id
+			} else {
+				value = LookupFieldValue(obj, field)
+			}
+			valueString := ResourceIDString(value)
+			if value == nil || valueString == "" {
+				complete = false
+				break
+			}
+			values[field] = valueString
+		}
+		if complete {
+			keyParts := make([]string, 0, len(fields))
+			for _, field := range fields {
+				keyParts = append(keyParts, values[field])
+			}
+			key := strings.Join(keyParts, "\x00")
+			if seenRows[key] {
+				continue
+			}
+			seenRows[key] = true
+			out = append(out, values)
+		}
 	}
-	return refs, rows.Err()
+	return out, rows.Err()
 }
 
 // GetLastSyncedAt returns the last sync timestamp for a resource type.
@@ -3319,8 +5167,8 @@ func (s *Store) GetLastSyncedAt(resourceType string) string {
 
 // ClearSyncCursors resets all sync state for a full resync.
 func (s *Store) ClearSyncCursors() error {
-	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
 	_, err := s.db.Exec("DELETE FROM sync_state")
 	return err
 }
@@ -3361,9 +5209,157 @@ func (s *Store) Status() (map[string]int, error) {
 	return status, rows.Err()
 }
 
+// CascadeJunction names a junction table + the FK column referencing the
+// reconciled resource's primary key, to be cleaned when a row is swept.
+type CascadeJunction struct {
+	Table    string
+	FKColumn string
+}
+
+var (
+	cascadeMu        sync.Mutex
+	cascadeJunctions = map[string][]CascadeJunction{}
+)
+
+// RegisterCascadeJunction records a junction to clean when rows of resourceType
+// are reconciled away. Used for runtime-created junctions (e.g. module_issues)
+// that the generated schema does not declare.
+//
+// Registration is idempotent: re-registering the same (Table, FKColumn) for a
+// resourceType is a no-op. The registry is a process-global with no removal path
+// (registrations happen once at startup in the generated binary); dedupe keeps a
+// repeated init() or a test that re-registers across sub-tests from accumulating
+// duplicate cascades.
+func RegisterCascadeJunction(resourceType string, j CascadeJunction) {
+	cascadeMu.Lock()
+	defer cascadeMu.Unlock()
+	for _, existing := range cascadeJunctions[resourceType] {
+		if existing == j {
+			return
+		}
+	}
+	cascadeJunctions[resourceType] = append(cascadeJunctions[resourceType], j)
+}
+
+// CascadeJunctionsFor returns the registered cascade junctions for resourceType.
+func CascadeJunctionsFor(resourceType string) []CascadeJunction {
+	cascadeMu.Lock()
+	defer cascadeMu.Unlock()
+	out := make([]CascadeJunction, len(cascadeJunctions[resourceType]))
+	copy(out, cascadeJunctions[resourceType])
+	return out
+}
+
+// ReconcilePartition hard-deletes local rows of resourceType in one partition
+// (rows whose data JSON at genericScopeJSONPath equals scopeValue) whose primary
+// key is NOT in seenIDs. It is the mark-and-sweep half of deletion mirroring;
+// the caller must pass the COMPLETE, successfully-enumerated seen-ID set for the
+// partition. Victims are computed from the generic resources table so that
+// legacy rows lacking a typed projection are also cleaned. Cleans, per victim:
+// the typed table row (firing its AFTER DELETE FTS triggers, if any), the
+// generic resources_fts entry (manual, no triggers), the generic resources row,
+// and each cascade junction. Returns the number of generic rows deleted.
+func (s *Store) ReconcilePartition(resourceType, genericScopeJSONPath, scopeValue string, seenIDs []string, typedTable string, cascades []CascadeJunction) (int, error) {
+	if genericScopeJSONPath == "" || scopeValue == "" {
+		return 0, fmt.Errorf("reconcile %s: empty partition scope", resourceType)
+	}
+	return s.reconcileUnseen(resourceType, seenIDs, typedTable, cascades,
+		`SELECT id FROM resources
+		 WHERE resource_type = ?
+		   AND (CASE WHEN json_valid(data) THEN json_extract(data, ?) END) = ?`,
+		resourceType, genericScopeJSONPath, scopeValue)
+}
+
+// Whole-table reconciliation is safe only when the caller supplies the complete
+// seen-ID set from a proven-complete walk.
+func (s *Store) ReconcileAll(resourceType string, seenIDs []string, typedTable string, cascades []CascadeJunction) (int, error) {
+	return s.reconcileUnseen(resourceType, seenIDs, typedTable, cascades,
+		`SELECT id FROM resources WHERE resource_type = ?`, resourceType)
+}
+
+func (s *Store) reconcileUnseen(resourceType string, seenIDs []string, typedTable string, cascades []CascadeJunction, query string, args ...any) (int, error) {
+	s.lockForWrite()
+	defer s.unlockAfterWrite()
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+
+	// Seen-set membership is tested in Go, not SQL. Parent-keyed dependent rows
+	// carry a NUL-composite storage id ("<id>\x00<parent>", built by
+	// resourceStorageID) while seenIDs holds the BARE API ids sync enumerated, so
+	// each stored id must run through BareResourceID before the comparison. A SQL
+	// seen-set is not viable here: SQLite string functions treat the embedded NUL
+	// as a C-string terminator, so an instr/substr or `IN` test over a key
+	// containing "\x00" silently truncates and mis-matches. BareResourceID is a
+	// no-op for plain ids, so flat/non-composite partitions are unaffected.
+	seen := make(map[string]struct{}, len(seenIDs))
+	for _, id := range seenIDs {
+		seen[id] = struct{}{}
+	}
+
+	// CASE guards against a malformed-JSON row aborting the victim scan:
+	// a row we cannot parse is never a victim — it is skipped (never deleted).
+	rows, err := tx.Query(query, args...)
+	if err != nil {
+		return 0, fmt.Errorf("reconcile %s: select victims: %w", resourceType, err)
+	}
+	var victims []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			_ = rows.Close()
+			return 0, err
+		}
+		if _, ok := seen[BareResourceID(id)]; ok {
+			continue // bare id was enumerated this run — keep the row
+		}
+		victims = append(victims, id)
+	}
+	_ = rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+
+	// Safety: typedTable and cascade Table/FKColumn are TRUSTED generator/registration
+	// metadata (schema-derived or RegisterCascadeJunction), not user input — Sprintf
+	// interpolation here is intentional and safe.
+	for _, id := range victims {
+		if typedTable != "" {
+			if _, err := tx.Exec(fmt.Sprintf(`DELETE FROM "%s" WHERE id = ?`, typedTable), id); err != nil {
+				return 0, fmt.Errorf("reconcile %s: typed delete: %w", resourceType, err)
+			}
+		}
+		if _, err := tx.Exec(`DELETE FROM resources_fts WHERE rowid = ?`, ftsRowID(resourceType, id)); err != nil {
+			return 0, fmt.Errorf("reconcile %s: fts delete: %w", resourceType, err)
+		}
+		if _, err := tx.Exec(`DELETE FROM resources WHERE resource_type = ? AND id = ?`, resourceType, id); err != nil {
+			return 0, fmt.Errorf("reconcile %s: generic delete: %w", resourceType, err)
+		}
+		// Cascade junction FKs hold the BARE entity id, never the NUL-composite
+		// storage key, so strip the suffix before matching (no-op for plain ids).
+		for _, c := range cascades {
+			if _, err := tx.Exec(fmt.Sprintf(`DELETE FROM "%s" WHERE "%s" = ?`, c.Table, c.FKColumn), BareResourceID(id)); err != nil {
+				return 0, fmt.Errorf("reconcile %s: cascade %s: %w", resourceType, c.Table, err)
+			}
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return len(victims), nil
+}
+
 // ResolveByName resolves a human-readable name to a UUID from synced data.
 // If the input is already a UUID, it is returned as-is.
 // matchFields are JSON field names to search against (e.g., "name", "key", "email").
+//
+// json_extract path components cannot be bound as SQL parameters, so each
+// field is validated against validIdentifierRE before being spliced into
+// the query.
 func (s *Store) ResolveByName(resourceType string, input string, matchFields ...string) (string, error) {
 	if IsUUID(input) {
 		return input, nil
@@ -3371,13 +5367,16 @@ func (s *Store) ResolveByName(resourceType string, input string, matchFields ...
 
 	var matches []string
 	for _, field := range matchFields {
+		if !validIdentifierRE.MatchString(field) {
+			continue
+		}
 		query := fmt.Sprintf(
 			`SELECT id FROM resources WHERE resource_type = ? AND LOWER(json_extract(data, '$.%s')) = LOWER(?)`,
 			field,
 		)
 		rows, err := s.db.Query(query, resourceType, input)
 		if err != nil {
-			continue
+			return "", err
 		}
 		for rows.Next() {
 			var id string
@@ -3395,7 +5394,11 @@ func (s *Store) ResolveByName(resourceType string, input string, matchFields ...
 				}
 			}
 		}
-		rows.Close()
+		if err := rows.Err(); err != nil {
+			_ = rows.Close()
+			return "", err
+		}
+		_ = rows.Close()
 	}
 
 	switch len(matches) {

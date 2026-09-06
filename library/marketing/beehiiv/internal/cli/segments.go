@@ -9,8 +9,10 @@ import (
 
 func newSegmentsCmd(flags *rootFlags) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "segments",
-		Short: "Manage segments",
+		Use:         "segments",
+		Short:       "Get, create, and delete segments",
+		Annotations: map[string]string{"mcp:read-only": "true", "pp:parent-group": "true", "pp:api-resource": "true", "pp:typed-exit-codes": "0,2"},
+		RunE:        parentNoSubcommandRunE(flags),
 	}
 
 	cmd.AddCommand(newSegmentsCreateCmd(flags))

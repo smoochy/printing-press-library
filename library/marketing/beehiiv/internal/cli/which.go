@@ -11,10 +11,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// whichEntry is one row of the curated capability index. The index is
-// seeded at generation time from the same NovelFeature list that drives
-// the SKILL.md feature section, so the command a `which` query returns
-// is guaranteed to exist and to match what the skill advertises.
+// whichEntry is one row of the curated capability index. The index is seeded
+// at generation time from the verified NovelFeature list that drives the
+// SKILL.md feature section, so the command a `which` query returns is
+// guaranteed to exist and to match what the skill advertises.
 type whichEntry struct {
 	Command      string `json:"command"`
 	Description  string `json:"description"`
@@ -27,88 +27,13 @@ type whichEntry struct {
 // `--help`; `which` exists to resolve a natural-language capability
 // query to one of the commands the skill says matter most.
 var whichIndex = []whichEntry{
-	{Command: "advertisement-opportunities index", Description: "Get advertisement opportunities <Badge intent=\"info\" minimal outlined>OAuth Scope: posts:read</Badge>", Group: "advertisement-opportunities"},
-	{Command: "authors index", Description: "Retrieve a list of authors available for the publication.", Group: "authors"},
-	{Command: "authors show", Description: "Retrieve a single author from a publication.", Group: "authors"},
-	{Command: "automations index", Description: "List automations <Badge intent=\"info\" minimal outlined>OAuth Scope: automations:read</Badge>", Group: "automations"},
-	{Command: "automations show", Description: "Get automation <Badge intent=\"info\" minimal outlined>OAuth Scope: automations:read</Badge>", Group: "automations"},
-	{Command: "automations emails automations-list", Description: "Retrieve all emails belonging to a specific automation, including engagement statistics for each email.", Group: "automations"},
-	{Command: "automations journeys automation-create", Description: "Add an existing subscription to an automation flow. Requires the automation to have an active *Add by API* trigger. The specified `email` or `subscription_id` will be matched against your existing subscribers. If an existing subscriber is found, they will be enrolled immediately.\nLooking to enroll new subscribers? Use the **[Create Subscription](/api-reference/subscriptions/create)** endpoint instead and specify the `automation_ids` param.", Group: "automations"},
-	{Command: "automations journeys automation-index", Description: "List automation journeys <Badge intent=\"info\" minimal outlined>OAuth Scope: automations:read</Badge>", Group: "automations"},
-	{Command: "automations journeys automation-show", Description: "Get automation journey <Badge intent=\"info\" minimal outlined>OAuth Scope: automations:read</Badge>", Group: "automations"},
-	{Command: "bulk-subscription-updates index", Description: "List subscription updates <Badge intent=\"info\" minimal outlined>OAuth Scope: subscriptions:read</Badge>", Group: "bulk-subscription-updates"},
-	{Command: "bulk-subscription-updates show", Description: "Get subscription update <Badge intent=\"info\" minimal outlined>OAuth Scope: subscriptions:read</Badge>", Group: "bulk-subscription-updates"},
-	{Command: "bulk-subscriptions create", Description: "Bulk create subscription <Badge intent=\"info\" minimal outlined>OAuth Scope: subscriptions:write</Badge>", Group: "bulk-subscriptions"},
-	{Command: "condition-sets index", Description: "Retrieve all active condition sets for a publication. Condition sets define reusable audience segments for targeting content to specific subscribers. Use the `purpose` parameter to filter by a specific use case.", Group: "condition-sets"},
-	{Command: "condition-sets show", Description: "Retrieve a single active dynamic content condition set for a publication. Use `expand[]=stats` to calculate and return the active subscriber count synchronously.", Group: "condition-sets"},
-	{Command: "custom-fields create", Description: "Create custom field <Badge intent=\"info\" minimal outlined>OAuth Scope: custom_fields:write</Badge>", Group: "custom-fields"},
-	{Command: "custom-fields delete", Description: "Delete custom field <Badge intent=\"info\" minimal outlined>OAuth Scope: custom_fields:write</Badge>", Group: "custom-fields"},
-	{Command: "custom-fields index", Description: "List custom fields <Badge intent=\"info\" minimal outlined>OAuth Scope: custom_fields:read</Badge>", Group: "custom-fields"},
-	{Command: "custom-fields patch", Description: "Update custom field <Badge intent=\"info\" minimal outlined>OAuth Scope: custom_fields:write</Badge>", Group: "custom-fields"},
-	{Command: "custom-fields put", Description: "Update custom field <Badge intent=\"info\" minimal outlined>OAuth Scope: custom_fields:write</Badge>", Group: "custom-fields"},
-	{Command: "custom-fields show", Description: "Get custom field <Badge intent=\"info\" minimal outlined>OAuth Scope: custom_fields:read</Badge>", Group: "custom-fields"},
-	{Command: "data-privacy data-deletion-create", Description: "<Warning>This is a gated feature that requires enablement. Contact support to enable Data Deletion API access for your organization.</Warning>\n\nCreates a data deletion request for a subscriber within your organization. The subscriber's data will be redacted from all publications in the organization after a 14-day safety delay. This action cannot be undone once processing begins.", Group: "data-privacy"},
-	{Command: "data-privacy data-deletion-index", Description: "<Warning>This is a gated feature that requires enablement. Contact support to enable Data Deletion API access for your organization.</Warning>\n\nList all data deletion requests for your organization.", Group: "data-privacy"},
-	{Command: "data-privacy data-deletion-show", Description: "<Warning>This is a gated feature that requires enablement. Contact support to enable Data Deletion API access for your organization.</Warning>\n\nRetrieve the details and current status of a specific data deletion request.", Group: "data-privacy"},
-	{Command: "email-blasts index", Description: "List email blasts <Badge intent=\"info\" minimal outlined>OAuth Scope: posts:read</Badge>", Group: "email-blasts"},
-	{Command: "email-blasts show", Description: "Get email blast <Badge intent=\"info\" minimal outlined>OAuth Scope: posts:read</Badge>", Group: "email-blasts"},
-	{Command: "engagements index", Description: "Retrieve email engagement metrics for a specific publication over a defined date range and granularity.<br><br> By default, the endpoint returns metrics for the past day, aggregated daily. The max number of days allowed is 31. All dates and times are in UTC.", Group: "engagements"},
-	{Command: "newsletter-lists index", Description: "<Note title=\"Currently in beta\" icon=\"b\">\n  Newsletter Lists is currently in beta, the API is subject to change.\n</Note>\nList all newsletter lists for a publication.", Group: "newsletter-lists"},
-	{Command: "newsletter-lists show", Description: "<Note title=\"Currently in beta\" icon=\"b\">\n  Newsletter Lists is currently in beta, the API is subject to change.\n</Note>\nRetrieve a single newsletter list belonging to a specific publication.", Group: "newsletter-lists"},
-	{Command: "newsletter-lists subscriptions newsletter-list-create", Description: "<Note title=\"Currently in beta\" icon=\"b\">\n  Newsletter Lists is currently in beta, the API is subject to change.\n</Note>\nSubscribe a subscription to a newsletter list. Accepts either a subscription_id or email to identify the subscription.", Group: "newsletter-lists"},
-	{Command: "newsletter-lists subscriptions newsletter-list-index", Description: "List newsletter list subscriptions <Badge intent=\"warning\" minimal outlined>Beta</Badge> <Badge intent=\"info\" minimal outlined>OAuth Scope: newsletter_lists:read</Badge>", Group: "newsletter-lists"},
-	{Command: "newsletter-lists subscriptions newsletter-list-show", Description: "<Note title=\"Currently in beta\" icon=\"b\">\n  Newsletter Lists is currently in beta, the API is subject to change.\n</Note>\nRetrieve a single newsletter list subscription.", Group: "newsletter-lists"},
-	{Command: "newsletter-lists subscriptions newsletter-list-update", Description: "<Note title=\"Currently in beta\" icon=\"b\">\n  Newsletter Lists is currently in beta, the API is subject to change.\n</Note>\nUpdate a newsletter list subscription. Currently supports unsubscribing a subscription from a newsletter list.", Group: "newsletter-lists"},
-	{Command: "newsletter-lists subscriptions newsletter-list-update-by-id", Description: "<Note title=\"Currently in beta\" icon=\"b\">\n  Newsletter Lists is currently in beta, the API is subject to change.\n</Note>\nUpdate a newsletter list subscription by subscription ID. An alternative to the update endpoint when you don't have the newsletter list subscription ID. Accepts either a subscription_id or email to identify the subscription. Currently supports unsubscribing a subscription from a newsletter list.", Group: "newsletter-lists"},
-	{Command: "polls index", Description: "Retrieve all polls belonging to a specific publication. Poll choices are always included. Use `expand[]=stats` to include aggregate vote counts per choice.", Group: "polls"},
-	{Command: "polls show", Description: "Retrieve detailed information about a specific poll belonging to a publication. Use `expand[]=stats` for aggregate vote counts, or `expand[]=poll_responses` for individual subscriber responses.", Group: "polls"},
-	{Command: "polls responses polls-list", Description: "Retrieve all individual subscriber responses for a specific poll with cursor-based pagination. Use this endpoint for large datasets instead of the `expand[]=poll_responses` parameter on the poll show endpoint.", Group: "polls"},
-	{Command: "post-templates index", Description: "Retrieve a list of post templates available for the publication.", Group: "post-templates"},
-	{Command: "posts aggregate-stats", Description: "Get aggregate stats <Badge intent=\"info\" minimal outlined>OAuth Scope: posts:read</Badge>", Group: "posts"},
-	{Command: "posts create", Description: "<Note title=\"Currently in beta\" icon=\"b\">\n  This feature is currently in beta, the API is subject to change, and available only to Enterprise users.<br/><br/>To inquire about Enterprise pricing,\n  please visit our <a href=\"https://www.beehiiv.com/enterprise\">Enterprise page</a>.\n</Note>\nCreate a post for a specific publication. For a detailed walkthrough including setup, testing workflows, and working with custom HTML and templates, see the <a href=\"https://www.beehiiv.com/support/article/36759164012439-using-the-send-api-and-create-post-endpoint\">Using the Send API and Create Post Endpoint</a> guide.\n\n## Content methods\n\nThere are three ways to provide content for a post. You must provide either `blocks` or `body_content`, but not both.\n\n### 1. Blocks\n\nUse the `blocks` field to build your post with structured content blocks such as paragraphs, images, headings, buttons, tables, and more. Each block has a `type` and its own set of properties. This method gives you fine-grained control over individual content elements and supports features like visual settings, visibility settings, and dynamic content targeting.\n\n### 2. Raw HTML (`body_content`)\n\nUse the `body_content` field to provide a single string of raw HTML. The HTML is wrapped in an `htmlSnippet` block internally. This is useful when you have pre-built HTML content or are migrating from another platform.\n\n### 3. HTML blocks within blocks\n\nUse `type: html` blocks inside the `blocks` array to embed raw HTML snippets alongside other structured blocks. This lets you mix structured content (paragraphs, images, etc.) with custom HTML where needed.\n\n## CSS and styling guardrails\n\nbeehiiv processes all HTML content through a sanitization pipeline. When using `body_content` or `html` blocks, be aware of the following:\n\n- **`<style>` tags are removed.** All `<style>` block elements are stripped during sanitization. Do not rely on embedded stylesheets.\n- **`<link>` tags are removed.** External stylesheet references are not allowed.\n- **Inline styles are preserved.** Styles applied directly to elements via the `style` attribute (e.g., `<div style=\"color: red;\">`) are kept intact.\n- **CSS classes have no effect.** While class attributes are not stripped, no corresponding stylesheets are loaded to apply them.\n- **beehiiv's email template wraps your content.** Your HTML is rendered inside beehiiv's email table structure, which applies its own layout and spacing. This may affect the appearance of your content.\n- **Use inline styles for all visual styling.** Since `<style>` and `<link>` tags are removed, inline styles on individual elements are the only reliable way to control appearance.", Group: "posts"},
-	{Command: "posts delete", Description: "Delete or Archive a post. Any post that has been confirmed will have it's status changed to `archived`. Posts in the `draft` status will be permanently deleted.", Group: "posts"},
-	{Command: "posts index", Description: "List posts <Badge intent=\"info\" minimal outlined>OAuth Scope: posts:read</Badge>", Group: "posts"},
-	{Command: "posts show", Description: "Get post <Badge intent=\"info\" minimal outlined>OAuth Scope: posts:read</Badge>", Group: "posts"},
-	{Command: "posts update", Description: "<Note title=\"Currently in beta\" icon=\"b\">\n  This feature is currently in beta, the API is subject to change, and available only to Enterprise users.<br/><br/>To inquire about Enterprise pricing,\n  please visit our <a href=\"https://www.beehiiv.com/enterprise\">Enterprise page</a>.\n</Note>\nUpdate an existing post for a specific publication. Only the fields provided in the request body will be updated — all other fields remain unchanged. For a detailed walkthrough of content methods and working with custom HTML, see the <a href=\"https://www.beehiiv.com/support/article/36759164012439-using-the-send-api-and-create-post-endpoint\">Using the Send API and Create Post Endpoint</a> guide.\n\nTo update post content, provide either `blocks` or `body_content` (not both). If neither is provided, the existing content is preserved. The same content methods and CSS guardrails described in the create endpoint apply here.", Group: "posts"},
-	{Command: "publications index", Description: "List publications <Badge intent=\"info\" minimal outlined>OAuth Scope: publications:read</Badge>", Group: "publications"},
-	{Command: "publications show", Description: "Get publication <Badge intent=\"info\" minimal outlined>OAuth Scope: publications:read</Badge>", Group: "publications"},
-	{Command: "referral-program show", Description: "Get referral program <Badge intent=\"info\" minimal outlined>OAuth Scope: referral_program:read</Badge>", Group: "referral-program"},
-	{Command: "segments create", Description: "Create a new segment.<br><br> **Manual segments** — Use `subscriptions` or `emails` input to create a segment from an explicit list of subscription IDs or email addresses. The segment is processed synchronously and returns with `status: completed`. Net new email addresses will be ignored; create subscriptions using the `Create Subscription` endpoint.<br><br> **Dynamic segments** — Use `custom_fields` input to create a segment that filters subscribers by custom field values. The segment is processed asynchronously and returns with `status: pending`. Results will be available in the `List Segment Subscribers` endpoint after processing is complete.", Group: "segments"},
-	{Command: "segments delete", Description: "Delete a segment. Deleting the segment does not effect the subscriptions in the segment.", Group: "segments"},
-	{Command: "segments index", Description: "List segments <Badge intent=\"info\" minimal outlined>OAuth Scope: segments:read</Badge>", Group: "segments"},
-	{Command: "segments show", Description: "Get segment <Badge intent=\"info\" minimal outlined>OAuth Scope: segments:read</Badge>", Group: "segments"},
-	{Command: "segments members segments-list", Description: "List all members in a segment with full subscription data. Each member is returned as a subscription  object containing complete subscriber information and their subscription details.  Supports optional expansions for stats, custom fields, tags, referrals, and premium tiers.\n**Use this endpoint when you need detailed subscriber information.** If you only need subscriber IDs, use `/segments/{segmentId}/results` for a lighter-weight response.", Group: "segments"},
-	{Command: "segments recalculate segments", Description: "Recalculate segment <Badge intent=\"info\" minimal outlined>OAuth Scope: segments:write</Badge>", Group: "segments"},
-	{Command: "segments results segments-expand", Description: "List subscriber IDs for a segment. Returns a lightweight array of subscription IDs only, without additional subscriber details.\n**Use this endpoint when you only need subscriber IDs** (e.g., for counting, ID-based lookups, or  integrations with external systems). If you need full subscriber details (email, status, custom fields, etc.), use `/segments/{segmentId}/members` instead.", Group: "segments"},
-	{Command: "subscriptions bulk-updates-patch", Description: "Update subscriptions <Badge intent=\"info\" minimal outlined>OAuth Scope: subscriptions:write</Badge>", Group: "subscriptions"},
-	{Command: "subscriptions bulk-updates-patch-status", Description: "Update subscriptions' status <Badge intent=\"info\" minimal outlined>OAuth Scope: subscriptions:write</Badge>", Group: "subscriptions"},
-	{Command: "subscriptions bulk-updates-put", Description: "Update subscriptions <Badge intent=\"info\" minimal outlined>OAuth Scope: subscriptions:write</Badge>", Group: "subscriptions"},
-	{Command: "subscriptions bulk-updates-put-status", Description: "Update subscriptions' status <Badge intent=\"info\" minimal outlined>OAuth Scope: subscriptions:write</Badge>", Group: "subscriptions"},
-	{Command: "subscriptions create", Description: "Create subscription <Badge intent=\"info\" minimal outlined>OAuth Scope: subscriptions:write</Badge>", Group: "subscriptions"},
-	{Command: "subscriptions delete", Description: "<Warning>This cannot be undone. All data associated with the subscription will also be deleted. We recommend unsubscribing when possible instead of deleting. If a premium subscription is deleted they will no longer be billed.</Warning> Deletes a subscription.", Group: "subscriptions"},
-	{Command: "subscriptions get-by-email", Description: "<Info>Please note that this endpoint requires the email to be URL encoded. Please reference your language's documentation for the correct method of encoding.</Info> Retrieve a single subscription belonging to a specific email address in a specific publication.", Group: "subscriptions"},
-	{Command: "subscriptions get-by-id", Description: "<Info>In previous versions of the API, another endpoint existed to retrieve a subscription by the subscriber ID. This endpoint is now deprecated and will be removed in a future version of the API. Please use this endpoint instead. The subscription ID can be found by exporting a list of subscriptions either via the `Settings > Publications > Export Data` or by exporting a CSV in a segment.</Info> Retrieve a single subscription belonging to a specific publication.", Group: "subscriptions"},
-	{Command: "subscriptions get-by-subscriber-id", Description: "Get subscription by subscriber ID <Badge intent=\"info\" minimal outlined>OAuth Scope: subscriptions:read</Badge>", Group: "subscriptions"},
-	{Command: "subscriptions index", Description: "Retrieve all subscriptions belonging to a specific publication.\n\n<Info> **New**: This endpoint now supports cursor-based pagination for better performance and consistency. Use the `cursor` parameter instead of `page` for new integrations. </Info>\n<Warning> **Deprecation Notice**: Offset-based pagination (using `page` parameter) is deprecated and limited to 100 pages maximum. Please migrate to cursor-based pagination. See our [Pagination Guide](/welcome/pagination) for details. </Warning>", Group: "subscriptions"},
-	{Command: "subscriptions patch", Description: "Update subscription by ID <Badge intent=\"info\" minimal outlined>OAuth Scope: subscriptions:write</Badge>", Group: "subscriptions"},
-	{Command: "subscriptions put", Description: "Update subscription by ID <Badge intent=\"info\" minimal outlined>OAuth Scope: subscriptions:write</Badge>", Group: "subscriptions"},
-	{Command: "subscriptions update-by-email", Description: "Update subscription by email <Badge intent=\"info\" minimal outlined>OAuth Scope: subscriptions:write</Badge>", Group: "subscriptions"},
-	{Command: "subscriptions jwt-token subscriptions-get", Description: "Generate a JWT token that can be used to automatically log in subscribers via URL. This token is short lived and should be used immediately.", Group: "subscriptions"},
-	{Command: "subscriptions tags subscription-create", Description: "Adds tags to a subscription. If the tag does not exist on the publication, it will be created automatically.", Group: "subscriptions"},
-	{Command: "tiers create", Description: "Create a tier <Badge intent=\"info\" minimal outlined>OAuth Scope: tiers:write</Badge>", Group: "tiers"},
-	{Command: "tiers index", Description: "List tiers <Badge intent=\"info\" minimal outlined>OAuth Scope: tiers:read</Badge>", Group: "tiers"},
-	{Command: "tiers patch", Description: "Update a tier <Badge intent=\"info\" minimal outlined>OAuth Scope: tiers:write</Badge>", Group: "tiers"},
-	{Command: "tiers put", Description: "Update a tier <Badge intent=\"info\" minimal outlined>OAuth Scope: tiers:write</Badge>", Group: "tiers"},
-	{Command: "tiers show", Description: "Get tier <Badge intent=\"info\" minimal outlined>OAuth Scope: tiers:read</Badge>", Group: "tiers"},
-	{Command: "users oauth-identify", Description: "Identify user <Badge intent=\"info\" minimal outlined>OAuth Scope: identify:read</Badge>", Group: "users"},
-	{Command: "webhooks create", Description: "Create a webhook <Badge intent=\"info\" minimal outlined>OAuth Scope: webhooks:write</Badge>", Group: "webhooks"},
-	{Command: "webhooks delete", Description: "Delete a webhook <Badge intent=\"info\" minimal outlined>OAuth Scope: webhooks:write</Badge>", Group: "webhooks"},
-	{Command: "webhooks index", Description: "List webhooks <Badge intent=\"info\" minimal outlined>OAuth Scope: webhooks:read</Badge>", Group: "webhooks"},
-	{Command: "webhooks show", Description: "Get webhook <Badge intent=\"info\" minimal outlined>OAuth Scope: webhooks:read</Badge>", Group: "webhooks"},
-	{Command: "webhooks update", Description: "Update webhook <Badge intent=\"info\" minimal outlined>OAuth Scope: webhooks:write</Badge>", Group: "webhooks"},
-	{Command: "webhooks tests webhooks", Description: "Test webhook <Badge intent=\"info\" minimal outlined>OAuth Scope: webhooks:read</Badge>", Group: "webhooks"},
-	{Command: "workspaces identify", Description: "Identify workspace <Badge intent=\"info\" minimal outlined>OAuth Scope: identify:read</Badge>", Group: "workspaces"},
-	{Command: "workspaces publications-by-subscription-email", Description: "Retrieve all publications in the workspace that have a subscription for the specified email address. The workspace is determined by the provided API key.", Group: "workspaces"},
+	{Command: "insights subscriber-sources", Description: "See exactly where new subscribers come from: UTM, channel, and referring site, grouped in one call.", Group: "Growth answers from the local store", WhyItMatters: "Reach for this when a growth question needs source attribution without paging the full subscriber list through the API."},
+	{Command: "insights post-performance", Description: "Review recent sends with status, timing, and expanded stats in one compact table.", Group: "Growth answers from the local store", WhyItMatters: "Reach for this after a send to review performance without burning per-post API calls."},
+	{Command: "insights referral-health", Description: "Check referral-program config and how many subscribers actually carry referral codes.", Group: "Growth answers from the local store", WhyItMatters: "Reach for this when tuning referral loops to see configuration versus real coverage."},
+	{Command: "insights subscriber-lookup", Description: "Find one subscriber by email or subscription ID and get a compact record instantly.", Group: "Growth answers from the local store", WhyItMatters: "Reach for this for support questions about a single subscriber when offline speed matters."},
+	{Command: "insights churn-sources", Description: "See which sources, channels, and campaigns drive unsubscribes.", Group: "Growth answers from the local store", WhyItMatters: "Reach for this when unsubscribes spike and you need the offending channel fast."},
+	{Command: "insights send-times", Description: "Find your best send slot: open rate by weekday and hour from your own history.", Group: "Growth answers from the local store", WhyItMatters: "Reach for this when scheduling the next send and you want evidence over habit."},
+	{Command: "insights compare-publications", Description: "Side-by-side growth and engagement across every synced publication.", Group: "Growth answers from the local store", WhyItMatters: "Reach for this when managing several publications and a client report needs one comparison table."},
 }
 
 // whichMatch pairs an index entry with its ranking score for a query.
@@ -126,8 +51,9 @@ type whichMatch struct {
 //
 //	+3  exact token match on the command's leaf or full path
 //	+2  substring match on the command (any part)
-//	+2  substring match on the description
-//	+1  group tag contains the query as a word
+//	+2  substring match on description or why_it_matters
+//	+1  per-token match on description or why_it_matters (capped at 3)
+//	+1  group tag contains the query as a whole token
 //
 // Ties break on declaration order in the index. An empty query returns
 // every entry at score 0 in declaration order - this is the "list all"
@@ -144,7 +70,9 @@ func rankWhich(index []whichEntry, query string, limit int) []whichMatch {
 		}
 		return out
 	}
-	qTokens := strings.Fields(q)
+	// Sub-tokenize the query the same way command paths are split, so a
+	// pasted hyphenated capability (repos-list-for-authenticated) matches.
+	qTokens := whichSubTokens(q)
 
 	scored := make([]whichMatch, 0, len(index))
 	for i, e := range index {
@@ -154,7 +82,14 @@ func rankWhich(index []whichEntry, query string, limit int) []whichMatch {
 	}
 
 	sort.SliceStable(scored, func(i, j int) bool {
-		return scored[i].Score > scored[j].Score
+		if scored[i].Score != scored[j].Score {
+			return scored[i].Score > scored[j].Score
+		}
+		// Specificity tie-break: at equal score prefer the command with the
+		// fewest capability sub-tokens - the canonical operation over variants
+		// carrying extra words the request never used.
+		return len(whichSubTokens(strings.ToLower(scored[i].Entry.Command))) <
+			len(whichSubTokens(strings.ToLower(scored[j].Entry.Command)))
 	})
 	// Drop zero-score matches when the query was non-empty; agents
 	// branching on exit code rely on "no match" meaning no confidence.
@@ -173,14 +108,21 @@ func rankWhich(index []whichEntry, query string, limit int) []whichMatch {
 func whichScoreEntry(e whichEntry, query string, qTokens []string) int {
 	score := 0
 	cmd := strings.ToLower(e.Command)
-	cmdTokens := strings.Fields(cmd)
+	// Sub-token split (spaces, hyphens, underscores, slashes): a capability
+	// word buried in a hyphenated leaf (repos-list-for-authenticated) must be
+	// matchable by the words a human asks with, or every command in a group
+	// ties on the group token alone and index order decides the answer.
+	cmdTokens := whichSubTokens(cmd)
 	desc := strings.ToLower(e.Description)
+	descTokens := whichSubTokens(desc)
+	why := strings.ToLower(e.WhyItMatters)
+	whyTokens := whichSubTokens(why)
 	group := strings.ToLower(e.Group)
 
 	// Exact token match on the command path (any token).
 	for _, qt := range qTokens {
 		for _, ct := range cmdTokens {
-			if qt == ct {
+			if whichTokenMatch(qt, ct) {
 				score += 3
 				break
 			}
@@ -190,20 +132,185 @@ func whichScoreEntry(e whichEntry, query string, qTokens []string) int {
 	if strings.Contains(cmd, query) {
 		score += 2
 	}
-	// Substring match on the description.
-	if strings.Contains(desc, query) {
+	// Description and rationale are correlated prose fields. Share the existing
+	// per-token cap so repeating the same query in both fields cannot outweigh
+	// an exact command match. A rationale-only match needs two tokens or an
+	// exact multi-token phrase to avoid promoting incidental prose words.
+	descPhrase := strings.Contains(desc, query)
+	descCredit := whichFieldCredit(qTokens, descTokens)
+	whyCredit := whichFieldCredit(qTokens, whyTokens)
+	whyPhrase := len(qTokens) > 1 && strings.Contains(why, query)
+	if score == 0 && whyCredit < 2 && !whyPhrase {
+		whyCredit = 0
+	}
+	if descPhrase || whyPhrase {
 		score += 2
 	}
-	// Group tag match.
-	if group != "" {
-		for _, qt := range qTokens {
-			if strings.Contains(group, qt) {
+	if whyCredit > descCredit {
+		score += whyCredit
+	} else {
+		score += descCredit
+	}
+	// Group tag match requires a whole token, not an arbitrary substring.
+	groupTokens := whichSubTokens(group)
+	groupMatched := false
+	for _, qt := range qTokens {
+		for _, gt := range groupTokens {
+			if whichTokenMatch(qt, gt) {
 				score += 1
+				groupMatched = true
+				break
+			}
+		}
+		if groupMatched {
+			break
+		}
+	}
+	// Possessive aliasing: "my/mine/me/current" in a request is API-speak for
+	// the authenticated caller; commands scoped to the authenticated user must
+	// outrank generic listings for possessive asks.
+	possessive := false
+	for _, qt := range qTokens {
+		switch qt {
+		case "my", "mine", "me", "current":
+			possessive = true
+		}
+	}
+	if possessive {
+		for _, ct := range cmdTokens {
+			if ct == "authenticated" || ct == "me" {
+				score += 3
 				break
 			}
 		}
 	}
+	// Read-intent default: penalize write-verb commands when the request never
+	// asked for a write, so neutral asks can never rank a destructive command
+	// first on a tie.
+	if score > 0 {
+		queryWrite := false
+		for _, qt := range qTokens {
+			if whichWriteVerbs[qt] {
+				queryWrite = true
+				break
+			}
+		}
+		if !queryWrite {
+			for _, ct := range cmdTokens {
+				if whichWriteVerbs[ct] {
+					score -= 2
+					break
+				}
+			}
+		}
+	}
+	// Specificity: a command leaf carrying capability sub-tokens the request never
+	// used is a variant, not the canonical answer ("activity-list-repos-
+	// starred-by-authenticated" for a repositories ask). Parent resource tokens
+	// are excluded so a valid nested command is not erased by its path.
+	if score > 0 && len(qTokens) > 1 {
+		unmatched := 0
+		commandParts := strings.Fields(cmd)
+		leafTokens := whichSubTokens(commandParts[len(commandParts)-1])
+		for _, ct := range leafTokens {
+			hit := false
+			for _, qt := range qTokens {
+				if whichTokenMatch(qt, ct) {
+					hit = true
+					break
+				}
+			}
+			if !hit {
+				unmatched++
+			}
+		}
+		if unmatched > 3 {
+			unmatched = 3
+		}
+		score -= unmatched
+	}
 	return score
+}
+
+func whichFieldCredit(qTokens, fieldTokens []string) int {
+	credit := 0
+	matched := make(map[string]struct{})
+	for _, qt := range qTokens {
+		for _, ft := range fieldTokens {
+			if whichTokenMatch(qt, ft) {
+				key := whichTokenKey(ft)
+				if _, ok := matched[key]; ok {
+					break
+				}
+				matched[key] = struct{}{}
+				credit++
+				break
+			}
+		}
+		if credit == 3 {
+			break
+		}
+	}
+	return credit
+}
+
+func whichTokenKey(token string) string {
+	token = strings.Trim(strings.ToLower(token), ".,:;!?()[]{}\"'")
+	if alias := whichTokenAliases[token]; alias != "" {
+		return alias
+	}
+	return whichSingular(token)
+}
+
+func whichTokenMatch(a, b string) bool {
+	a = strings.Trim(strings.ToLower(a), ".,:;!?()[]{}\"'")
+	b = strings.Trim(strings.ToLower(b), ".,:;!?()[]{}\"'")
+	if a == "" || b == "" {
+		return false
+	}
+	if a == b {
+		return true
+	}
+	if whichSingular(a) == whichSingular(b) {
+		return true
+	}
+	return whichTokenAliases[a] != "" && whichTokenAliases[a] == whichTokenAliases[b]
+}
+
+func whichSubTokens(cmd string) []string {
+	return strings.FieldsFunc(cmd, func(r rune) bool {
+		return r == ' ' || r == '-' || r == '_' || r == '/'
+	})
+}
+
+// The closed API-verb set for write-shaped commands. A request that never
+// asked for a write must not tie-break into a destructive command.
+var whichWriteVerbs = map[string]bool{
+	"delete": true, "remove": true, "update": true, "create": true, "set": true,
+	"add": true, "replace": true, "rename": true, "transfer": true, "merge": true,
+	"lock": true, "unlock": true, "star": true, "unstar": true, "follow": true,
+	"unfollow": true, "block": true, "unblock": true, "mute": true, "archive": true,
+	"unarchive": true, "cancel": true, "send": true, "upload": true, "subscribe": true,
+	"unsubscribe": true, "dismiss": true, "approve": true, "decline": true,
+	"post": true, "put": true, "write": true, "edit": true, "modify": true,
+	"publish": true, "share": true, "comment": true, "grant": true, "revoke": true,
+}
+
+var whichTokenAliases = map[string]string{
+	"repo": "repository", "repos": "repository", "repository": "repository", "repositories": "repository",
+}
+
+func whichSingular(s string) string {
+	if len(s) > 3 && strings.HasSuffix(s, "ies") {
+		return strings.TrimSuffix(s, "ies") + "y"
+	}
+	if len(s) > 3 && strings.HasSuffix(s, "es") {
+		return strings.TrimSuffix(s, "es")
+	}
+	if len(s) > 2 && strings.HasSuffix(s, "s") {
+		return strings.TrimSuffix(s, "s")
+	}
+	return s
 }
 
 func newWhichCmd(flags *rootFlags) *cobra.Command {
@@ -212,6 +319,7 @@ func newWhichCmd(flags *rootFlags) *cobra.Command {
 		Use:   "which [query]",
 		Short: "Find the command that implements a capability",
 		Annotations: map[string]string{
+			"mcp:read-only":       "true",
 			"pp:typed-exit-codes": "0,2",
 		},
 		Long: `which resolves a natural-language capability query (for example, "search messages" or "stale tickets") to the best matching command from this CLI's curated feature index.

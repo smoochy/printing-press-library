@@ -246,6 +246,28 @@ type ColumnsBlock struct {
 	VisualSettings     json.RawMessage `json:"visual_settings"`
 }
 
+type ComplimentaryAccess struct {
+	Description string          `json:"description"`
+	Duration    int             `json:"duration"`
+	Id          string          `json:"id"`
+	Stats       json.RawMessage `json:"stats"`
+	Tier        json.RawMessage `json:"tier"`
+	TierId      string          `json:"tier_id"`
+	TimeUnit    string          `json:"time_unit"`
+}
+
+type ComplimentaryAccessGetResponse struct {
+	Data json.RawMessage `json:"data"`
+}
+
+type ComplimentaryAccessListResponse struct {
+	Data         json.RawMessage `json:"data"`
+	HasMore      bool            `json:"has_more"`
+	Limit        int             `json:"limit"`
+	NextCursor   string          `json:"next_cursor"`
+	TotalResults int             `json:"total_results"`
+}
+
 type ConditionSet struct {
 	Created int             `json:"created"`
 	Id      string          `json:"id"`
@@ -620,6 +642,72 @@ type PaywallBreakBlock struct {
 	PaywallId string `json:"paywall_id"`
 }
 
+type Podcast struct {
+	ArtworkUrl  string          `json:"artwork_url"`
+	Author      string          `json:"author"`
+	Categories  json.RawMessage `json:"categories"`
+	Copyright   string          `json:"copyright"`
+	Created     int             `json:"created"`
+	Description string          `json:"description"`
+	Id          string          `json:"id"`
+	Imported    bool            `json:"imported"`
+	Language    string          `json:"language"`
+	Slug        string          `json:"slug"`
+	Status      string          `json:"status"`
+	Title       string          `json:"title"`
+	Type        string          `json:"type"`
+}
+
+type PodcastEpisode struct {
+	ArtworkUrl    string `json:"artwork_url"`
+	Created       int    `json:"created"`
+	Description   string `json:"description"`
+	DisplayedDate int    `json:"displayed_date"`
+	Id            string `json:"id"`
+	PublishDate   int    `json:"publish_date"`
+	ShowNotes     string `json:"show_notes"`
+	Slug          string `json:"slug"`
+	Status        string `json:"status"`
+	Title         string `json:"title"`
+	Updated       int    `json:"updated"`
+}
+
+type PodcastEpisodeGetResponse struct {
+	Data json.RawMessage `json:"data"`
+}
+
+type PodcastEpisodeListResponse struct {
+	Data         json.RawMessage `json:"data"`
+	HasMore      bool            `json:"has_more"`
+	Limit        int             `json:"limit"`
+	NextCursor   string          `json:"next_cursor"`
+	TotalResults int             `json:"total_results"`
+}
+
+type PodcastGetResponse struct {
+	Data json.RawMessage `json:"data"`
+}
+
+type PodcastListResponse struct {
+	Data         json.RawMessage `json:"data"`
+	HasMore      bool            `json:"has_more"`
+	Limit        int             `json:"limit"`
+	NextCursor   string          `json:"next_cursor"`
+	TotalResults int             `json:"total_results"`
+}
+
+type PodcastPrivateFeed struct {
+	Created       int             `json:"created"`
+	Id            string          `json:"id"`
+	ProtocolLinks json.RawMessage `json:"protocol_links"`
+	Subscription  json.RawMessage `json:"subscription"`
+	Url           string          `json:"url"`
+}
+
+type PodcastPrivateFeedGetResponse struct {
+	Data json.RawMessage `json:"data"`
+}
+
 type Poll struct {
 	CreatedAt      int             `json:"created_at"`
 	Description    string          `json:"description"`
@@ -786,6 +874,10 @@ type PostMetadata struct {
 	TwitterTitle       string `json:"twitter_title"`
 }
 
+type PostPreviewGetResponse struct {
+	Data json.RawMessage `json:"data"`
+}
+
 type PostRecipients struct {
 	Email json.RawMessage `json:"email"`
 	Web   json.RawMessage `json:"web"`
@@ -828,6 +920,14 @@ type PostTemplatesGetResponse struct {
 	Page         int             `json:"page"`
 	TotalPages   int             `json:"total_pages"`
 	TotalResults int             `json:"total_results"`
+}
+
+type PostTestSendRequest struct {
+	RecipientEmails json.RawMessage `json:"recipient_emails"`
+}
+
+type PostTestSendResponse struct {
+	Data json.RawMessage `json:"data"`
 }
 
 type PostWebRecipients struct {
@@ -1065,6 +1165,41 @@ type SubscriptionDeleteResponse struct {
 	Message string `json:"message"`
 }
 
+type SubscriptionExport struct {
+	Completed     int    `json:"completed"`
+	Created       int    `json:"created"`
+	DownloadUrl   string `json:"download_url"`
+	FailureReason string `json:"failure_reason"`
+	Id            string `json:"id"`
+	PublicationId string `json:"publication_id"`
+	SegmentId     string `json:"segment_id"`
+	Status        string `json:"status"`
+	Updated       int    `json:"updated"`
+	Variant       string `json:"variant"`
+}
+
+type SubscriptionExportCreateRequest struct {
+	SegmentId string `json:"segment_id"`
+	Variant   string `json:"variant"`
+}
+
+type SubscriptionExportCreateResponse struct {
+	Data   json.RawMessage `json:"data"`
+	Reused bool            `json:"reused"`
+}
+
+type SubscriptionExportGetResponse struct {
+	Data json.RawMessage `json:"data"`
+}
+
+type SubscriptionExportListResponse struct {
+	Data         json.RawMessage `json:"data"`
+	HasMore      bool            `json:"has_more"`
+	Limit        int             `json:"limit"`
+	NextCursor   string          `json:"next_cursor"`
+	TotalResults int             `json:"total_results"`
+}
+
 type SubscriptionJwtToken struct {
 	JwtToken string `json:"jwt_token"`
 }
@@ -1238,6 +1373,15 @@ type TierStats struct {
 	ActiveSubscriptions int `json:"active_subscriptions"`
 }
 
+type TierSummary struct {
+	Description string          `json:"description"`
+	Id          string          `json:"id"`
+	Name        string          `json:"name"`
+	Prices      json.RawMessage `json:"prices"`
+	Stats       json.RawMessage `json:"stats"`
+	Status      string          `json:"status"`
+}
+
 type UpdateTierPriceRequest struct {
 	AmountCents     int             `json:"amount_cents"`
 	Cta             string          `json:"cta"`
@@ -1320,4 +1464,8 @@ type WorkspaceIdentity struct {
 	Id         string `json:"id"`
 	Name       string `json:"name"`
 	OwnerEmail string `json:"owner_email"`
+}
+
+type WorkspacePermissionsGetResponse struct {
+	Data json.RawMessage `json:"data"`
 }

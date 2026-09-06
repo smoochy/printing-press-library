@@ -24,11 +24,23 @@ func newEmailBlastsIndexCmd(flags *rootFlags) *cobra.Command {
 		Use:         "index <publicationId>",
 		Aliases:     []string{"get"},
 		Short:       "List email blasts <Badge intent='info' minimal outlined>OAuth Scope: posts:read</Badge>",
-		Example:     "  beehiiv-pp-cli email-blasts index 550e8400-e29b-41d4-a716-446655440000",
+		Example:     "  beehiiv-pp-cli email-blasts index pub_00000000-0000-0000-0000-000000000000",
 		Annotations: map[string]string{"pp:endpoint": "email-blasts.index", "pp:method": "GET", "pp:path": "/publications/{publicationId}/email_blasts", "mcp:read-only": "true"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return cmd.Help()
+				// A missing required positional is a usage error in every output
+				// mode (matches command_promoted.go.tmpl). Machine callers
+				// (--json/--agent) also get a JSON error envelope on stdout;
+				// usageErr sets exit 2.
+				if flags.asJSON {
+					if printErr := printJSONFiltered(cmd.OutOrStdout(), map[string]any{
+						"error": "missing required argument",
+						"usage": fmt.Sprintf("%s%s", cmd.CommandPath(), " <publicationId>"),
+					}, flags); printErr != nil {
+						return printErr
+					}
+				}
+				return usageErr(fmt.Errorf("missing required argument\nUsage: %s%s", cmd.CommandPath(), " <publicationId>"))
 			}
 			if cmd.Flags().Changed("status") {
 				allowedStatus := []string{"active", "inactive"}
@@ -40,7 +52,7 @@ func newEmailBlastsIndexCmd(flags *rootFlags) *cobra.Command {
 					}
 				}
 				if !validStatus {
-					fmt.Fprintf(os.Stderr, "warning: --%s %q not in allowed set %v\n", "status", flagStatus, allowedStatus)
+					return fmt.Errorf("invalid value %q for --%s: must be one of %v", flagStatus, "status", allowedStatus)
 				}
 			}
 			if cmd.Flags().Changed("order-by") {
@@ -53,7 +65,7 @@ func newEmailBlastsIndexCmd(flags *rootFlags) *cobra.Command {
 					}
 				}
 				if !validOrderBy {
-					fmt.Fprintf(os.Stderr, "warning: --%s %q not in allowed set %v\n", "order-by", flagOrderBy, allowedOrderBy)
+					return fmt.Errorf("invalid value %q for --%s: must be one of %v", flagOrderBy, "order-by", allowedOrderBy)
 				}
 			}
 			if cmd.Flags().Changed("direction") {
@@ -66,44 +78,59 @@ func newEmailBlastsIndexCmd(flags *rootFlags) *cobra.Command {
 					}
 				}
 				if !validDirection {
-					fmt.Fprintf(os.Stderr, "warning: --%s %q not in allowed set %v\n", "direction", flagDirection, allowedDirection)
+					return fmt.Errorf("invalid value %q for --%s: must be one of %v", flagDirection, "direction", allowedDirection)
 				}
 			}
+			path := "/publications/{publicationId}/email_blasts"
+			if len(args) < 1 || args[0] == "" {
+				return usageErr(fmt.Errorf("publicationId is required\nUsage: %s <%s>", cmd.CommandPath(), "publicationId"))
+			}
+			path = replacePathParam(path, "publicationId", args[0])
 			c, err := flags.newClient()
 			if err != nil {
 				return err
 			}
-
-			path := "/publications/{publicationId}/email_blasts"
-			path = replacePathParam(path, "publicationId", args[0])
-			data, prov, err := resolvePaginatedRead(cmd.Context(), c, flags, "email-blasts", path, map[string]string{
-				"expand[]":  fmt.Sprintf("%v", flagExpand),
-				"status":    fmt.Sprintf("%v", flagStatus),
-				"limit":     fmt.Sprintf("%v", flagLimit),
-				"page":      fmt.Sprintf("%v", flagPage),
-				"order_by":  fmt.Sprintf("%v", flagOrderBy),
-				"direction": fmt.Sprintf("%v", flagDirection),
-			}, nil, flagAll, "", "", "")
-			if err != nil {
-				return classifyAPIError(err, flags)
+			if flagExpand != "" {
+				path = appendArrayQueryParam(path, "expand[]", flagExpand, "form", true)
 			}
-			// Print provenance to stderr for human-facing output
-			{
+			data, prov, err := resolvePaginatedReadWithStrategy(cmd.Context(), c, flags, "live", "email-blasts", path, map[string]string{
+				"status":    formatCLIParamValue(flagStatus),
+				"limit":     formatCLIParamValue(flagLimit),
+				"page":      formatCLIParamValue(flagPage),
+				"order_by":  formatCLIParamValue(flagOrderBy),
+				"direction": formatCLIParamValue(flagDirection),
+			}, nil, flagAll, "page", "page", "limit", 0, "", "", "data", cmd.ErrOrStderr())
+			if err != nil {
+				return classifyAPIError(cmd.OutOrStdout(), err, flags)
+			}
+			outputData := collectionItemsForOutput(data, path)
+			// Print provenance to stderr for human-facing output only.
+			// Machine-format flags (--json, --csv, --compact, --quiet, --plain,
+			// --select) and piped stdout suppress this line; the JSON envelope
+			// already carries meta.source for those consumers.
+			// SYNC: keep this gate aligned with command_promoted.go.tmpl.
+			if wantsHumanTable(cmd.OutOrStdout(), flags) {
 				var countItems []json.RawMessage
-				_ = json.Unmarshal(data, &countItems)
+				_ = json.Unmarshal(outputData, &countItems)
 				printProvenance(cmd, len(countItems), prov)
 			}
 			// For JSON output, wrap with provenance envelope before passing through flags.
 			// --select wins over --compact when both are set; --compact only runs when
-			// no explicit fields were requested.
-			if flags.asJSON || !isTerminal(cmd.OutOrStdout()) {
+			// no explicit fields were requested. Explicit format flags (--csv, --quiet,
+			// --plain) opt out of the auto-JSON path so piped consumers that asked for
+			// a non-JSON format reach the standard pipeline below.
+			if flags.asJSON || (!isTerminal(cmd.OutOrStdout()) && !flags.csv && !flags.quiet && !flags.plain) {
 				filtered := data
 				if flags.selectFields != "" {
 					filtered = filterFields(filtered, flags.selectFields)
 				} else if flags.compact {
-					filtered = compactFields(filtered)
+					filtered = compactFields(filtered, map[string]bool{"content": true, "created": true, "id": true, "last_sent": true, "preview_text": true, "stats": true, "status": true, "subject_line": true})
 				}
 				wrapped, wrapErr := wrapWithProvenance(filtered, prov)
+				if wrapErr != nil {
+					return wrapErr
+				}
+				wrapped, wrapErr = wrapPlatformStructuredOutput(wrapped, flags, "results", true)
 				if wrapErr != nil {
 					return wrapErr
 				}
@@ -112,7 +139,7 @@ func newEmailBlastsIndexCmd(flags *rootFlags) *cobra.Command {
 			// For all other output modes (table, csv, plain, quiet), use the standard pipeline
 			if wantsHumanTable(cmd.OutOrStdout(), flags) {
 				var items []map[string]any
-				if json.Unmarshal(data, &items) == nil && len(items) > 0 {
+				if json.Unmarshal(outputData, &items) == nil && len(items) > 0 {
 					if err := printAutoTable(cmd.OutOrStdout(), items); err != nil {
 						return err
 					}
@@ -122,13 +149,17 @@ func newEmailBlastsIndexCmd(flags *rootFlags) *cobra.Command {
 					return nil
 				}
 			}
-			return printOutputWithFlags(cmd.OutOrStdout(), data, flags)
+			formatData := data
+			if flags.csv || flags.plain {
+				formatData = outputData
+			}
+			return printOutputWithFlagsMeta(cmd.OutOrStdout(), formatData, flags, map[string]any{"source": "live"}, map[string]bool{"content": true, "created": true, "id": true, "last_sent": true, "preview_text": true, "stats": true, "status": true, "subject_line": true})
 		},
 	}
 	cmd.Flags().StringVar(&flagExpand, "expand", "", "Optional list of expandable objects.")
 	cmd.Flags().StringVar(&flagStatus, "status", "", "Optionally filter the results by the status of the email blast. Defaults to active. (one of: active, inactive)")
 	cmd.Flags().IntVar(&flagLimit, "limit", 0, "A limit on the number of objects to be returned. The limit can range between 1 and 100, and the default is 10.")
-	cmd.Flags().StringVar(&flagPage, "page", "", "Pagination returns the results in pages. Each page contains the number of results specified by the `limit` (default:...")
+	cmd.Flags().StringVar(&flagPage, "page", "", "Pagination returns the results in pages.")
 	cmd.Flags().StringVar(&flagOrderBy, "order-by", "", "The field that the results are sorted by. Defaults to created. (one of: created, last_sent)")
 	cmd.Flags().StringVar(&flagDirection, "direction", "", "The direction that the results are sorted in. Defaults to desc. (one of: asc, desc)")
 	cmd.Flags().BoolVar(&flagAll, "all", false, "Fetch all pages")

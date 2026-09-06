@@ -9,8 +9,10 @@ import (
 
 func newPollsResponsesCmd(flags *rootFlags) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "responses",
-		Short: "Manage responses",
+		Use:         "responses",
+		Short:       "Get responses for polls",
+		Annotations: map[string]string{"mcp:read-only": "true", "pp:parent-group": "true", "pp:typed-exit-codes": "0,2"},
+		RunE:        parentNoSubcommandRunE(flags),
 	}
 
 	cmd.AddCommand(newPollsResponsesPollsListCmd(flags))

@@ -9,8 +9,10 @@ import (
 
 func newBulkSubscriptionUpdatesCmd(flags *rootFlags) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "bulk-subscription-updates",
-		Short: "Manage bulk subscription updates",
+		Use:         "bulk-subscription-updates",
+		Short:       "Manage bulk subscription updates",
+		Annotations: map[string]string{"mcp:read-only": "true", "pp:parent-group": "true", "pp:api-resource": "true", "pp:typed-exit-codes": "0,2"},
+		RunE:        parentNoSubcommandRunE(flags),
 	}
 
 	cmd.AddCommand(newBulkSubscriptionUpdatesIndexCmd(flags))

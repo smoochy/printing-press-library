@@ -9,8 +9,10 @@ import (
 
 func newNewsletterListsSubscriptionsCmd(flags *rootFlags) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "subscriptions",
-		Short: "Manage subscriptions",
+		Use:         "subscriptions",
+		Short:       "Get, create, and update subscriptions for newsletter lists",
+		Annotations: map[string]string{"mcp:read-only": "true", "pp:parent-group": "true", "pp:typed-exit-codes": "0,2"},
+		RunE:        parentNoSubcommandRunE(flags),
 	}
 
 	cmd.AddCommand(newNewsletterListsSubscriptionsNewsletterListCreateCmd(flags))

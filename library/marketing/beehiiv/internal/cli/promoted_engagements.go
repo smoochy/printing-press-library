@@ -20,9 +20,9 @@ func newEngagementsPromotedCmd(flags *rootFlags) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:         "engagements <publicationId>",
-		Short:       "Retrieve email engagement metrics for a specific publication over a defined date range and granularity.<br><br> By...",
-		Long:        "Shortcut for 'engagements index'. Retrieve email engagement metrics for a specific publication over a defined date range and granularity.<br><br> By...",
-		Example:     "  beehiiv-pp-cli engagements 550e8400-e29b-41d4-a716-446655440000",
+		Short:       "Retrieve email engagement metrics for a specific publication over a defined date range and granularity.",
+		Long:        "Retrieve email engagement metrics for a specific publication over a defined date range and granularity.",
+		Example:     "  beehiiv-pp-cli engagements pub_ad76629e-4a39-43ad-8055-0ee89dc6db15",
 		Annotations: map[string]string{"pp:endpoint": "engagements.index", "pp:method": "GET", "pp:path": "/publications/{publicationId}/engagements", "mcp:read-only": "true"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if cmd.Flags().Changed("granularity") {
@@ -35,7 +35,7 @@ func newEngagementsPromotedCmd(flags *rootFlags) *cobra.Command {
 					}
 				}
 				if !validGranularity {
-					fmt.Fprintf(os.Stderr, "warning: --%s %q not in allowed set %v\n", "granularity", flagGranularity, allowedGranularity)
+					return fmt.Errorf("invalid value %q for --%s: must be one of %v", flagGranularity, "granularity", allowedGranularity)
 				}
 			}
 			if cmd.Flags().Changed("email-type") {
@@ -48,7 +48,7 @@ func newEngagementsPromotedCmd(flags *rootFlags) *cobra.Command {
 					}
 				}
 				if !validEmailType {
-					fmt.Fprintf(os.Stderr, "warning: --%s %q not in allowed set %v\n", "email-type", flagEmailType, allowedEmailType)
+					return fmt.Errorf("invalid value %q for --%s: must be one of %v", flagEmailType, "email-type", allowedEmailType)
 				}
 			}
 			if cmd.Flags().Changed("direction") {
@@ -61,7 +61,7 @@ func newEngagementsPromotedCmd(flags *rootFlags) *cobra.Command {
 					}
 				}
 				if !validDirection {
-					fmt.Fprintf(os.Stderr, "warning: --%s %q not in allowed set %v\n", "direction", flagDirection, allowedDirection)
+					return fmt.Errorf("invalid value %q for --%s: must be one of %v", flagDirection, "direction", allowedDirection)
 				}
 			}
 			c, err := flags.newClient()
@@ -70,7 +70,7 @@ func newEngagementsPromotedCmd(flags *rootFlags) *cobra.Command {
 			}
 
 			path := "/publications/{publicationId}/engagements"
-			if len(args) < 1 {
+			if len(args) < 1 || args[0] == "" {
 				// JSON envelope: {error, usage}. Written first; the
 				// usageErr return preserves exit code 2 across modes.
 				if flags.asJSON {
@@ -86,52 +86,55 @@ func newEngagementsPromotedCmd(flags *rootFlags) *cobra.Command {
 			path = replacePathParam(path, "publicationId", args[0])
 			params := map[string]string{}
 			if flagStartDate != "" {
-				params["start_date"] = fmt.Sprintf("%v", flagStartDate)
+				params["start_date"] = formatCLIParamValue(flagStartDate)
 			}
 			if flagNumberOfDays != 0 {
-				params["number_of_days"] = fmt.Sprintf("%v", flagNumberOfDays)
+				params["number_of_days"] = formatCLIParamValue(flagNumberOfDays)
 			}
 			if flagGranularity != "" {
-				params["granularity"] = fmt.Sprintf("%v", flagGranularity)
+				params["granularity"] = formatCLIParamValue(flagGranularity)
 			}
 			if flagEmailType != "" {
-				params["email_type"] = fmt.Sprintf("%v", flagEmailType)
+				params["email_type"] = formatCLIParamValue(flagEmailType)
 			}
 			if flagDirection != "" {
-				params["direction"] = fmt.Sprintf("%v", flagDirection)
+				params["direction"] = formatCLIParamValue(flagDirection)
 			}
-			data, prov, err := resolveRead(cmd.Context(), c, flags, "engagements", false, path, params, nil)
+			data, prov, err := resolveReadWithStrategyAndResponsePath(cmd.Context(), c, flags, "live", "engagements", false, path, params, nil, "data", cmd.ErrOrStderr())
 			if err != nil {
-				return classifyAPIError(err, flags)
+				return classifyAPIError(cmd.OutOrStdout(), err, flags)
 			}
-			// Unwrap API response envelopes (e.g. {"status":"success","data":[...]})
-			// so output helpers see the inner data, not the wrapper.
-			data = extractResponseData(data)
-
-			// Print provenance to stderr
-			{
+			outputData := data
+			// Print provenance to stderr for human-facing output only.
+			// Machine-format flags (--json, --csv, --compact, --quiet, --plain,
+			// --select) and piped stdout suppress this line; the JSON envelope
+			// already carries meta.source for those consumers.
+			// SYNC: keep this gate aligned with command_endpoint.go.tmpl.
+			if wantsHumanTable(cmd.OutOrStdout(), flags) {
 				var countItems []json.RawMessage
-				if json.Unmarshal(data, &countItems) != nil {
+				if json.Unmarshal(outputData, &countItems) != nil {
 					// Single object, not an array
-					countItems = []json.RawMessage{data}
+					countItems = []json.RawMessage{outputData}
 				}
 				printProvenance(cmd, len(countItems), prov)
 			}
-			// CSV bypasses JSON pipe path so --csv works when piped
-			if flags.csv {
-				return printOutputWithFlags(cmd.OutOrStdout(), data, flags)
-			}
 			// For JSON output, wrap with provenance envelope. --select wins over
 			// --compact when both are set; --compact only runs when no explicit
-			// fields were requested.
-			if flags.asJSON || !isTerminal(cmd.OutOrStdout()) {
+			// fields were requested. Explicit format flags (--csv, --quiet, --plain)
+			// opt out of the auto-JSON path so piped consumers that asked for a
+			// non-JSON format reach the standard pipeline below.
+			if flags.asJSON || (!isTerminal(cmd.OutOrStdout()) && !flags.csv && !flags.quiet && !flags.plain) {
 				filtered := data
 				if flags.selectFields != "" {
 					filtered = filterFields(filtered, flags.selectFields)
 				} else if flags.compact {
-					filtered = compactFields(filtered)
+					filtered = compactFields(filtered, map[string]bool{"date": true, "total_clicks": true, "total_opens": true, "total_verified_clicks": true, "unique_clicks": true, "unique_opens": true, "unique_verified_clicks": true})
 				}
 				wrapped, wrapErr := wrapWithProvenance(filtered, prov)
+				if wrapErr != nil {
+					return wrapErr
+				}
+				wrapped, wrapErr = wrapPlatformStructuredOutput(wrapped, flags, "results", true)
 				if wrapErr != nil {
 					return wrapErr
 				}
@@ -139,7 +142,7 @@ func newEngagementsPromotedCmd(flags *rootFlags) *cobra.Command {
 			}
 			if wantsHumanTable(cmd.OutOrStdout(), flags) {
 				var items []map[string]any
-				if json.Unmarshal(data, &items) == nil && len(items) > 0 {
+				if json.Unmarshal(outputData, &items) == nil && len(items) > 0 {
 					if err := printAutoTable(cmd.OutOrStdout(), items); err != nil {
 						return err
 					}
@@ -149,14 +152,18 @@ func newEngagementsPromotedCmd(flags *rootFlags) *cobra.Command {
 					return nil
 				}
 			}
-			return printOutputWithFlags(cmd.OutOrStdout(), data, flags)
+			formatData := data
+			if flags.csv || flags.plain {
+				formatData = outputData
+			}
+			return printOutputWithFlagsMeta(cmd.OutOrStdout(), formatData, flags, map[string]any{"source": "live"}, map[string]bool{"date": true, "total_clicks": true, "total_opens": true, "total_verified_clicks": true, "unique_clicks": true, "unique_opens": true, "unique_verified_clicks": true})
 		},
 	}
 	cmd.Flags().StringVar(&flagStartDate, "start-date", "", "The starting date for the engagement metrics in `YYYY-MM-DD` format. Defaults to 1 day ago if not provided.")
-	cmd.Flags().IntVar(&flagNumberOfDays, "number-of-days", 0, "The number of days to return engagement metrics for, starting from `start_date`. Must be between 1 and 31. Defaults...")
+	cmd.Flags().IntVar(&flagNumberOfDays, "number-of-days", 0, "The number of days to return engagement metrics for, starting from `start_date`. Must be between 1 and 31.")
 	cmd.Flags().StringVar(&flagGranularity, "granularity", "", "The granularity at which to report the engagement metrics. Defaults to `day` if not provided. (one of: day, week, month)")
-	cmd.Flags().StringVar(&flagEmailType, "email-type", "", "Filter engagement metrics by email type. If omitted, all email engagement is included.<br> `post`: Only post... (one of: all, post, message)")
-	cmd.Flags().StringVar(&flagDirection, "direction", "", "The direction that the results are sorted in. Defaults to `asc`.<br> `asc`: Oldest to newest<br> `desc`: Newest to... (one of: asc, desc)")
+	cmd.Flags().StringVar(&flagEmailType, "email-type", "", "Filter engagement metrics by email type. If omitted, all email engagement is included. `post`: Only post emails. (one of: all, post, message)")
+	cmd.Flags().StringVar(&flagDirection, "direction", "", "The direction that the results are sorted in. Defaults to `asc`. `asc`: Oldest to newest `desc`: Newest to oldest (one of: asc, desc)")
 
 	// Wire sibling endpoints and sub-resources as subcommands
 

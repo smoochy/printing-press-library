@@ -19,8 +19,8 @@ func newReferralProgramPromotedCmd(flags *rootFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "referral-program <publicationId>",
 		Short:       "Get referral program <Badge intent='info' minimal outlined>OAuth Scope: referral_program:read</Badge>",
-		Long:        "Shortcut for 'referral-program show'. Get referral program <Badge intent='info' minimal outlined>OAuth Scope: referral_program:read</Badge>",
-		Example:     "  beehiiv-pp-cli referral-program 550e8400-e29b-41d4-a716-446655440000",
+		Long:        "Get referral program <Badge intent='info' minimal outlined>OAuth Scope: referral_program:read</Badge>",
+		Example:     "  beehiiv-pp-cli referral-program pub_00000000-0000-0000-0000-000000000000",
 		Annotations: map[string]string{"pp:endpoint": "referral-program.show", "pp:method": "GET", "pp:path": "/publications/{publicationId}/referral_program", "mcp:read-only": "true"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := flags.newClient()
@@ -29,7 +29,7 @@ func newReferralProgramPromotedCmd(flags *rootFlags) *cobra.Command {
 			}
 
 			path := "/publications/{publicationId}/referral_program"
-			if len(args) < 1 {
+			if len(args) < 1 || args[0] == "" {
 				// JSON envelope: {error, usage}. Written first; the
 				// usageErr return preserves exit code 2 across modes.
 				if flags.asJSON {
@@ -43,41 +43,44 @@ func newReferralProgramPromotedCmd(flags *rootFlags) *cobra.Command {
 				return usageErr(fmt.Errorf("publicationId is required\nUsage: %s <%s>", cmd.CommandPath(), "publicationId"))
 			}
 			path = replacePathParam(path, "publicationId", args[0])
-			data, prov, err := resolvePaginatedRead(cmd.Context(), c, flags, "referral-program", path, map[string]string{
-				"limit": fmt.Sprintf("%v", flagLimit),
-				"page":  fmt.Sprintf("%v", flagPage),
-			}, nil, flagAll, "", "", "")
+			data, prov, err := resolvePaginatedReadWithStrategy(cmd.Context(), c, flags, "live", "referral-program", path, map[string]string{
+				"limit": formatCLIParamValue(flagLimit),
+				"page":  formatCLIParamValue(flagPage),
+			}, nil, flagAll, "page", "page", "limit", 0, "", "", "data", cmd.ErrOrStderr())
 			if err != nil {
-				return classifyAPIError(err, flags)
+				return classifyAPIError(cmd.OutOrStdout(), err, flags)
 			}
-			// Unwrap API response envelopes (e.g. {"status":"success","data":[...]})
-			// so output helpers see the inner data, not the wrapper.
-			data = extractResponseData(data)
-
-			// Print provenance to stderr
-			{
+			outputData := collectionItemsForOutput(data, path)
+			// Print provenance to stderr for human-facing output only.
+			// Machine-format flags (--json, --csv, --compact, --quiet, --plain,
+			// --select) and piped stdout suppress this line; the JSON envelope
+			// already carries meta.source for those consumers.
+			// SYNC: keep this gate aligned with command_endpoint.go.tmpl.
+			if wantsHumanTable(cmd.OutOrStdout(), flags) {
 				var countItems []json.RawMessage
-				if json.Unmarshal(data, &countItems) != nil {
+				if json.Unmarshal(outputData, &countItems) != nil {
 					// Single object, not an array
-					countItems = []json.RawMessage{data}
+					countItems = []json.RawMessage{outputData}
 				}
 				printProvenance(cmd, len(countItems), prov)
 			}
-			// CSV bypasses JSON pipe path so --csv works when piped
-			if flags.csv {
-				return printOutputWithFlags(cmd.OutOrStdout(), data, flags)
-			}
 			// For JSON output, wrap with provenance envelope. --select wins over
 			// --compact when both are set; --compact only runs when no explicit
-			// fields were requested.
-			if flags.asJSON || !isTerminal(cmd.OutOrStdout()) {
+			// fields were requested. Explicit format flags (--csv, --quiet, --plain)
+			// opt out of the auto-JSON path so piped consumers that asked for a
+			// non-JSON format reach the standard pipeline below.
+			if flags.asJSON || (!isTerminal(cmd.OutOrStdout()) && !flags.csv && !flags.quiet && !flags.plain) {
 				filtered := data
 				if flags.selectFields != "" {
 					filtered = filterFields(filtered, flags.selectFields)
 				} else if flags.compact {
-					filtered = compactFields(filtered)
+					filtered = compactFields(filtered, map[string]bool{"auto_fulfill": true, "id": true, "num_referrals": true, "reward": true})
 				}
 				wrapped, wrapErr := wrapWithProvenance(filtered, prov)
+				if wrapErr != nil {
+					return wrapErr
+				}
+				wrapped, wrapErr = wrapPlatformStructuredOutput(wrapped, flags, "results", true)
 				if wrapErr != nil {
 					return wrapErr
 				}
@@ -85,7 +88,7 @@ func newReferralProgramPromotedCmd(flags *rootFlags) *cobra.Command {
 			}
 			if wantsHumanTable(cmd.OutOrStdout(), flags) {
 				var items []map[string]any
-				if json.Unmarshal(data, &items) == nil && len(items) > 0 {
+				if json.Unmarshal(outputData, &items) == nil && len(items) > 0 {
 					if err := printAutoTable(cmd.OutOrStdout(), items); err != nil {
 						return err
 					}
@@ -95,11 +98,15 @@ func newReferralProgramPromotedCmd(flags *rootFlags) *cobra.Command {
 					return nil
 				}
 			}
-			return printOutputWithFlags(cmd.OutOrStdout(), data, flags)
+			formatData := data
+			if flags.csv || flags.plain {
+				formatData = outputData
+			}
+			return printOutputWithFlagsMeta(cmd.OutOrStdout(), formatData, flags, map[string]any{"source": "live"}, map[string]bool{"auto_fulfill": true, "id": true, "num_referrals": true, "reward": true})
 		},
 	}
 	cmd.Flags().IntVar(&flagLimit, "limit", 0, "A limit on the number of objects to be returned. The limit can range between 1 and 100, and the default is 10.")
-	cmd.Flags().StringVar(&flagPage, "page", "", "Pagination returns the results in pages. Each page contains the number of results specified by the `limit` (default:...")
+	cmd.Flags().StringVar(&flagPage, "page", "", "Pagination returns the results in pages.")
 	cmd.Flags().BoolVar(&flagAll, "all", false, "Fetch all pages")
 
 	// Wire sibling endpoints and sub-resources as subcommands

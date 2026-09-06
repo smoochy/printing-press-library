@@ -2,6 +2,10 @@
 
 This file is maintained by printing-press-library release automation. Do not hand-edit release sections in normal PRs.
 
+## 2026.9.3 - 2026-09-06
+
+- fix(ars-sicilia): punctuation in a search value no longer fails the search (#1952).
+
 ## 2026.9.2 - 2026-09-05
 
 - fix(ars-sicilia): a multi-day sitting is not an anomaly, plus five fixes from the news-driven checks (#1941).

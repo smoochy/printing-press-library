@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-09-04T19:06:39.657167Z",
+  "cli_dir": "\u003ccli-dir\u003e/beehiiv-pp-cli",
+  "findings": [
+    {
+      "kind": "thin-short",
+      "command": "list",
+      "file": "platform_client.go",
+      "line": 517,
+      "evidence": "List client profiles"
+    },
+    {
+      "kind": "thin-short",
+      "command": "list",
+      "file": "teach.go",
+      "line": 691,
+      "evidence": "List recorded learnings"
+    }
+  ]
+}

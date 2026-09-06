@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/mvanhorn/printing-press-library/library/marketing/beehiiv/internal/cliutil"
 	"github.com/spf13/cobra"
 )
 
@@ -19,44 +20,99 @@ func newPostsCreateCmd(flags *rootFlags) *cobra.Command {
 	var bodyCustomFields string
 	var bodyCustomLinkTrackingEnabled bool
 	var bodyEmailCaptureTypeOverride string
-	var bodyEmailSettings string
+	var bodyEmailSettingsCustomLiveUrl string
+	var bodyEmailSettingsDisplayBylineInEmail bool
+	var bodyEmailSettingsDisplaySubtitleInEmail bool
+	var bodyEmailSettingsDisplayTitleInEmail bool
+	var bodyEmailSettingsEmailHeaderEngagementButtons string
+	var bodyEmailSettingsEmailHeaderSocialShare string
+	var bodyEmailSettingsEmailPreviewText string
+	var bodyEmailSettingsEmailSubjectLine string
+	var bodyEmailSettingsFromAddress string
 	var bodyHeaders string
 	var bodyNewsletterListId string
 	var bodyOverrideScheduledAt string
 	var bodyPostTemplateId string
-	var bodyRecipients string
+	var bodyRecipientsEmailExcludeSegmentIds string
+	var bodyRecipientsEmailIncludeSegmentIds string
+	var bodyRecipientsEmailTierIds string
+	var bodyRecipientsWebExcludeSegmentIds string
+	var bodyRecipientsWebIncludeSegmentIds string
+	var bodyRecipientsWebTierIds string
 	var bodyScheduledAt string
-	var bodySeoSettings string
+	var bodySeoSettingsDefaultDescription string
+	var bodySeoSettingsDefaultTitle string
+	var bodySeoSettingsOgDescription string
+	var bodySeoSettingsOgTitle string
+	var bodySeoSettingsTwitterDescription string
+	var bodySeoSettingsTwitterTitle string
 	var bodySocialShare string
 	var bodyStatus string
 	var bodySubtitle string
 	var bodyThumbnailImageUrl string
 	var bodyTitle string
-	var bodyWebSettings string
+	var bodyWebSettingsDisplayThumbnailOnWeb bool
+	var bodyWebSettingsHideFromFeed bool
+	var bodyWebSettingsPaywallBreakPriceId string
+	var bodyWebSettingsPaywallId string
+	var bodyWebSettingsSlug string
 	var stdinBody bool
 
 	cmd := &cobra.Command{
 		Use:         "create <publicationId>",
-		Short:       "<Note title='Currently in beta' icon='b'> This feature is currently in beta, the API is subject to change, and...",
-		Example:     "  beehiiv-pp-cli posts create 550e8400-e29b-41d4-a716-446655440000 --title example-resource",
+		Short:       "<Note title='Currently in beta' icon='b'> This feature is currently in beta, the API is subject to change",
+		Example:     "  beehiiv-pp-cli posts create pub_00000000-0000-0000-0000-000000000000 --title example-resource",
 		Annotations: map[string]string{"pp:endpoint": "posts.create", "pp:method": "POST", "pp:path": "/publications/{publicationId}/posts"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 {
+			// Bare invocation of a command with required input prints help
+			// instead of pflag's terse "required flag not set" error. Optional-
+			// only read commands fall through so a bare call still executes.
+			// Machine callers (--json/--agent, which sets asJSON) get a usage
+			// error + exit 2 instead of silent exit-0 help, so an incomplete
+			// invocation is never mistaken for success.
+			if !hasChangedLocalFlags(cmd) && len(args) == 0 && !flags.dryRun {
+				if flags.asJSON {
+					if printErr := printJSONFiltered(cmd.OutOrStdout(), map[string]any{
+						"error": "requires input",
+						"usage": cmd.CommandPath() + " --help",
+					}, flags); printErr != nil {
+						return printErr
+					}
+					return usageErr(fmt.Errorf("%q requires input; run %q for usage", cmd.CommandPath(), cmd.CommandPath()+" --help"))
+				}
 				return cmd.Help()
+			}
+			if len(args) == 0 {
+				// A missing required positional is a usage error in every output
+				// mode (matches command_promoted.go.tmpl). Machine callers
+				// (--json/--agent) also get a JSON error envelope on stdout;
+				// usageErr sets exit 2.
+				if flags.asJSON {
+					if printErr := printJSONFiltered(cmd.OutOrStdout(), map[string]any{
+						"error": "missing required argument",
+						"usage": fmt.Sprintf("%s%s", cmd.CommandPath(), " <publicationId>"),
+					}, flags); printErr != nil {
+						return printErr
+					}
+				}
+				return usageErr(fmt.Errorf("missing required argument\nUsage: %s%s", cmd.CommandPath(), " <publicationId>"))
 			}
 			if !stdinBody {
 				if !cmd.Flags().Changed("title") && !flags.dryRun {
 					return fmt.Errorf("required flag \"%s\" not set", "title")
 				}
 			}
+			path := "/publications/{publicationId}/posts"
+			if len(args) < 1 || args[0] == "" {
+				return usageErr(fmt.Errorf("publicationId is required\nUsage: %s <%s>", cmd.CommandPath(), "publicationId"))
+			}
+			path = replacePathParam(path, "publicationId", args[0])
 			c, err := flags.newClient()
 			if err != nil {
 				return err
 			}
-
-			path := "/publications/{publicationId}/posts"
-			path = replacePathParam(path, "publicationId", args[0])
-			var body map[string]any
+			params := map[string]string{}
+			var body any
 			if stdinBody {
 				stdinData, err := io.ReadAll(os.Stdin)
 				if err != nil {
@@ -68,103 +124,247 @@ func newPostsCreateCmd(flags *rootFlags) *cobra.Command {
 				}
 				body = jsonBody
 			} else {
-				body = map[string]any{}
-				if bodyBlocks != "" {
+				bodyMap := map[string]any{}
+				body = bodyMap
+				if cmd.Flags().Changed("blocks") || bodyBlocks != "" {
 					var parsedBlocks any
 					if err := json.Unmarshal([]byte(bodyBlocks), &parsedBlocks); err != nil {
 						return fmt.Errorf("parsing --blocks JSON: %w", err)
 					}
-					body["blocks"] = parsedBlocks
-				}
-				if bodyBodyContent != "" {
-					body["body_content"] = bodyBodyContent
-				}
-				if bodyContentTags != "" {
-					var parsedContentTags any
-					if err := json.Unmarshal([]byte(bodyContentTags), &parsedContentTags); err != nil {
-						return fmt.Errorf("parsing --content-tags JSON: %w", err)
+					asArray, ok := parsedBlocks.([]any)
+					if !ok {
+						return fmt.Errorf("--blocks must be a JSON array, got JSON %T", parsedBlocks)
 					}
-					body["content_tags"] = parsedContentTags
+					bodyMap["blocks"] = asArray
 				}
-				if bodyCustomFields != "" {
+				if cmd.Flags().Changed("body-content") || bodyBodyContent != "" {
+					bodyMap["body_content"] = bodyBodyContent
+				}
+				if cmd.Flags().Changed("content-tags") {
+					parsedContentTags, parseErr := cliutil.ParseStringList(bodyContentTags)
+					if parseErr != nil {
+						return fmt.Errorf("parsing --content-tags list: %w", parseErr)
+					}
+					bodyMap["content_tags"] = parsedContentTags
+				}
+				if cmd.Flags().Changed("custom-fields") || bodyCustomFields != "" {
 					var parsedCustomFields any
 					if err := json.Unmarshal([]byte(bodyCustomFields), &parsedCustomFields); err != nil {
 						return fmt.Errorf("parsing --custom-fields JSON: %w", err)
 					}
-					body["custom_fields"] = parsedCustomFields
-				}
-				if bodyCustomLinkTrackingEnabled != false {
-					body["custom_link_tracking_enabled"] = bodyCustomLinkTrackingEnabled
-				}
-				if bodyEmailCaptureTypeOverride != "" {
-					body["email_capture_type_override"] = bodyEmailCaptureTypeOverride
-				}
-				if bodyEmailSettings != "" {
-					var parsedEmailSettings any
-					if err := json.Unmarshal([]byte(bodyEmailSettings), &parsedEmailSettings); err != nil {
-						return fmt.Errorf("parsing --email-settings JSON: %w", err)
+					asMap, ok := parsedCustomFields.(map[string]any)
+					if !ok {
+						return fmt.Errorf("--custom-fields must be a JSON object, got JSON %T", parsedCustomFields)
 					}
-					body["email_settings"] = parsedEmailSettings
+					bodyMap["custom_fields"] = asMap
 				}
-				if bodyHeaders != "" {
+				if cmd.Flags().Changed("custom-link-tracking-enabled") {
+					bodyMap["custom_link_tracking_enabled"] = bodyCustomLinkTrackingEnabled
+				}
+				if cmd.Flags().Changed("email-capture-type-override") || bodyEmailCaptureTypeOverride != "" {
+					bodyMap["email_capture_type_override"] = bodyEmailCaptureTypeOverride
+				}
+				{
+					nestedEmailSettings := map[string]any{}
+					if cmd.Flags().Changed("email-settings-custom-live-url") || bodyEmailSettingsCustomLiveUrl != "" {
+						nestedEmailSettings["custom_live_url"] = bodyEmailSettingsCustomLiveUrl
+					}
+					if cmd.Flags().Changed("email-settings-display-byline-in-email") {
+						nestedEmailSettings["display_byline_in_email"] = bodyEmailSettingsDisplayBylineInEmail
+					}
+					if cmd.Flags().Changed("email-settings-display-subtitle-in-email") {
+						nestedEmailSettings["display_subtitle_in_email"] = bodyEmailSettingsDisplaySubtitleInEmail
+					}
+					if cmd.Flags().Changed("email-settings-display-title-in-email") {
+						nestedEmailSettings["display_title_in_email"] = bodyEmailSettingsDisplayTitleInEmail
+					}
+					if cmd.Flags().Changed("email-settings-email-header-engagement-buttons") || bodyEmailSettingsEmailHeaderEngagementButtons != "" {
+						nestedEmailSettings["email_header_engagement_buttons"] = bodyEmailSettingsEmailHeaderEngagementButtons
+					}
+					if cmd.Flags().Changed("email-settings-email-header-social-share") || bodyEmailSettingsEmailHeaderSocialShare != "" {
+						nestedEmailSettings["email_header_social_share"] = bodyEmailSettingsEmailHeaderSocialShare
+					}
+					if cmd.Flags().Changed("email-settings-email-preview-text") || bodyEmailSettingsEmailPreviewText != "" {
+						nestedEmailSettings["email_preview_text"] = bodyEmailSettingsEmailPreviewText
+					}
+					if cmd.Flags().Changed("email-settings-email-subject-line") || bodyEmailSettingsEmailSubjectLine != "" {
+						nestedEmailSettings["email_subject_line"] = bodyEmailSettingsEmailSubjectLine
+					}
+					if cmd.Flags().Changed("email-settings-from-address") || bodyEmailSettingsFromAddress != "" {
+						nestedEmailSettings["from_address"] = bodyEmailSettingsFromAddress
+					}
+					if len(nestedEmailSettings) > 0 {
+						bodyMap["email_settings"] = nestedEmailSettings
+					}
+				}
+				if cmd.Flags().Changed("headers") || bodyHeaders != "" {
 					var parsedHeaders any
 					if err := json.Unmarshal([]byte(bodyHeaders), &parsedHeaders); err != nil {
 						return fmt.Errorf("parsing --headers JSON: %w", err)
 					}
-					body["headers"] = parsedHeaders
-				}
-				if bodyNewsletterListId != "" {
-					body["newsletter_list_id"] = bodyNewsletterListId
-				}
-				if bodyOverrideScheduledAt != "" {
-					body["override_scheduled_at"] = bodyOverrideScheduledAt
-				}
-				if bodyPostTemplateId != "" {
-					body["post_template_id"] = bodyPostTemplateId
-				}
-				if bodyRecipients != "" {
-					var parsedRecipients any
-					if err := json.Unmarshal([]byte(bodyRecipients), &parsedRecipients); err != nil {
-						return fmt.Errorf("parsing --recipients JSON: %w", err)
+					asMap, ok := parsedHeaders.(map[string]any)
+					if !ok {
+						return fmt.Errorf("--headers must be a JSON object, got JSON %T", parsedHeaders)
 					}
-					body["recipients"] = parsedRecipients
+					bodyMap["headers"] = asMap
 				}
-				if bodyScheduledAt != "" {
-					body["scheduled_at"] = bodyScheduledAt
+				if cmd.Flags().Changed("newsletter-list-id") || bodyNewsletterListId != "" {
+					bodyMap["newsletter_list_id"] = bodyNewsletterListId
 				}
-				if bodySeoSettings != "" {
-					var parsedSeoSettings any
-					if err := json.Unmarshal([]byte(bodySeoSettings), &parsedSeoSettings); err != nil {
-						return fmt.Errorf("parsing --seo-settings JSON: %w", err)
+				if cmd.Flags().Changed("override-scheduled-at") || bodyOverrideScheduledAt != "" {
+					bodyMap["override_scheduled_at"] = bodyOverrideScheduledAt
+				}
+				if cmd.Flags().Changed("post-template-id") || bodyPostTemplateId != "" {
+					bodyMap["post_template_id"] = bodyPostTemplateId
+				}
+				{
+					nestedRecipients := map[string]any{}
+					{
+						nestedRecipientsEmail := map[string]any{}
+						if cmd.Flags().Changed("recipients-email-exclude-segment-ids") {
+							parsedRecipientsEmailExcludeSegmentIds, parseErr := cliutil.ParseStringList(bodyRecipientsEmailExcludeSegmentIds)
+							if parseErr != nil {
+								return fmt.Errorf("parsing --recipients-email-exclude-segment-ids list: %w", parseErr)
+							}
+							nestedRecipientsEmail["exclude_segment_ids"] = parsedRecipientsEmailExcludeSegmentIds
+						}
+						if cmd.Flags().Changed("recipients-email-include-segment-ids") {
+							parsedRecipientsEmailIncludeSegmentIds, parseErr := cliutil.ParseStringList(bodyRecipientsEmailIncludeSegmentIds)
+							if parseErr != nil {
+								return fmt.Errorf("parsing --recipients-email-include-segment-ids list: %w", parseErr)
+							}
+							nestedRecipientsEmail["include_segment_ids"] = parsedRecipientsEmailIncludeSegmentIds
+						}
+						if cmd.Flags().Changed("recipients-email-tier-ids") {
+							parsedRecipientsEmailTierIds, parseErr := cliutil.ParseStringList(bodyRecipientsEmailTierIds)
+							if parseErr != nil {
+								return fmt.Errorf("parsing --recipients-email-tier-ids list: %w", parseErr)
+							}
+							nestedRecipientsEmail["tier_ids"] = parsedRecipientsEmailTierIds
+						}
+						if len(nestedRecipientsEmail) > 0 {
+							nestedRecipients["email"] = nestedRecipientsEmail
+						}
 					}
-					body["seo_settings"] = parsedSeoSettings
-				}
-				if bodySocialShare != "" {
-					body["social_share"] = bodySocialShare
-				}
-				if bodyStatus != "" {
-					body["status"] = bodyStatus
-				}
-				if bodySubtitle != "" {
-					body["subtitle"] = bodySubtitle
-				}
-				if bodyThumbnailImageUrl != "" {
-					body["thumbnail_image_url"] = bodyThumbnailImageUrl
-				}
-				if bodyTitle != "" {
-					body["title"] = bodyTitle
-				}
-				if bodyWebSettings != "" {
-					var parsedWebSettings any
-					if err := json.Unmarshal([]byte(bodyWebSettings), &parsedWebSettings); err != nil {
-						return fmt.Errorf("parsing --web-settings JSON: %w", err)
+					{
+						nestedRecipientsWeb := map[string]any{}
+						if cmd.Flags().Changed("recipients-web-exclude-segment-ids") {
+							parsedRecipientsWebExcludeSegmentIds, parseErr := cliutil.ParseStringList(bodyRecipientsWebExcludeSegmentIds)
+							if parseErr != nil {
+								return fmt.Errorf("parsing --recipients-web-exclude-segment-ids list: %w", parseErr)
+							}
+							nestedRecipientsWeb["exclude_segment_ids"] = parsedRecipientsWebExcludeSegmentIds
+						}
+						if cmd.Flags().Changed("recipients-web-include-segment-ids") {
+							parsedRecipientsWebIncludeSegmentIds, parseErr := cliutil.ParseStringList(bodyRecipientsWebIncludeSegmentIds)
+							if parseErr != nil {
+								return fmt.Errorf("parsing --recipients-web-include-segment-ids list: %w", parseErr)
+							}
+							nestedRecipientsWeb["include_segment_ids"] = parsedRecipientsWebIncludeSegmentIds
+						}
+						if cmd.Flags().Changed("recipients-web-tier-ids") {
+							parsedRecipientsWebTierIds, parseErr := cliutil.ParseStringList(bodyRecipientsWebTierIds)
+							if parseErr != nil {
+								return fmt.Errorf("parsing --recipients-web-tier-ids list: %w", parseErr)
+							}
+							nestedRecipientsWeb["tier_ids"] = parsedRecipientsWebTierIds
+						}
+						if len(nestedRecipientsWeb) > 0 {
+							nestedRecipients["web"] = nestedRecipientsWeb
+						}
 					}
-					body["web_settings"] = parsedWebSettings
+					if len(nestedRecipients) > 0 {
+						bodyMap["recipients"] = nestedRecipients
+					}
+				}
+				if cmd.Flags().Changed("scheduled-at") || bodyScheduledAt != "" {
+					bodyMap["scheduled_at"] = bodyScheduledAt
+				}
+				{
+					nestedSeoSettings := map[string]any{}
+					if cmd.Flags().Changed("seo-settings-default-description") || bodySeoSettingsDefaultDescription != "" {
+						nestedSeoSettings["default_description"] = bodySeoSettingsDefaultDescription
+					}
+					if cmd.Flags().Changed("seo-settings-default-title") || bodySeoSettingsDefaultTitle != "" {
+						nestedSeoSettings["default_title"] = bodySeoSettingsDefaultTitle
+					}
+					if cmd.Flags().Changed("seo-settings-og-description") || bodySeoSettingsOgDescription != "" {
+						nestedSeoSettings["og_description"] = bodySeoSettingsOgDescription
+					}
+					if cmd.Flags().Changed("seo-settings-og-title") || bodySeoSettingsOgTitle != "" {
+						nestedSeoSettings["og_title"] = bodySeoSettingsOgTitle
+					}
+					if cmd.Flags().Changed("seo-settings-twitter-description") || bodySeoSettingsTwitterDescription != "" {
+						nestedSeoSettings["twitter_description"] = bodySeoSettingsTwitterDescription
+					}
+					if cmd.Flags().Changed("seo-settings-twitter-title") || bodySeoSettingsTwitterTitle != "" {
+						nestedSeoSettings["twitter_title"] = bodySeoSettingsTwitterTitle
+					}
+					if len(nestedSeoSettings) > 0 {
+						bodyMap["seo_settings"] = nestedSeoSettings
+					}
+				}
+				if cmd.Flags().Changed("social-share") || bodySocialShare != "" {
+					bodyMap["social_share"] = bodySocialShare
+				}
+				if cmd.Flags().Changed("status") || bodyStatus != "" {
+					bodyMap["status"] = bodyStatus
+				}
+				if cmd.Flags().Changed("subtitle") || bodySubtitle != "" {
+					bodyMap["subtitle"] = bodySubtitle
+				}
+				if cmd.Flags().Changed("thumbnail-image-url") || bodyThumbnailImageUrl != "" {
+					bodyMap["thumbnail_image_url"] = bodyThumbnailImageUrl
+				}
+				if cmd.Flags().Changed("title") || bodyTitle != "" {
+					bodyMap["title"] = bodyTitle
+				}
+				{
+					nestedWebSettings := map[string]any{}
+					if cmd.Flags().Changed("web-settings-display-thumbnail-on-web") {
+						nestedWebSettings["display_thumbnail_on_web"] = bodyWebSettingsDisplayThumbnailOnWeb
+					}
+					if cmd.Flags().Changed("web-settings-hide-from-feed") {
+						nestedWebSettings["hide_from_feed"] = bodyWebSettingsHideFromFeed
+					}
+					if cmd.Flags().Changed("web-settings-paywall-break-price-id") || bodyWebSettingsPaywallBreakPriceId != "" {
+						nestedWebSettings["paywall_break_price_id"] = bodyWebSettingsPaywallBreakPriceId
+					}
+					if cmd.Flags().Changed("web-settings-paywall-id") || bodyWebSettingsPaywallId != "" {
+						nestedWebSettings["paywall_id"] = bodyWebSettingsPaywallId
+					}
+					if cmd.Flags().Changed("web-settings-slug") || bodyWebSettingsSlug != "" {
+						nestedWebSettings["slug"] = bodyWebSettingsSlug
+					}
+					if len(nestedWebSettings) > 0 {
+						bodyMap["web_settings"] = nestedWebSettings
+					}
 				}
 			}
-			data, statusCode, err := c.Post(path, body)
+			data, statusCode, err := c.PostWithParams(cmd.Context(), path, params, body)
 			if err != nil {
-				return classifyAPIError(err, flags)
+				return classifyAPIError(cmd.OutOrStdout(), err, flags)
+			}
+			// Inspect the mutate response body for a partial-failure-shaped
+			// field (e.g. Google Ads `partialFailureError`). Several Google
+			// APIs return 200 OK with a partial-failure field when some
+			// operations in the batch failed; ignoring it silently swallows
+			// real failures. Detection runs before output-mode selection so
+			// the exit code is consistent regardless of how stdout is
+			// rendered. --dry-run short-circuits because no real request
+			// was sent.
+			var partialFailure *partialFailureReport
+			if !flags.dryRun && statusCode >= 200 && statusCode < 300 {
+				partialFailure = detectPartialFailure(data)
+				if partialFailure != nil {
+					fmt.Fprintf(os.Stderr, "warning: partial failure detected in %s response: %s\n", "posts", partialFailure.Message)
+					if len(partialFailure.ResourceNames) > 0 {
+						fmt.Fprintf(os.Stderr, "         succeeded: %d operation(s)\n", len(partialFailure.ResourceNames))
+					}
+				}
+			}
+			if !flags.dryRun && statusCode >= 200 && statusCode < 300 && (partialFailure == nil || flags.allowPartialFailure) {
+				writeMutationResponseToStore(cmd.Context(), "posts", data, "")
 			}
 			if wantsHumanTable(cmd.OutOrStdout(), flags) {
 				// Check if response contains an array (directly or wrapped in "data")
@@ -173,6 +373,9 @@ func newPostsCreateCmd(flags *rootFlags) *cobra.Command {
 					if err := printAutoTable(cmd.OutOrStdout(), items); err != nil {
 						fmt.Fprintf(os.Stderr, "warning: table rendering failed, falling back to JSON: %v\n", err)
 					} else {
+						if partialFailure != nil && !flags.allowPartialFailure {
+							return partialFailureErr(fmt.Errorf("partial failure in %s response: %s", "posts", partialFailure.Message))
+						}
 						return nil
 					}
 				} else {
@@ -183,14 +386,55 @@ func newPostsCreateCmd(flags *rootFlags) *cobra.Command {
 						if err := printAutoTable(cmd.OutOrStdout(), wrapped.Data); err != nil {
 							fmt.Fprintf(os.Stderr, "warning: table rendering failed, falling back to JSON: %v\n", err)
 						} else {
+							if partialFailure != nil && !flags.allowPartialFailure {
+								return partialFailureErr(fmt.Errorf("partial failure in %s response: %s", "posts", partialFailure.Message))
+							}
 							return nil
 						}
 					}
 				}
 			}
-			if flags.asJSON || !isTerminal(cmd.OutOrStdout()) {
+			if flags.asJSON || (!isTerminal(cmd.OutOrStdout()) && !flags.csv && !flags.quiet && !flags.plain) {
 				if flags.quiet {
+					if partialFailure != nil && !flags.allowPartialFailure {
+						return partialFailureErr(fmt.Errorf("partial failure in %s response: %s", "posts", partialFailure.Message))
+					}
 					return nil
+				}
+				envelope := map[string]any{
+					"action":   "post",
+					"resource": "posts",
+					"path":     path,
+					"status":   statusCode,
+					"success":  statusCode >= 200 && statusCode < 300 && (partialFailure == nil || flags.allowPartialFailure),
+				}
+				if flags.agent {
+					envelope["meta"] = map[string]any{"source": "live"}
+				}
+				if partialFailure != nil {
+					envelope["partial_failure"] = partialFailure
+				}
+				if flags.dryRun {
+					envelope["dry_run"] = true
+					envelope["status"] = 0
+					envelope["success"] = false
+				}
+				// Verify-mode synthetic envelope detection runs against RAW data
+				// (before --compact/--select filtering) so the sentinel field is
+				// guaranteed to be visible even if the operator passes a filter
+				// flag that would otherwise strip it. Surfaces a top-level
+				// verify_noop signal + flips success to false. Mirrors the dry_run
+				// shape above.
+				if len(data) > 0 {
+					var rawParsed any
+					if err := json.Unmarshal(data, &rawParsed); err == nil {
+						if m, ok := rawParsed.(map[string]any); ok {
+							if v, ok := m["__pp_verify_synthetic__"].(bool); ok && v {
+								envelope["verify_noop"] = true
+								envelope["success"] = false
+							}
+						}
+					}
 				}
 				// Apply --compact and --select to the API response before wrapping.
 				// --select wins when both are set: explicit field choice trumps the
@@ -200,55 +444,96 @@ func newPostsCreateCmd(flags *rootFlags) *cobra.Command {
 				if flags.selectFields != "" {
 					filtered = filterFields(filtered, flags.selectFields)
 				} else if flags.compact {
-					filtered = compactFields(filtered)
-				}
-				envelope := map[string]any{
-					"action":   "post",
-					"resource": "posts",
-					"path":     path,
-					"status":   statusCode,
-					"success":  statusCode >= 200 && statusCode < 300,
-				}
-				if flags.dryRun {
-					envelope["dry_run"] = true
-					envelope["status"] = 0
-					envelope["success"] = false
+					filtered = compactFields(filtered, map[string]bool{"data": true})
 				}
 				if len(filtered) > 0 {
 					var parsed any
 					if err := json.Unmarshal(filtered, &parsed); err == nil {
-						envelope["data"] = parsed
+						if flags.agent {
+							envelope["results"] = parsed
+						} else {
+							envelope["data"] = parsed
+						}
 					}
 				}
 				envelopeJSON, err := json.Marshal(envelope)
 				if err != nil {
 					return err
 				}
-				return printOutput(cmd.OutOrStdout(), json.RawMessage(envelopeJSON), true)
+				resultKey := "data"
+				if flags.agent {
+					resultKey = "results"
+				}
+				structured, err := wrapPlatformStructuredOutput(json.RawMessage(envelopeJSON), flags, resultKey, true)
+				if err != nil {
+					return err
+				}
+				if perr := printOutput(cmd.OutOrStdout(), structured, true); perr != nil {
+					return perr
+				}
+				if partialFailure != nil && !flags.allowPartialFailure {
+					return partialFailureErr(fmt.Errorf("partial failure in %s response: %s", "posts", partialFailure.Message))
+				}
+				return nil
 			}
-			return printOutputWithFlags(cmd.OutOrStdout(), data, flags)
+			// Fall-through for mutate paths that did not hit the table or
+			// asJSON branches: --quiet, --csv, --plain, and default terminal
+			// raw output. printOutputWithFlags renders the body, then the
+			// typed partial-failure exit fires unless --allow-partial-failure
+			// downgrades it. Without this guard a partial failure would exit
+			// 0 for these output modes — the exact silent-swallow regression
+			// the surrounding patch is preventing for asJSON / piped output.
+			if perr := printOutputWithFlags(cmd.OutOrStdout(), data, flags); perr != nil {
+				return perr
+			}
+			if partialFailure != nil && !flags.allowPartialFailure {
+				return partialFailureErr(fmt.Errorf("partial failure in %s response: %s", "posts", partialFailure.Message))
+			}
+			return nil
 		},
 	}
-	cmd.Flags().StringVar(&bodyBlocks, "blocks", "", "The structured content blocks that make up the post. Supports block types such as paragraph, image, heading, button,...")
-	cmd.Flags().StringVar(&bodyBodyContent, "body-content", "", "The content of the post as a single raw HTML string. The HTML is wrapped in an `htmlSnippet` block internally. Note...")
+	cmd.Flags().StringVar(&bodyBlocks, "blocks", "", "The structured content blocks that make up the post.")
+	cmd.Flags().StringVar(&bodyBodyContent, "body-content", "", "The content of the post as a single raw HTML string. The HTML is wrapped in an `htmlSnippet` block internally.")
 	cmd.Flags().StringVar(&bodyContentTags, "content-tags", "", "The content tags to use for this post. If not provided, the default value will be used.")
 	cmd.Flags().StringVar(&bodyCustomFields, "custom-fields", "", "The custom fields to use for this post. If not provided, the default value will be used.")
 	cmd.Flags().BoolVar(&bodyCustomLinkTrackingEnabled, "custom-link-tracking-enabled", false, "If true, custom link tracking will be enabled for this post. If not provided, the default value will be used.")
 	cmd.Flags().StringVar(&bodyEmailCaptureTypeOverride, "email-capture-type-override", "", "Email capture type override")
-	cmd.Flags().StringVar(&bodyEmailSettings, "email-settings", "", "Email settings")
+	cmd.Flags().StringVar(&bodyEmailSettingsCustomLiveUrl, "email-settings-custom-live-url", "", "Custom live url")
+	cmd.Flags().BoolVar(&bodyEmailSettingsDisplayBylineInEmail, "email-settings-display-byline-in-email", false, "Display byline in email")
+	cmd.Flags().BoolVar(&bodyEmailSettingsDisplaySubtitleInEmail, "email-settings-display-subtitle-in-email", false, "Display subtitle in email")
+	cmd.Flags().BoolVar(&bodyEmailSettingsDisplayTitleInEmail, "email-settings-display-title-in-email", false, "Display title in email")
+	cmd.Flags().StringVar(&bodyEmailSettingsEmailHeaderEngagementButtons, "email-settings-email-header-engagement-buttons", "", "Email header engagement buttons")
+	cmd.Flags().StringVar(&bodyEmailSettingsEmailHeaderSocialShare, "email-settings-email-header-social-share", "", "Email header social share")
+	cmd.Flags().StringVar(&bodyEmailSettingsEmailPreviewText, "email-settings-email-preview-text", "", "Email preview text")
+	cmd.Flags().StringVar(&bodyEmailSettingsEmailSubjectLine, "email-settings-email-subject-line", "", "Email subject line")
+	cmd.Flags().StringVar(&bodyEmailSettingsFromAddress, "email-settings-from-address", "", "From address")
 	cmd.Flags().StringVar(&bodyHeaders, "headers", "", "The headers to use for this post. If not provided, the default value will be used.")
-	cmd.Flags().StringVar(&bodyNewsletterListId, "newsletter-list-id", "", "The prefixed ID of the newsletter list to associate with this post. When provided, the post will only be sent to...")
-	cmd.Flags().StringVar(&bodyOverrideScheduledAt, "override-scheduled-at", "", "If you wish to display a date other than the scheduled_at date in the email, you can provide a date here. This will...")
+	cmd.Flags().StringVar(&bodyNewsletterListId, "newsletter-list-id", "", "The prefixed ID of the newsletter list to associate with this post.")
+	cmd.Flags().StringVar(&bodyOverrideScheduledAt, "override-scheduled-at", "", "If you wish to display a date other than the scheduled_at date in the email, you can provide a date here.")
 	cmd.Flags().StringVar(&bodyPostTemplateId, "post-template-id", "", "The prefixed ID of the post template.")
-	cmd.Flags().StringVar(&bodyRecipients, "recipients", "", "Controls who receives the post. If omitted entirely, defaults to free tier only on both web and email. If a channel...")
-	cmd.Flags().StringVar(&bodyScheduledAt, "scheduled-at", "", "The time in which the post will be published. If not provided, the post will be published immediately unless...")
-	cmd.Flags().StringVar(&bodySeoSettings, "seo-settings", "", "Seo settings")
+	cmd.Flags().StringVar(&bodyRecipientsEmailExcludeSegmentIds, "recipients-email-exclude-segment-ids", "", "Exclude segment ids")
+	cmd.Flags().StringVar(&bodyRecipientsEmailIncludeSegmentIds, "recipients-email-include-segment-ids", "", "Include segment ids")
+	cmd.Flags().StringVar(&bodyRecipientsEmailTierIds, "recipients-email-tier-ids", "", "The tier IDs to target. Accepts specific tier UUIDs or the special values `'free'`, `'premium'`, or `'all'`.")
+	cmd.Flags().StringVar(&bodyRecipientsWebExcludeSegmentIds, "recipients-web-exclude-segment-ids", "", "Exclude segment ids")
+	cmd.Flags().StringVar(&bodyRecipientsWebIncludeSegmentIds, "recipients-web-include-segment-ids", "", "Include segment ids")
+	cmd.Flags().StringVar(&bodyRecipientsWebTierIds, "recipients-web-tier-ids", "", "The tier IDs to target. Accepts specific tier UUIDs or the special values `'free'`, `'premium'`, or `'all'`.")
+	cmd.Flags().StringVar(&bodyScheduledAt, "scheduled-at", "", "The time in which the post will be published.")
+	cmd.Flags().StringVar(&bodySeoSettingsDefaultDescription, "seo-settings-default-description", "", "Default description")
+	cmd.Flags().StringVar(&bodySeoSettingsDefaultTitle, "seo-settings-default-title", "", "Default title")
+	cmd.Flags().StringVar(&bodySeoSettingsOgDescription, "seo-settings-og-description", "", "Og description")
+	cmd.Flags().StringVar(&bodySeoSettingsOgTitle, "seo-settings-og-title", "", "Og title")
+	cmd.Flags().StringVar(&bodySeoSettingsTwitterDescription, "seo-settings-twitter-description", "", "Twitter description")
+	cmd.Flags().StringVar(&bodySeoSettingsTwitterTitle, "seo-settings-twitter-title", "", "Twitter title")
 	cmd.Flags().StringVar(&bodySocialShare, "social-share", "", "Social share")
 	cmd.Flags().StringVar(&bodyStatus, "status", "", "Status")
 	cmd.Flags().StringVar(&bodySubtitle, "subtitle", "", "The subtitle of the post.")
 	cmd.Flags().StringVar(&bodyThumbnailImageUrl, "thumbnail-image-url", "", "The URL of the thumbnail image to use for the post. If not provided, the default value will be used.")
 	cmd.Flags().StringVar(&bodyTitle, "title", "", "The title of the post.")
-	cmd.Flags().StringVar(&bodyWebSettings, "web-settings", "", "Web settings")
+	cmd.Flags().BoolVar(&bodyWebSettingsDisplayThumbnailOnWeb, "web-settings-display-thumbnail-on-web", false, "Display thumbnail on web")
+	cmd.Flags().BoolVar(&bodyWebSettingsHideFromFeed, "web-settings-hide-from-feed", false, "Hide from feed")
+	cmd.Flags().StringVar(&bodyWebSettingsPaywallBreakPriceId, "web-settings-paywall-break-price-id", "", "The prefixed ID of the price.")
+	cmd.Flags().StringVar(&bodyWebSettingsPaywallId, "web-settings-paywall-id", "", "The prefixed ID of the paywall.")
+	cmd.Flags().StringVar(&bodyWebSettingsSlug, "web-settings-slug", "", "Slug")
 	cmd.Flags().BoolVar(&stdinBody, "stdin", false, "Read request body as JSON from stdin")
 
 	return cmd

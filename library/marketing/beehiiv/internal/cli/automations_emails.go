@@ -9,8 +9,10 @@ import (
 
 func newAutomationsEmailsCmd(flags *rootFlags) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "emails",
-		Short: "Manage emails",
+		Use:         "emails",
+		Short:       "Get emails for automations",
+		Annotations: map[string]string{"mcp:read-only": "true", "pp:parent-group": "true", "pp:typed-exit-codes": "0,2"},
+		RunE:        parentNoSubcommandRunE(flags),
 	}
 
 	cmd.AddCommand(newAutomationsEmailsAutomationsListCmd(flags))

@@ -28,12 +28,24 @@ func newSubscriptionsIndexCmd(flags *rootFlags) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:         "index <publicationId>",
-		Short:       "Retrieve all subscriptions belonging to a specific publication. <Info> **New**: This endpoint now supports...",
-		Example:     "  beehiiv-pp-cli subscriptions index 550e8400-e29b-41d4-a716-446655440000",
+		Short:       "Retrieve all subscriptions belonging to a specific publication.",
+		Example:     "  beehiiv-pp-cli subscriptions index pub_00000000-0000-0000-0000-000000000000",
 		Annotations: map[string]string{"pp:endpoint": "subscriptions.index", "pp:method": "GET", "pp:path": "/publications/{publicationId}/subscriptions", "mcp:read-only": "true"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return cmd.Help()
+				// A missing required positional is a usage error in every output
+				// mode (matches command_promoted.go.tmpl). Machine callers
+				// (--json/--agent) also get a JSON error envelope on stdout;
+				// usageErr sets exit 2.
+				if flags.asJSON {
+					if printErr := printJSONFiltered(cmd.OutOrStdout(), map[string]any{
+						"error": "missing required argument",
+						"usage": fmt.Sprintf("%s%s", cmd.CommandPath(), " <publicationId>"),
+					}, flags); printErr != nil {
+						return printErr
+					}
+				}
+				return usageErr(fmt.Errorf("missing required argument\nUsage: %s%s", cmd.CommandPath(), " <publicationId>"))
 			}
 			if cmd.Flags().Changed("status") {
 				allowedStatus := []string{"validating", "invalid", "pending", "active", "inactive", "all"}
@@ -45,7 +57,7 @@ func newSubscriptionsIndexCmd(flags *rootFlags) *cobra.Command {
 					}
 				}
 				if !validStatus {
-					fmt.Fprintf(os.Stderr, "warning: --%s %q not in allowed set %v\n", "status", flagStatus, allowedStatus)
+					return fmt.Errorf("invalid value %q for --%s: must be one of %v", flagStatus, "status", allowedStatus)
 				}
 			}
 			if cmd.Flags().Changed("tier") {
@@ -58,7 +70,7 @@ func newSubscriptionsIndexCmd(flags *rootFlags) *cobra.Command {
 					}
 				}
 				if !validTier {
-					fmt.Fprintf(os.Stderr, "warning: --%s %q not in allowed set %v\n", "tier", flagTier, allowedTier)
+					return fmt.Errorf("invalid value %q for --%s: must be one of %v", flagTier, "tier", allowedTier)
 				}
 			}
 			if cmd.Flags().Changed("order-by") {
@@ -71,7 +83,7 @@ func newSubscriptionsIndexCmd(flags *rootFlags) *cobra.Command {
 					}
 				}
 				if !validOrderBy {
-					fmt.Fprintf(os.Stderr, "warning: --%s %q not in allowed set %v\n", "order-by", flagOrderBy, allowedOrderBy)
+					return fmt.Errorf("invalid value %q for --%s: must be one of %v", flagOrderBy, "order-by", allowedOrderBy)
 				}
 			}
 			if cmd.Flags().Changed("direction") {
@@ -84,50 +96,69 @@ func newSubscriptionsIndexCmd(flags *rootFlags) *cobra.Command {
 					}
 				}
 				if !validDirection {
-					fmt.Fprintf(os.Stderr, "warning: --%s %q not in allowed set %v\n", "direction", flagDirection, allowedDirection)
+					return fmt.Errorf("invalid value %q for --%s: must be one of %v", flagDirection, "direction", allowedDirection)
 				}
 			}
+			path := "/publications/{publicationId}/subscriptions"
+			if len(args) < 1 || args[0] == "" {
+				return usageErr(fmt.Errorf("publicationId is required\nUsage: %s <%s>", cmd.CommandPath(), "publicationId"))
+			}
+			path = replacePathParam(path, "publicationId", args[0])
 			c, err := flags.newClient()
 			if err != nil {
 				return err
 			}
-
-			path := "/publications/{publicationId}/subscriptions"
-			path = replacePathParam(path, "publicationId", args[0])
-			data, prov, err := resolvePaginatedRead(cmd.Context(), c, flags, "subscriptions", path, map[string]string{
-				"expand[]":           fmt.Sprintf("%v", flagExpand),
-				"status":             fmt.Sprintf("%v", flagStatus),
-				"tier":               fmt.Sprintf("%v", flagTier),
-				"premium_tiers[]":    fmt.Sprintf("%v", flagPremiumTiers),
-				"premium_tier_ids[]": fmt.Sprintf("%v", flagPremiumTierIds),
-				"limit":              fmt.Sprintf("%v", flagLimit),
-				"cursor":             fmt.Sprintf("%v", flagCursor),
-				"page":               fmt.Sprintf("%v", flagPage),
-				"email":              fmt.Sprintf("%v", flagEmail),
-				"order_by":           fmt.Sprintf("%v", flagOrderBy),
-				"direction":          fmt.Sprintf("%v", flagDirection),
-				"creation_date":      fmt.Sprintf("%v", flagCreationDate),
-			}, nil, flagAll, "cursor", "", "has_more")
-			if err != nil {
-				return classifyAPIError(err, flags)
+			if flagExpand != "" {
+				path = appendArrayQueryParam(path, "expand[]", flagExpand, "form", true)
 			}
-			// Print provenance to stderr for human-facing output
-			{
+			if flagPremiumTiers != "" {
+				path = appendArrayQueryParam(path, "premium_tiers[]", flagPremiumTiers, "form", true)
+			}
+			if flagPremiumTierIds != "" {
+				path = appendArrayQueryParam(path, "premium_tier_ids[]", flagPremiumTierIds, "form", true)
+			}
+			data, prov, err := resolvePaginatedReadWithStrategy(cmd.Context(), c, flags, "live", "subscriptions", path, map[string]string{
+				"status":        formatCLIParamValue(flagStatus),
+				"tier":          formatCLIParamValue(flagTier),
+				"limit":         formatCLIParamValue(flagLimit),
+				"cursor":        formatCLIParamValue(flagCursor),
+				"page":          formatCLIParamValue(flagPage),
+				"email":         formatCLIParamValue(flagEmail),
+				"order_by":      formatCLIParamValue(flagOrderBy),
+				"direction":     formatCLIParamValue(flagDirection),
+				"creation_date": formatCLIParamValue(flagCreationDate),
+			}, nil, flagAll, "cursor", "cursor", "limit", 0, "next_cursor", "has_more", "data", cmd.ErrOrStderr())
+			if err != nil {
+				return classifyAPIError(cmd.OutOrStdout(), err, flags)
+			}
+			outputData := collectionItemsForOutput(data, path)
+			// Print provenance to stderr for human-facing output only.
+			// Machine-format flags (--json, --csv, --compact, --quiet, --plain,
+			// --select) and piped stdout suppress this line; the JSON envelope
+			// already carries meta.source for those consumers.
+			// SYNC: keep this gate aligned with command_promoted.go.tmpl.
+			if wantsHumanTable(cmd.OutOrStdout(), flags) {
 				var countItems []json.RawMessage
-				_ = json.Unmarshal(data, &countItems)
+				_ = json.Unmarshal(outputData, &countItems)
 				printProvenance(cmd, len(countItems), prov)
 			}
 			// For JSON output, wrap with provenance envelope before passing through flags.
 			// --select wins over --compact when both are set; --compact only runs when
-			// no explicit fields were requested.
-			if flags.asJSON || !isTerminal(cmd.OutOrStdout()) {
+			// no explicit fields were requested. Explicit format flags (--csv, --quiet,
+			// --plain) opt out of the auto-JSON path so piped consumers that asked for
+			// a non-JSON format reach the standard pipeline below.
+			if flags.asJSON || (!isTerminal(cmd.OutOrStdout()) && !flags.csv && !flags.quiet && !flags.plain) {
 				filtered := data
 				if flags.selectFields != "" {
 					filtered = filterFields(filtered, flags.selectFields)
 				} else if flags.compact {
-					filtered = compactFields(filtered)
+					filtered = compactFields(filtered, map[string]bool{"created": true, "custom_fields": true, "email": true, "id": true, "newsletter_list_ids": true, "referral_code": true, "referring_site": true, "stats": true, "status": true, "subscription_premium_tier_names": true, "subscription_premium_tiers": true, "subscription_tier": true, "tags": true, "utm_campaign": true, "utm_channel": true, "utm_content": true, "utm_medium": true, "utm_source": true, "utm_term": true})
 				}
 				wrapped, wrapErr := wrapWithProvenance(filtered, prov)
+				if wrapErr != nil {
+					return wrapErr
+				}
+				wrapped, wrapErr = wrapPlatformStructuredOutput(wrapped, flags, "results", true)
 				if wrapErr != nil {
 					return wrapErr
 				}
@@ -136,7 +167,7 @@ func newSubscriptionsIndexCmd(flags *rootFlags) *cobra.Command {
 			// For all other output modes (table, csv, plain, quiet), use the standard pipeline
 			if wantsHumanTable(cmd.OutOrStdout(), flags) {
 				var items []map[string]any
-				if json.Unmarshal(data, &items) == nil && len(items) > 0 {
+				if json.Unmarshal(outputData, &items) == nil && len(items) > 0 {
 					if err := printAutoTable(cmd.OutOrStdout(), items); err != nil {
 						return err
 					}
@@ -146,20 +177,24 @@ func newSubscriptionsIndexCmd(flags *rootFlags) *cobra.Command {
 					return nil
 				}
 			}
-			return printOutputWithFlags(cmd.OutOrStdout(), data, flags)
+			formatData := data
+			if flags.csv || flags.plain {
+				formatData = outputData
+			}
+			return printOutputWithFlagsMeta(cmd.OutOrStdout(), formatData, flags, map[string]any{"source": "live"}, map[string]bool{"created": true, "custom_fields": true, "email": true, "id": true, "newsletter_list_ids": true, "referral_code": true, "referring_site": true, "stats": true, "status": true, "subscription_premium_tier_names": true, "subscription_premium_tiers": true, "subscription_tier": true, "tags": true, "utm_campaign": true, "utm_channel": true, "utm_content": true, "utm_medium": true, "utm_source": true, "utm_term": true})
 		},
 	}
-	cmd.Flags().StringVar(&flagExpand, "expand", "", "Optional list of expandable objects.<br>`subscription_premium_tiers ` - Returns an array of tiers the subscription...")
+	cmd.Flags().StringVar(&flagExpand, "expand", "", "Optional list of expandable objects.")
 	cmd.Flags().StringVar(&flagStatus, "status", "", "Optionally filter the results by a status (one of: validating, invalid, pending, active, inactive, all)")
 	cmd.Flags().StringVar(&flagTier, "tier", "", "Optionally filter the results by a their tier (one of: free, premium, all)")
 	cmd.Flags().StringVar(&flagPremiumTiers, "premium-tiers", "", "Optionally filter the results by one or multiple premium tiers")
 	cmd.Flags().StringVar(&flagPremiumTierIds, "premium-tier-ids", "", "Optionally filter the results by one or multiple premium tier ids")
 	cmd.Flags().IntVar(&flagLimit, "limit", 0, "A limit on the number of objects to be returned. The limit can range between 1 and 100, and the default is 10.")
-	cmd.Flags().StringVar(&flagCursor, "cursor", "", "**Cursor-based pagination (recommended)**: Use this opaque cursor token to fetch the next page of results. When...")
-	cmd.Flags().StringVar(&flagPage, "page", "", "**Offset-based pagination (deprecated)**: Page number for offset-based pagination. This method is deprecated and...")
-	cmd.Flags().StringVar(&flagEmail, "email", "", "Optional email address to find a subscription.<br>This param must be an exact match and is case insensitive.")
-	cmd.Flags().StringVar(&flagOrderBy, "order-by", "", "The field that the results are sorted by. Defaults to created<br> `created` - The time in which the subscription was... (one of: created)")
-	cmd.Flags().StringVar(&flagDirection, "direction", "", "The direction that the results are sorted in. Defaults to asc<br> `asc` - Ascending, sorts from smallest to... (one of: asc, desc)")
+	cmd.Flags().StringVar(&flagCursor, "cursor", "", "**Cursor-based pagination (recommended)**: Use this opaque cursor token to fetch the next page of results.")
+	cmd.Flags().StringVar(&flagPage, "page", "", "**Offset-based pagination (deprecated)**: Page number for offset-based pagination.")
+	cmd.Flags().StringVar(&flagEmail, "email", "", "Optional email address to find a subscription. This param must be an exact match and is case insensitive.")
+	cmd.Flags().StringVar(&flagOrderBy, "order-by", "", "The field that the results are sorted by. (one of: created)")
+	cmd.Flags().StringVar(&flagDirection, "direction", "", "The direction that the results are sorted in. Defaults to asc `asc` - Ascending, sorts from smallest to largest. (one of: asc, desc)")
 	cmd.Flags().StringVar(&flagCreationDate, "creation-date", "", "Optional date entry (in the format YYYY/MM/DD) that filters returned subscriptions by their creation date.")
 	cmd.Flags().BoolVar(&flagAll, "all", false, "Fetch all pages")
 

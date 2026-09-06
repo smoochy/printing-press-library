@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/mvanhorn/printing-press-library/library/marketing/beehiiv/internal/cliutil"
 	"github.com/spf13/cobra"
 )
 
@@ -37,25 +38,58 @@ func newSubscriptionsCreateCmd(flags *rootFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "create <publicationId>",
 		Short:       "Create subscription <Badge intent='info' minimal outlined>OAuth Scope: subscriptions:write</Badge>",
-		Example:     "  beehiiv-pp-cli subscriptions create 550e8400-e29b-41d4-a716-446655440000 --email user@example.com",
+		Example:     "  beehiiv-pp-cli subscriptions create pub_00000000-0000-0000-0000-000000000000 --email user@example.com",
 		Annotations: map[string]string{"pp:endpoint": "subscriptions.create", "pp:method": "POST", "pp:path": "/publications/{publicationId}/subscriptions"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 {
+			// Bare invocation of a command with required input prints help
+			// instead of pflag's terse "required flag not set" error. Optional-
+			// only read commands fall through so a bare call still executes.
+			// Machine callers (--json/--agent, which sets asJSON) get a usage
+			// error + exit 2 instead of silent exit-0 help, so an incomplete
+			// invocation is never mistaken for success.
+			if !hasChangedLocalFlags(cmd) && len(args) == 0 && !flags.dryRun {
+				if flags.asJSON {
+					if printErr := printJSONFiltered(cmd.OutOrStdout(), map[string]any{
+						"error": "requires input",
+						"usage": cmd.CommandPath() + " --help",
+					}, flags); printErr != nil {
+						return printErr
+					}
+					return usageErr(fmt.Errorf("%q requires input; run %q for usage", cmd.CommandPath(), cmd.CommandPath()+" --help"))
+				}
 				return cmd.Help()
+			}
+			if len(args) == 0 {
+				// A missing required positional is a usage error in every output
+				// mode (matches command_promoted.go.tmpl). Machine callers
+				// (--json/--agent) also get a JSON error envelope on stdout;
+				// usageErr sets exit 2.
+				if flags.asJSON {
+					if printErr := printJSONFiltered(cmd.OutOrStdout(), map[string]any{
+						"error": "missing required argument",
+						"usage": fmt.Sprintf("%s%s", cmd.CommandPath(), " <publicationId>"),
+					}, flags); printErr != nil {
+						return printErr
+					}
+				}
+				return usageErr(fmt.Errorf("missing required argument\nUsage: %s%s", cmd.CommandPath(), " <publicationId>"))
 			}
 			if !stdinBody {
 				if !cmd.Flags().Changed("email") && !flags.dryRun {
 					return fmt.Errorf("required flag \"%s\" not set", "email")
 				}
 			}
+			path := "/publications/{publicationId}/subscriptions"
+			if len(args) < 1 || args[0] == "" {
+				return usageErr(fmt.Errorf("publicationId is required\nUsage: %s <%s>", cmd.CommandPath(), "publicationId"))
+			}
+			path = replacePathParam(path, "publicationId", args[0])
 			c, err := flags.newClient()
 			if err != nil {
 				return err
 			}
-
-			path := "/publications/{publicationId}/subscriptions"
-			path = replacePathParam(path, "publicationId", args[0])
-			var body map[string]any
+			params := map[string]string{}
+			var body any
 			if stdinBody {
 				stdinData, err := io.ReadAll(os.Stdin)
 				if err != nil {
@@ -67,88 +101,114 @@ func newSubscriptionsCreateCmd(flags *rootFlags) *cobra.Command {
 				}
 				body = jsonBody
 			} else {
-				body = map[string]any{}
-				if bodyAutomationIds != "" {
-					var parsedAutomationIds any
-					if err := json.Unmarshal([]byte(bodyAutomationIds), &parsedAutomationIds); err != nil {
-						return fmt.Errorf("parsing --automation-ids JSON: %w", err)
+				bodyMap := map[string]any{}
+				body = bodyMap
+				if cmd.Flags().Changed("automation-ids") {
+					parsedAutomationIds, parseErr := cliutil.ParseStringList(bodyAutomationIds)
+					if parseErr != nil {
+						return fmt.Errorf("parsing --automation-ids list: %w", parseErr)
 					}
-					body["automation_ids"] = parsedAutomationIds
+					bodyMap["automation_ids"] = parsedAutomationIds
 				}
-				if bodyCustomFields != "" {
+				if cmd.Flags().Changed("custom-fields") || bodyCustomFields != "" {
 					var parsedCustomFields any
 					if err := json.Unmarshal([]byte(bodyCustomFields), &parsedCustomFields); err != nil {
 						return fmt.Errorf("parsing --custom-fields JSON: %w", err)
 					}
-					body["custom_fields"] = parsedCustomFields
-				}
-				if bodyDoubleOptOverride != "" {
-					body["double_opt_override"] = bodyDoubleOptOverride
-				}
-				if bodyEmail != "" {
-					body["email"] = bodyEmail
-				}
-				if bodyNewsletterListIds != "" {
-					var parsedNewsletterListIds any
-					if err := json.Unmarshal([]byte(bodyNewsletterListIds), &parsedNewsletterListIds); err != nil {
-						return fmt.Errorf("parsing --newsletter-list-ids JSON: %w", err)
+					asArray, ok := parsedCustomFields.([]any)
+					if !ok {
+						return fmt.Errorf("--custom-fields must be a JSON array, got JSON %T", parsedCustomFields)
 					}
-					body["newsletter_list_ids"] = parsedNewsletterListIds
+					bodyMap["custom_fields"] = asArray
 				}
-				if bodyPremiumTierIds != "" {
-					var parsedPremiumTierIds any
-					if err := json.Unmarshal([]byte(bodyPremiumTierIds), &parsedPremiumTierIds); err != nil {
-						return fmt.Errorf("parsing --premium-tier-ids JSON: %w", err)
+				if cmd.Flags().Changed("double-opt-override") || bodyDoubleOptOverride != "" {
+					bodyMap["double_opt_override"] = bodyDoubleOptOverride
+				}
+				if cmd.Flags().Changed("email") || bodyEmail != "" {
+					bodyMap["email"] = bodyEmail
+				}
+				if cmd.Flags().Changed("newsletter-list-ids") {
+					parsedNewsletterListIds, parseErr := cliutil.ParseStringList(bodyNewsletterListIds)
+					if parseErr != nil {
+						return fmt.Errorf("parsing --newsletter-list-ids list: %w", parseErr)
 					}
-					body["premium_tier_ids"] = parsedPremiumTierIds
+					bodyMap["newsletter_list_ids"] = parsedNewsletterListIds
 				}
-				if bodyPremiumTiers != "" {
-					var parsedPremiumTiers any
-					if err := json.Unmarshal([]byte(bodyPremiumTiers), &parsedPremiumTiers); err != nil {
-						return fmt.Errorf("parsing --premium-tiers JSON: %w", err)
+				if cmd.Flags().Changed("premium-tier-ids") {
+					parsedPremiumTierIds, parseErr := cliutil.ParseStringList(bodyPremiumTierIds)
+					if parseErr != nil {
+						return fmt.Errorf("parsing --premium-tier-ids list: %w", parseErr)
 					}
-					body["premium_tiers"] = parsedPremiumTiers
+					bodyMap["premium_tier_ids"] = parsedPremiumTierIds
 				}
-				if bodyReactivateExisting != false {
-					body["reactivate_existing"] = bodyReactivateExisting
+				if cmd.Flags().Changed("premium-tiers") {
+					parsedPremiumTiers, parseErr := cliutil.ParseStringList(bodyPremiumTiers)
+					if parseErr != nil {
+						return fmt.Errorf("parsing --premium-tiers list: %w", parseErr)
+					}
+					bodyMap["premium_tiers"] = parsedPremiumTiers
 				}
-				if bodyReferralCode != "" {
-					body["referral_code"] = bodyReferralCode
+				if cmd.Flags().Changed("reactivate-existing") {
+					bodyMap["reactivate_existing"] = bodyReactivateExisting
 				}
-				if bodyReferringSite != "" {
-					body["referring_site"] = bodyReferringSite
+				if cmd.Flags().Changed("referral-code") || bodyReferralCode != "" {
+					bodyMap["referral_code"] = bodyReferralCode
 				}
-				if bodySendWelcomeEmail != false {
-					body["send_welcome_email"] = bodySendWelcomeEmail
+				if cmd.Flags().Changed("referring-site") || bodyReferringSite != "" {
+					bodyMap["referring_site"] = bodyReferringSite
 				}
-				if bodySkipNewsletterListAutoSubscribe != false {
-					body["skip_newsletter_list_auto_subscribe"] = bodySkipNewsletterListAutoSubscribe
+				if cmd.Flags().Changed("send-welcome-email") {
+					bodyMap["send_welcome_email"] = bodySendWelcomeEmail
 				}
-				if bodyStripeCustomerId != "" {
-					body["stripe_customer_id"] = bodyStripeCustomerId
+				if cmd.Flags().Changed("skip-newsletter-list-auto-subscribe") {
+					bodyMap["skip_newsletter_list_auto_subscribe"] = bodySkipNewsletterListAutoSubscribe
 				}
-				if bodyTier != "" {
-					body["tier"] = bodyTier
+				if cmd.Flags().Changed("stripe-customer-id") || bodyStripeCustomerId != "" {
+					bodyMap["stripe_customer_id"] = bodyStripeCustomerId
 				}
-				if bodyUtmCampaign != "" {
-					body["utm_campaign"] = bodyUtmCampaign
+				if cmd.Flags().Changed("tier") || bodyTier != "" {
+					bodyMap["tier"] = bodyTier
 				}
-				if bodyUtmContent != "" {
-					body["utm_content"] = bodyUtmContent
+				if cmd.Flags().Changed("utm-campaign") || bodyUtmCampaign != "" {
+					bodyMap["utm_campaign"] = bodyUtmCampaign
 				}
-				if bodyUtmMedium != "" {
-					body["utm_medium"] = bodyUtmMedium
+				if cmd.Flags().Changed("utm-content") || bodyUtmContent != "" {
+					bodyMap["utm_content"] = bodyUtmContent
 				}
-				if bodyUtmSource != "" {
-					body["utm_source"] = bodyUtmSource
+				if cmd.Flags().Changed("utm-medium") || bodyUtmMedium != "" {
+					bodyMap["utm_medium"] = bodyUtmMedium
 				}
-				if bodyUtmTerm != "" {
-					body["utm_term"] = bodyUtmTerm
+				if cmd.Flags().Changed("utm-source") || bodyUtmSource != "" {
+					bodyMap["utm_source"] = bodyUtmSource
+				}
+				if cmd.Flags().Changed("utm-term") || bodyUtmTerm != "" {
+					bodyMap["utm_term"] = bodyUtmTerm
 				}
 			}
-			data, statusCode, err := c.Post(path, body)
+			data, statusCode, err := c.PostWithParams(cmd.Context(), path, params, body)
 			if err != nil {
-				return classifyAPIError(err, flags)
+				return classifyAPIError(cmd.OutOrStdout(), err, flags)
+			}
+			// Inspect the mutate response body for a partial-failure-shaped
+			// field (e.g. Google Ads `partialFailureError`). Several Google
+			// APIs return 200 OK with a partial-failure field when some
+			// operations in the batch failed; ignoring it silently swallows
+			// real failures. Detection runs before output-mode selection so
+			// the exit code is consistent regardless of how stdout is
+			// rendered. --dry-run short-circuits because no real request
+			// was sent.
+			var partialFailure *partialFailureReport
+			if !flags.dryRun && statusCode >= 200 && statusCode < 300 {
+				partialFailure = detectPartialFailure(data)
+				if partialFailure != nil {
+					fmt.Fprintf(os.Stderr, "warning: partial failure detected in %s response: %s\n", "subscriptions", partialFailure.Message)
+					if len(partialFailure.ResourceNames) > 0 {
+						fmt.Fprintf(os.Stderr, "         succeeded: %d operation(s)\n", len(partialFailure.ResourceNames))
+					}
+				}
+			}
+			if !flags.dryRun && statusCode >= 200 && statusCode < 300 && (partialFailure == nil || flags.allowPartialFailure) {
+				writeMutationResponseToStore(cmd.Context(), "subscriptions", data, "")
 			}
 			if wantsHumanTable(cmd.OutOrStdout(), flags) {
 				// Check if response contains an array (directly or wrapped in "data")
@@ -157,6 +217,9 @@ func newSubscriptionsCreateCmd(flags *rootFlags) *cobra.Command {
 					if err := printAutoTable(cmd.OutOrStdout(), items); err != nil {
 						fmt.Fprintf(os.Stderr, "warning: table rendering failed, falling back to JSON: %v\n", err)
 					} else {
+						if partialFailure != nil && !flags.allowPartialFailure {
+							return partialFailureErr(fmt.Errorf("partial failure in %s response: %s", "subscriptions", partialFailure.Message))
+						}
 						return nil
 					}
 				} else {
@@ -167,14 +230,55 @@ func newSubscriptionsCreateCmd(flags *rootFlags) *cobra.Command {
 						if err := printAutoTable(cmd.OutOrStdout(), wrapped.Data); err != nil {
 							fmt.Fprintf(os.Stderr, "warning: table rendering failed, falling back to JSON: %v\n", err)
 						} else {
+							if partialFailure != nil && !flags.allowPartialFailure {
+								return partialFailureErr(fmt.Errorf("partial failure in %s response: %s", "subscriptions", partialFailure.Message))
+							}
 							return nil
 						}
 					}
 				}
 			}
-			if flags.asJSON || !isTerminal(cmd.OutOrStdout()) {
+			if flags.asJSON || (!isTerminal(cmd.OutOrStdout()) && !flags.csv && !flags.quiet && !flags.plain) {
 				if flags.quiet {
+					if partialFailure != nil && !flags.allowPartialFailure {
+						return partialFailureErr(fmt.Errorf("partial failure in %s response: %s", "subscriptions", partialFailure.Message))
+					}
 					return nil
+				}
+				envelope := map[string]any{
+					"action":   "post",
+					"resource": "subscriptions",
+					"path":     path,
+					"status":   statusCode,
+					"success":  statusCode >= 200 && statusCode < 300 && (partialFailure == nil || flags.allowPartialFailure),
+				}
+				if flags.agent {
+					envelope["meta"] = map[string]any{"source": "live"}
+				}
+				if partialFailure != nil {
+					envelope["partial_failure"] = partialFailure
+				}
+				if flags.dryRun {
+					envelope["dry_run"] = true
+					envelope["status"] = 0
+					envelope["success"] = false
+				}
+				// Verify-mode synthetic envelope detection runs against RAW data
+				// (before --compact/--select filtering) so the sentinel field is
+				// guaranteed to be visible even if the operator passes a filter
+				// flag that would otherwise strip it. Surfaces a top-level
+				// verify_noop signal + flips success to false. Mirrors the dry_run
+				// shape above.
+				if len(data) > 0 {
+					var rawParsed any
+					if err := json.Unmarshal(data, &rawParsed); err == nil {
+						if m, ok := rawParsed.(map[string]any); ok {
+							if v, ok := m["__pp_verify_synthetic__"].(bool); ok && v {
+								envelope["verify_noop"] = true
+								envelope["success"] = false
+							}
+						}
+					}
 				}
 				// Apply --compact and --select to the API response before wrapping.
 				// --select wins when both are set: explicit field choice trumps the
@@ -184,47 +288,66 @@ func newSubscriptionsCreateCmd(flags *rootFlags) *cobra.Command {
 				if flags.selectFields != "" {
 					filtered = filterFields(filtered, flags.selectFields)
 				} else if flags.compact {
-					filtered = compactFields(filtered)
-				}
-				envelope := map[string]any{
-					"action":   "post",
-					"resource": "subscriptions",
-					"path":     path,
-					"status":   statusCode,
-					"success":  statusCode >= 200 && statusCode < 300,
-				}
-				if flags.dryRun {
-					envelope["dry_run"] = true
-					envelope["status"] = 0
-					envelope["success"] = false
+					filtered = compactFields(filtered, map[string]bool{"data": true})
 				}
 				if len(filtered) > 0 {
 					var parsed any
 					if err := json.Unmarshal(filtered, &parsed); err == nil {
-						envelope["data"] = parsed
+						if flags.agent {
+							envelope["results"] = parsed
+						} else {
+							envelope["data"] = parsed
+						}
 					}
 				}
 				envelopeJSON, err := json.Marshal(envelope)
 				if err != nil {
 					return err
 				}
-				return printOutput(cmd.OutOrStdout(), json.RawMessage(envelopeJSON), true)
+				resultKey := "data"
+				if flags.agent {
+					resultKey = "results"
+				}
+				structured, err := wrapPlatformStructuredOutput(json.RawMessage(envelopeJSON), flags, resultKey, true)
+				if err != nil {
+					return err
+				}
+				if perr := printOutput(cmd.OutOrStdout(), structured, true); perr != nil {
+					return perr
+				}
+				if partialFailure != nil && !flags.allowPartialFailure {
+					return partialFailureErr(fmt.Errorf("partial failure in %s response: %s", "subscriptions", partialFailure.Message))
+				}
+				return nil
 			}
-			return printOutputWithFlags(cmd.OutOrStdout(), data, flags)
+			// Fall-through for mutate paths that did not hit the table or
+			// asJSON branches: --quiet, --csv, --plain, and default terminal
+			// raw output. printOutputWithFlags renders the body, then the
+			// typed partial-failure exit fires unless --allow-partial-failure
+			// downgrades it. Without this guard a partial failure would exit
+			// 0 for these output modes — the exact silent-swallow regression
+			// the surrounding patch is preventing for asJSON / piped output.
+			if perr := printOutputWithFlags(cmd.OutOrStdout(), data, flags); perr != nil {
+				return perr
+			}
+			if partialFailure != nil && !flags.allowPartialFailure {
+				return partialFailureErr(fmt.Errorf("partial failure in %s response: %s", "subscriptions", partialFailure.Message))
+			}
+			return nil
 		},
 	}
-	cmd.Flags().StringVar(&bodyAutomationIds, "automation-ids", "", "Enroll the subscriber into automations after their subscription has been created. Requires the automations to have...")
+	cmd.Flags().StringVar(&bodyAutomationIds, "automation-ids", "", "Enroll the subscriber into automations after their subscription has been created.")
 	cmd.Flags().StringVar(&bodyCustomFields, "custom-fields", "", "The custom fields must already exist for the publication. Any new custom fields here will be discarded.")
 	cmd.Flags().StringVar(&bodyDoubleOptOverride, "double-opt-override", "", "Override publication double-opt settings for this subscription.")
 	cmd.Flags().StringVar(&bodyEmail, "email", "", "The email address of the subscription.")
-	cmd.Flags().StringVar(&bodyNewsletterListIds, "newsletter-list-ids", "", "An array of newsletter list prefixed IDs to subscribe the new subscription to. The newsletter lists must belong to...")
-	cmd.Flags().StringVar(&bodyPremiumTierIds, "premium-tier-ids", "", "An array of premium tier IDs to assign to this subscription. When provided, the subscription will be assigned to...")
-	cmd.Flags().StringVar(&bodyPremiumTiers, "premium-tiers", "", "An array of premium tier names to assign to this subscription. When provided, the subscription will be assigned to...")
-	cmd.Flags().BoolVar(&bodyReactivateExisting, "reactivate-existing", false, "Whether or not to reactivate the subscription if they have already unsubscribed. This option should be used only if...")
+	cmd.Flags().StringVar(&bodyNewsletterListIds, "newsletter-list-ids", "", "An array of newsletter list prefixed IDs to subscribe the new subscription to.")
+	cmd.Flags().StringVar(&bodyPremiumTierIds, "premium-tier-ids", "", "An array of premium tier IDs to assign to this subscription.")
+	cmd.Flags().StringVar(&bodyPremiumTiers, "premium-tiers", "", "An array of premium tier names to assign to this subscription.")
+	cmd.Flags().BoolVar(&bodyReactivateExisting, "reactivate-existing", false, "Whether or not to reactivate the subscription if they have already unsubscribed.")
 	cmd.Flags().StringVar(&bodyReferralCode, "referral-code", "", "This should be a subscribers referral_code. This gives referral credit for the new subscription.")
 	cmd.Flags().StringVar(&bodyReferringSite, "referring-site", "", "The website that the subscriber was referred from")
 	cmd.Flags().BoolVar(&bodySendWelcomeEmail, "send-welcome-email", false, "Send welcome email")
-	cmd.Flags().BoolVar(&bodySkipNewsletterListAutoSubscribe, "skip-newsletter-list-auto-subscribe", false, "When true, the subscriber will not be auto-subscribed to newsletter lists configured with auto-subscribe. Defaults...")
+	cmd.Flags().BoolVar(&bodySkipNewsletterListAutoSubscribe, "skip-newsletter-list-auto-subscribe", false, "When true, the subscriber will not be auto-subscribed to newsletter lists configured with auto-subscribe.")
 	cmd.Flags().StringVar(&bodyStripeCustomerId, "stripe-customer-id", "", "The prefixed ID of the Stripe customer.")
 	cmd.Flags().StringVar(&bodyTier, "tier", "", "The tier for this subscription.")
 	cmd.Flags().StringVar(&bodyUtmCampaign, "utm-campaign", "", "The acquisition campaign of the subscription")

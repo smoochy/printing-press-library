@@ -9,8 +9,10 @@ import (
 
 func newAutomationsCmd(flags *rootFlags) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "automations",
-		Short: "Manage automations",
+		Use:         "automations",
+		Short:       "Manage automations command groups",
+		Annotations: map[string]string{"mcp:read-only": "true", "pp:parent-group": "true", "pp:api-resource": "true", "pp:typed-exit-codes": "0,2"},
+		RunE:        parentNoSubcommandRunE(flags),
 	}
 
 	cmd.AddCommand(newAutomationsIndexCmd(flags))

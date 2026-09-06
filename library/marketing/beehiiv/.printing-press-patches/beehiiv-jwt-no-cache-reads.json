@@ -1,0 +1,13 @@
+{
+  "schema_version": 2,
+  "id": "beehiiv-jwt-no-cache-reads",
+  "applied_at": "2026-09-04",
+  "base_run_id": "20260904-103650-02c4577b",
+  "base_printing_press_version": "4.31.1",
+  "summary": "Subscriber JWT token reads bypass the response cache read path.",
+  "reason": "Beehiiv subscriber auto-login JWTs are short lived; a cached token produces unusable login URLs. GetWithHeadersNoCache skips the cache read while still writing fresh responses.",
+  "validated_outcome": "go test ./... green; jwt_token command now calls GetWithHeadersNoCache with live provenance.",
+  "files": [
+    "internal/cli/subscriptions_jwt-token_subscriptions-get.go"
+  ]
+}

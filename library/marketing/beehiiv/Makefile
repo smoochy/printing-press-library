@@ -1,7 +1,9 @@
 .PHONY: build test lint install clean
 
+BIN_EXT := $(if $(filter windows,$(shell go env GOOS)),.exe,)
+
 build:
-	go build -o bin/beehiiv-pp-cli ./cmd/beehiiv-pp-cli
+	go build -o bin/beehiiv-pp-cli$(BIN_EXT) ./cmd/beehiiv-pp-cli
 
 test:
 	go test ./...
@@ -16,7 +18,7 @@ clean:
 	rm -rf bin/
 
 build-mcp:
-	go build -o bin/beehiiv-pp-mcp ./cmd/beehiiv-pp-mcp
+	go build -o bin/beehiiv-pp-mcp$(BIN_EXT) ./cmd/beehiiv-pp-mcp
 
 install-mcp:
 	go install ./cmd/beehiiv-pp-mcp

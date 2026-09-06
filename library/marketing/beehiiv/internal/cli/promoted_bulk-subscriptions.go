@@ -17,10 +17,28 @@ func newBulkSubscriptionsPromotedCmd(flags *rootFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "bulk-subscriptions <publicationId>",
 		Short:       "Bulk create subscription <Badge intent='info' minimal outlined>OAuth Scope: subscriptions:write</Badge>",
-		Long:        "Shortcut for 'bulk-subscriptions create'. Bulk create subscription <Badge intent='info' minimal outlined>OAuth Scope: subscriptions:write</Badge>",
-		Example:     "  beehiiv-pp-cli bulk-subscriptions 550e8400-e29b-41d4-a716-446655440000",
+		Long:        "Bulk create subscription <Badge intent='info' minimal outlined>OAuth Scope: subscriptions:write</Badge>",
+		Example:     "  beehiiv-pp-cli bulk-subscriptions pub_00000000-0000-0000-0000-000000000000",
 		Annotations: map[string]string{"pp:endpoint": "bulk-subscriptions.create", "pp:method": "POST", "pp:path": "/publications/{publicationId}/bulk_subscriptions"},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Bare invocation of a command with a required flag/body prints help
+			// instead of pflag's terse "required flag not set" error. Optional-
+			// only reads fall through so a bare call still executes; positional
+			// commands keep their existing usageErr (exit 2 + JSON envelope).
+			// Machine callers (--json/--agent, which sets asJSON) get a usage
+			// error + exit 2 instead of silent exit-0 help.
+			if !hasChangedLocalFlags(cmd) && len(args) == 0 && !flags.dryRun {
+				if flags.asJSON {
+					if printErr := printJSONFiltered(cmd.OutOrStdout(), map[string]any{
+						"error": "requires input",
+						"usage": cmd.CommandPath() + " --help",
+					}, flags); printErr != nil {
+						return printErr
+					}
+					return usageErr(fmt.Errorf("%q requires input; run %q for usage", cmd.CommandPath(), cmd.CommandPath()+" --help"))
+				}
+				return cmd.Help()
+			}
 			if !cmd.Flags().Changed("subscriptions") && !flags.dryRun {
 				return fmt.Errorf("required flag \"%s\" not set", "subscriptions")
 			}
@@ -30,7 +48,7 @@ func newBulkSubscriptionsPromotedCmd(flags *rootFlags) *cobra.Command {
 			}
 
 			path := "/publications/{publicationId}/bulk_subscriptions"
-			if len(args) < 1 {
+			if len(args) < 1 || args[0] == "" {
 				// JSON envelope: {error, usage}. Written first; the
 				// usageErr return preserves exit code 2 across modes.
 				if flags.asJSON {
@@ -44,51 +62,68 @@ func newBulkSubscriptionsPromotedCmd(flags *rootFlags) *cobra.Command {
 				return usageErr(fmt.Errorf("publicationId is required\nUsage: %s <%s>", cmd.CommandPath(), "publicationId"))
 			}
 			path = replacePathParam(path, "publicationId", args[0])
+			params := map[string]string{}
 			// HasStore + non-GET falls through to a live API call here
 			// rather than through resolveRead (GET-only internally); a
 			// body-aware cached read helper is filed as #425 for when a
 			// second store-backed POST-search consumer ships.
-			body := map[string]any{}
-			if bodySubscriptions != "" {
+			bodyMap := map[string]any{}
+			var body any = bodyMap
+			if cmd.Flags().Changed("subscriptions") || bodySubscriptions != "" {
 				var parsedSubscriptions any
 				if err := json.Unmarshal([]byte(bodySubscriptions), &parsedSubscriptions); err != nil {
 					return fmt.Errorf("parsing --subscriptions JSON: %w", err)
 				}
-				body["subscriptions"] = parsedSubscriptions
+				asArray, ok := parsedSubscriptions.([]any)
+				if !ok {
+					return fmt.Errorf("--subscriptions must be a JSON array, got JSON %T", parsedSubscriptions)
+				}
+				bodyMap["subscriptions"] = asArray
 			}
-			data, _, err := c.Post(path, body)
-			prov := attachFreshness(DataProvenance{Source: "live"}, flags)
-			if err != nil {
-				return classifyAPIError(err, flags)
-			}
-			// Unwrap API response envelopes (e.g. {"status":"success","data":[...]})
-			// so output helpers see the inner data, not the wrapper.
-			data = extractResponseData(data)
+			data, statusCode, err := c.PostWithParams(cmd.Context(), path, params, body)
 
-			// Print provenance to stderr
-			{
+			if err != nil {
+				return classifyAPIError(cmd.OutOrStdout(), err, flags)
+			}
+			prov := attachFreshness(DataProvenance{Source: "live"}, flags)
+			var partialFailure *partialFailureReport
+			if !flags.dryRun && statusCode >= 200 && statusCode < 300 {
+				partialFailure = detectPartialFailure(data)
+			}
+			if !flags.dryRun && statusCode >= 200 && statusCode < 300 && (partialFailure == nil || flags.allowPartialFailure) {
+				writeMutationResponseToStore(cmd.Context(), "bulk-subscriptions", data, "")
+			}
+			outputData := data
+			// Print provenance to stderr for human-facing output only.
+			// Machine-format flags (--json, --csv, --compact, --quiet, --plain,
+			// --select) and piped stdout suppress this line; the JSON envelope
+			// already carries meta.source for those consumers.
+			// SYNC: keep this gate aligned with command_endpoint.go.tmpl.
+			if wantsHumanTable(cmd.OutOrStdout(), flags) {
 				var countItems []json.RawMessage
-				if json.Unmarshal(data, &countItems) != nil {
+				if json.Unmarshal(outputData, &countItems) != nil {
 					// Single object, not an array
-					countItems = []json.RawMessage{data}
+					countItems = []json.RawMessage{outputData}
 				}
 				printProvenance(cmd, len(countItems), prov)
 			}
-			// CSV bypasses JSON pipe path so --csv works when piped
-			if flags.csv {
-				return printOutputWithFlags(cmd.OutOrStdout(), data, flags)
-			}
 			// For JSON output, wrap with provenance envelope. --select wins over
 			// --compact when both are set; --compact only runs when no explicit
-			// fields were requested.
-			if flags.asJSON || !isTerminal(cmd.OutOrStdout()) {
+			// fields were requested. Explicit format flags (--csv, --quiet, --plain)
+			// opt out of the auto-JSON path so piped consumers that asked for a
+			// non-JSON format reach the standard pipeline below.
+			if flags.asJSON || (!isTerminal(cmd.OutOrStdout()) && !flags.csv && !flags.quiet && !flags.plain) {
 				filtered := data
 				if flags.selectFields != "" {
 					filtered = filterFields(filtered, flags.selectFields)
 				} else if flags.compact {
-					filtered = compactFields(filtered)
+					filtered = compactFields(filtered, map[string]bool{"import_id": true, "message": true})
 				}
 				wrapped, wrapErr := wrapWithProvenance(filtered, prov)
+				if wrapErr != nil {
+					return wrapErr
+				}
+				wrapped, wrapErr = wrapPlatformStructuredOutput(wrapped, flags, "results", true)
 				if wrapErr != nil {
 					return wrapErr
 				}
@@ -96,7 +131,7 @@ func newBulkSubscriptionsPromotedCmd(flags *rootFlags) *cobra.Command {
 			}
 			if wantsHumanTable(cmd.OutOrStdout(), flags) {
 				var items []map[string]any
-				if json.Unmarshal(data, &items) == nil && len(items) > 0 {
+				if json.Unmarshal(outputData, &items) == nil && len(items) > 0 {
 					if err := printAutoTable(cmd.OutOrStdout(), items); err != nil {
 						return err
 					}
@@ -106,7 +141,11 @@ func newBulkSubscriptionsPromotedCmd(flags *rootFlags) *cobra.Command {
 					return nil
 				}
 			}
-			return printOutputWithFlags(cmd.OutOrStdout(), data, flags)
+			formatData := data
+			if flags.csv || flags.plain {
+				formatData = outputData
+			}
+			return printOutputWithFlagsMeta(cmd.OutOrStdout(), formatData, flags, map[string]any{"source": "live"}, map[string]bool{"import_id": true, "message": true})
 		},
 	}
 	cmd.Flags().StringVar(&bodySubscriptions, "subscriptions", "", "Subscriptions")

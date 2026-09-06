@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mvanhorn/printing-press-library/library/marketing/beehiiv/internal/cliutil"
 	"github.com/spf13/cobra"
 )
 
@@ -31,13 +32,12 @@ type FeedbackEntry struct {
 const feedbackMaxTextLen = 4096
 
 func feedbackFilePath() (string, error) {
-	home, err := os.UserHomeDir()
+	dir, err := cliutil.DataDir()
 	if err != nil {
-		return "", fmt.Errorf("resolving home dir: %w", err)
+		return "", err
 	}
-	dir := filepath.Join(home, ".beehiiv-pp-cli")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return "", fmt.Errorf("creating state dir: %w", err)
+		return "", fmt.Errorf("creating feedback data dir: %w", err)
 	}
 	return filepath.Join(dir, "feedback.jsonl"), nil
 }
@@ -100,7 +100,7 @@ func newFeedbackCmd(flags *rootFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "feedback [text]",
 		Short: "Record feedback about this CLI (local by default; upstream opt-in)",
-		Long: `Feedback is captured locally first at ~/.beehiiv-pp-cli/feedback.jsonl.
+		Long: `Feedback is captured locally first in the CLI data directory's feedback.jsonl.
 When ` + "`BEEHIIV_FEEDBACK_ENDPOINT`" + ` is set and either --send is
 passed or ` + "`BEEHIIV_FEEDBACK_AUTO_SEND=true`" + `, the entry is
 POSTed as JSON after the local write.
@@ -108,6 +108,13 @@ POSTed as JSON after the local write.
 Write what surprised you or tripped you up, not a bug report. The
 loop is: agent notices friction -> one invocation -> captured -> the
 maintainer sees it.`,
+		Example: strings.Trim(`
+  # record friction locally (never sent anywhere by default)
+  beehiiv-pp-cli feedback "sync --resources list was unclear"
+
+  # review what was captured
+  beehiiv-pp-cli feedback list
+`, "\n"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var text string
 			if useStdin {
@@ -184,6 +191,9 @@ func newFeedbackListCmd(flags *rootFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List recent feedback entries",
+		Annotations: map[string]string{
+			"mcp:read-only": "true",
+		},
 		Example: `  beehiiv-pp-cli feedback list
   beehiiv-pp-cli feedback list --limit 5
   beehiiv-pp-cli feedback list --json`,

@@ -2,8 +2,10 @@ package icaroclient
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
+	"unicode"
 )
 
 // BuildQuery turns a friendly param map (CLI flag values) into the ISIS query
@@ -33,7 +35,7 @@ func BuildQuery(arc Archive, params map[string]string, isisRaw string) string {
 	sort.Strings(keys)
 
 	for _, k := range keys {
-		v := strings.TrimSpace(params[k])
+		v, _ := ValoreRipulito(k, params[k])
 		if v == "" {
 			continue
 		}
@@ -60,6 +62,10 @@ func BuildQuery(arc Archive, params map[string]string, isisRaw string) string {
 		if !ok {
 			// Unmapped flag: drop into free-text as fallback.
 			freeText = append(freeText, v)
+			continue
+		}
+		if CampoIdentificativo(k) {
+			fielded = append(fielded, fmt.Sprintf("%s.%s", EspressioneIdentificativo(v), field))
 			continue
 		}
 		fielded = append(fielded, fmt.Sprintf("%s.%s", quoteValue(v), field))
@@ -285,4 +291,142 @@ func needsQuoting(v string) bool {
 		}
 	}
 	return false
+}
+
+// ValoreRipulito rende un valore utente digeribile dal parser del portale e
+// dice quali caratteri ha tolto.
+//
+// Il motore ISIS non accetta la punteggiatura dentro il valore di una ricerca:
+// non la ignora, RIFIUTA la query. Misurato sull'archivio ddl il 2026-09-06, un
+// carattere per volta su ITERST, la pagina d'errore dice «Impossibile creare la
+// Query»: ' " , - / . ; : + * ? & ! ( = # . Passano lettere, cifre, spazio, il
+// troncamento `$` (`Assembl$` torna righe) e `%`.
+//
+// Non e' un caso di nicchia: rifiutavano `--iter "Approvato dall'Assemblea"`
+// (il nome dello stato scritto dal portale stesso), `--testo "dell'ambiente"`,
+// `--materia "sanita'"` e `--firmatario "D'Agostino"`, che e' un cognome
+// siciliano. E il rifiuto arrivava all'utente come un problema di soglia, con
+// il consiglio di restringere il periodo: una strada che li' non porta da
+// nessuna parte.
+//
+// La riscrittura e' fedele all'indice, non una resa: il portale indicizza la
+// punteggiatura come separatore di parole, e in un valore di campo lo spazio e'
+// adiacenza. Misurato: `--iter "Approvato dall Assemblea"` torna esattamente le
+// 16 righe di `--iter "Assemblea"` sul 2026, mentre `--iter "Assegnato
+// Assemblea"` — due stati veri ma non adiacenti — torna vuoto; `--firmatario "D
+// Agostino"` torna il ddl 8030, come "Agostino".
+//
+// Due valori restano intatti. Quelli con parentesi, perche' chi le scrive sta
+// scrivendo la propria espressione (stessa convenzione di andJoinWords e
+// adjExpr). E quelli di sola struttura — cifre e `/` — che sono i range di data
+// costruiti dalla CLI (`260101/261231`), non testo dell'utente.
+func ValoreRipulito(param, v string) (string, []string) {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return "", nil
+	}
+	if strings.ContainsAny(v, "()") {
+		return v, nil
+	}
+	if campoData(param) && formaData(v) {
+		return v, nil
+	}
+	var rimossi []string
+	visto := map[rune]bool{}
+	pulito := strings.Map(func(r rune) rune {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.IsSpace(r) || r == '$' || r == '%' {
+			return r
+		}
+		if !visto[r] {
+			visto[r] = true
+			rimossi = append(rimossi, string(r))
+		}
+		return ' '
+	}, v)
+	if len(rimossi) == 0 {
+		return v, nil
+	}
+	return strings.Join(strings.Fields(pulito), " "), rimossi
+}
+
+// campoData nomina i parametri il cui valore lo costruisce la CLI: `--data` lo
+// compila in `260101/261231` e `--anno`, sui ddl, nello stesso range. Sono i
+// soli due posti dove la barra e il trattino sono sintassi.
+//
+// L'esenzione sta su QUESTI DUE NOMI, non sulla forma del valore, ed e' la
+// seconda volta che il perimetro si stringe. Guardando solo i caratteri
+// passava un ISBN-13 (`978-88-7524-166-7`, cifre e trattini); guardando la
+// forma di data passava una data cercata come TESTO — `ddl cerca --testo
+// "2026-07-01"`, cioe' un documento che cita quella data, che e' una domanda
+// legittima e usciva col rifiuto del portale invece che ripulita (misurato il
+// 2026-09-06: la query partiva come `... E (2026-07-01)`). Un valore non dice
+// da se' se e' una data: lo dice il campo in cui sta.
+func campoData(param string) bool {
+	return param == "data" || param == "anno"
+}
+
+// reFormaData riconosce le forme che quei due parametri portano davvero: un
+// numero puro, il range ISIS `260101/261231`, e la forma ISO `2026-07-01` o
+// `2026-07-01:2026-07-31` che normalizeParams non fosse riuscito a convertire.
+//
+// La forma ISO e' una difesa, non un percorso vivo: oggi ogni chiamante passa
+// da normalizeParams. Ma se un domani una data ISO arrivasse qui intatta,
+// ripulirla la trasformerebbe in `2026 07 01 2026 07 31`, cioe' in una query
+// che risponde qualcosa di plausibile invece di essere rifiutata — un errore
+// silenzioso al posto di uno rumoroso, che e' lo scambio peggiore. Il controllo
+// di forma resta quindi accanto a quello sul nome: un `--data` scritto in un
+// modo che nessuno riconosce non viene ne' ripulito ne' spedito di nascosto.
+var reFormaData = regexp.MustCompile(`^(?:\d+|\d{6}/\d{6}|\d{4}-\d{2}-\d{2}(?::\d{4}-\d{2}-\d{2})?)$`)
+
+func formaData(v string) bool {
+	return reFormaData.MatchString(v)
+}
+
+// CampoIdentificativo dice se il valore di quel parametro e' un identificativo
+// scritto a gruppi, dove la punteggiatura e' formattazione e non un confine di
+// parola.
+//
+// E' l'eccezione alla regola generale, e non si deduce dalla forma del valore:
+// due campi numerici dello stesso archivio si comportano al contrario. Misurato
+// il 2026-09-06 sull'archivio 205:
+//
+//	--dewey "340.5"  -> `(340 5).DEWEY` trova 1 record: li' il punto separa
+//	                    davvero due token, e la riscrittura in spazio e' giusta.
+//	--isbn  "978-88-7524-166-7" -> `(978 88 7524 166 7).ISBN` trova 0, mentre
+//	                    `9788875241667.ISBN` trova il record: quell'ISBN sta
+//	                    nell'indice come un token solo.
+//
+// L'archivio pero' non e' coerente con se stesso — un altro record porta
+// `978 88 98231-25-6`, spazi e trattini insieme, e li' vale l'opposto: la forma
+// unita trova 0 e quella a spazi trova il record. Nessuna delle due riscritture
+// da sola copre il catalogo, quindi si spediscono entrambe in OR (vedi
+// EspressioneIdentificativo). Verificato sui due record: l'OR li trova tutti e
+// due, ciascuna forma da sola ne perde uno.
+func CampoIdentificativo(param string) bool {
+	return param == "isbn"
+}
+
+// EspressioneIdentificativo costruisce l'OR delle due grafie di un
+// identificativo: quella unita (`9788875241667`) e quella coi separatori resi
+// spazio (`978 88 7524 166 7`), che ISIS legge come adiacenza.
+func EspressioneIdentificativo(pulito string) string {
+	unito := strings.ReplaceAll(pulito, " ", "")
+	if unito == pulito {
+		return pulito // nessun separatore: una grafia sola, niente da unire
+	}
+	return fmt.Sprintf("(%s O (%s))", unito, pulito)
+}
+
+// ValoriRipuliti riporta, per una mappa di parametri, i caratteri che
+// ValoreRipulito toglierebbe. Serve al livello CLI per avvisare: la
+// riscrittura avviene dentro BuildQuery, dove non c'e' modo di parlare
+// all'utente (stessa divisione di FraseDegradata).
+func ValoriRipuliti(params map[string]string) (map[string][]string, bool) {
+	out := map[string][]string{}
+	for k, v := range params {
+		if _, rimossi := ValoreRipulito(k, v); len(rimossi) > 0 {
+			out[k] = rimossi
+		}
+	}
+	return out, len(out) > 0
 }

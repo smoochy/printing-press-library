@@ -9,8 +9,10 @@ import (
 
 func newSegmentsRecalculateCmd(flags *rootFlags) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "recalculate",
-		Short: "Manage recalculate",
+		Use:         "recalculate",
+		Short:       "Update recalculate for segments",
+		Annotations: map[string]string{"mcp:read-only": "true", "pp:parent-group": "true", "pp:typed-exit-codes": "0,2"},
+		RunE:        parentNoSubcommandRunE(flags),
 	}
 
 	cmd.AddCommand(newSegmentsRecalculateSegmentsCmd(flags))

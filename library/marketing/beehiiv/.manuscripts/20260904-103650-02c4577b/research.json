@@ -1,0 +1,271 @@
+{
+  "api_name": "beehiiv",
+  "novelty_score": 0,
+  "alternatives": [
+    {
+      "name": "beehiiv-pp-cli (prior print)",
+      "url": "https://github.com/mvanhorn/printing-press-library/tree/main/library/marketing/beehiiv",
+      "language": "Go",
+      "install_method": "",
+      "stars": 0,
+      "last_updated": "",
+      "command_count": 88,
+      "has_json_output": false,
+      "has_auth_support": false
+    },
+    {
+      "name": "deldrid1/beehiiv-cli",
+      "url": "https://github.com/deldrid1/beehiiv-cli",
+      "language": "Go",
+      "install_method": "",
+      "stars": 2,
+      "last_updated": "",
+      "command_count": 40,
+      "has_json_output": false,
+      "has_auth_support": false
+    },
+    {
+      "name": "Frozen-Software-LLC/mcp-beehiiv",
+      "url": "https://github.com/Frozen-Software-LLC/mcp-beehiiv",
+      "language": "TypeScript",
+      "install_method": "",
+      "stars": 0,
+      "last_updated": "",
+      "command_count": 78,
+      "has_json_output": false,
+      "has_auth_support": false
+    },
+    {
+      "name": "beehiiv/typescript-sdk",
+      "url": "https://github.com/beehiiv/typescript-sdk",
+      "language": "TypeScript",
+      "install_method": "",
+      "stars": 0,
+      "last_updated": "",
+      "command_count": 0,
+      "has_json_output": false,
+      "has_auth_support": false
+    }
+  ],
+  "gaps": [],
+  "patterns": [],
+  "recommendation": "proceed",
+  "researched_at": "2026-09-04T18:43:11Z",
+  "novel_features": [
+    {
+      "name": "Subscriber Sources",
+      "command": "insights subscriber-sources",
+      "description": "See exactly where new subscribers come from: UTM, channel, and referring site, grouped in one call.",
+      "rationale": "Requires grouping every synced subscription row locally; the API serves raw pages, not attribution rollups.",
+      "example": "beehiiv-pp-cli insights subscriber-sources pub_477b0b68-0ab1-4b3f-954e-d1f6302b58a7 --limit 20 --agent",
+      "why_it_matters": "Reach for this when a growth question needs source attribution without paging the full subscriber list through the API.",
+      "group": "Growth answers from the local store"
+    },
+    {
+      "name": "Post Performance",
+      "command": "insights post-performance",
+      "description": "Review recent sends with status, timing, and expanded stats in one compact table.",
+      "rationale": "Joins the synced posts table, including aggregate-stats fields, instead of calling per-post endpoints.",
+      "example": "beehiiv-pp-cli insights post-performance pub_477b0b68-0ab1-4b3f-954e-d1f6302b58a7 --limit 10 --agent",
+      "why_it_matters": "Reach for this after a send to review performance without burning per-post API calls.",
+      "group": "Growth answers from the local store"
+    },
+    {
+      "name": "Referral Health",
+      "command": "insights referral-health",
+      "description": "Check referral-program config and how many subscribers actually carry referral codes.",
+      "rationale": "Joins publication referral settings with subscriber code coverage; no single API call serves both.",
+      "example": "beehiiv-pp-cli insights referral-health pub_477b0b68-0ab1-4b3f-954e-d1f6302b58a7 --agent",
+      "why_it_matters": "Reach for this when tuning referral loops to see configuration versus real coverage.",
+      "group": "Growth answers from the local store"
+    },
+    {
+      "name": "Subscriber Lookup",
+      "command": "insights subscriber-lookup",
+      "description": "Find one subscriber by email or subscription ID and get a compact record instantly.",
+      "rationale": "Resolves from the local store offline; no API round trip and no rate-limit cost.",
+      "example": "beehiiv-pp-cli insights subscriber-lookup pub_477b0b68-0ab1-4b3f-954e-d1f6302b58a7 reader@example.com --agent --select subscription.email,subscription.status",
+      "why_it_matters": "Reach for this for support questions about a single subscriber when offline speed matters.",
+      "group": "Growth answers from the local store"
+    },
+    {
+      "name": "Churn Sources",
+      "command": "insights churn-sources",
+      "description": "See which sources, channels, and campaigns drive unsubscribes.",
+      "rationale": "Filters synced subscriptions to unsubscribed and groups by acquisition fields locally; the API has no churn-attribution endpoint.",
+      "example": "beehiiv-pp-cli insights churn-sources pub_477b0b68-0ab1-4b3f-954e-d1f6302b58a7 --limit 20 --agent",
+      "why_it_matters": "Reach for this when unsubscribes spike and you need the offending channel fast.",
+      "group": "Growth answers from the local store"
+    },
+    {
+      "name": "Send-Times",
+      "command": "insights send-times",
+      "description": "Find your best send slot: open rate by weekday and hour from your own history.",
+      "rationale": "Buckets synced post send timestamps and joins aggregate stats; no API endpoint serves time-slot rollups.",
+      "example": "beehiiv-pp-cli insights send-times pub_477b0b68-0ab1-4b3f-954e-d1f6302b58a7 --agent",
+      "why_it_matters": "Reach for this when scheduling the next send and you want evidence over habit.",
+      "group": "Growth answers from the local store"
+    },
+    {
+      "name": "Compare Publications",
+      "command": "insights compare-publications",
+      "description": "Side-by-side growth and engagement across every synced publication.",
+      "rationale": "Rolls up publications, subscriptions, and posts across publications locally; the API reports per publication only.",
+      "example": "beehiiv-pp-cli insights compare-publications --agent --select publications.name,publications.net_growth",
+      "why_it_matters": "Reach for this when managing several publications and a client report needs one comparison table.",
+      "group": "Growth answers from the local store"
+    }
+  ],
+  "novel_features_built": [
+    {
+      "name": "Subscriber Sources",
+      "command": "insights subscriber-sources",
+      "description": "See exactly where new subscribers come from: UTM, channel, and referring site, grouped in one call.",
+      "rationale": "Requires grouping every synced subscription row locally; the API serves raw pages, not attribution rollups.",
+      "example": "beehiiv-pp-cli insights subscriber-sources pub_477b0b68-0ab1-4b3f-954e-d1f6302b58a7 --limit 20 --agent",
+      "why_it_matters": "Reach for this when a growth question needs source attribution without paging the full subscriber list through the API.",
+      "group": "Growth answers from the local store"
+    },
+    {
+      "name": "Post Performance",
+      "command": "insights post-performance",
+      "description": "Review recent sends with status, timing, and expanded stats in one compact table.",
+      "rationale": "Joins the synced posts table, including aggregate-stats fields, instead of calling per-post endpoints.",
+      "example": "beehiiv-pp-cli insights post-performance pub_477b0b68-0ab1-4b3f-954e-d1f6302b58a7 --limit 10 --agent",
+      "why_it_matters": "Reach for this after a send to review performance without burning per-post API calls.",
+      "group": "Growth answers from the local store"
+    },
+    {
+      "name": "Referral Health",
+      "command": "insights referral-health",
+      "description": "Check referral-program config and how many subscribers actually carry referral codes.",
+      "rationale": "Joins publication referral settings with subscriber code coverage; no single API call serves both.",
+      "example": "beehiiv-pp-cli insights referral-health pub_477b0b68-0ab1-4b3f-954e-d1f6302b58a7 --agent",
+      "why_it_matters": "Reach for this when tuning referral loops to see configuration versus real coverage.",
+      "group": "Growth answers from the local store"
+    },
+    {
+      "name": "Subscriber Lookup",
+      "command": "insights subscriber-lookup",
+      "description": "Find one subscriber by email or subscription ID and get a compact record instantly.",
+      "rationale": "Resolves from the local store offline; no API round trip and no rate-limit cost.",
+      "example": "beehiiv-pp-cli insights subscriber-lookup pub_477b0b68-0ab1-4b3f-954e-d1f6302b58a7 reader@example.com --agent --select subscription.email,subscription.status",
+      "why_it_matters": "Reach for this for support questions about a single subscriber when offline speed matters.",
+      "group": "Growth answers from the local store"
+    },
+    {
+      "name": "Churn Sources",
+      "command": "insights churn-sources",
+      "description": "See which sources, channels, and campaigns drive unsubscribes.",
+      "rationale": "Filters synced subscriptions to unsubscribed and groups by acquisition fields locally; the API has no churn-attribution endpoint.",
+      "example": "beehiiv-pp-cli insights churn-sources pub_477b0b68-0ab1-4b3f-954e-d1f6302b58a7 --limit 20 --agent",
+      "why_it_matters": "Reach for this when unsubscribes spike and you need the offending channel fast.",
+      "group": "Growth answers from the local store"
+    },
+    {
+      "name": "Send-Times",
+      "command": "insights send-times",
+      "description": "Find your best send slot: open rate by weekday and hour from your own history.",
+      "rationale": "Buckets synced post send timestamps and joins aggregate stats; no API endpoint serves time-slot rollups.",
+      "example": "beehiiv-pp-cli insights send-times pub_477b0b68-0ab1-4b3f-954e-d1f6302b58a7 --agent",
+      "why_it_matters": "Reach for this when scheduling the next send and you want evidence over habit.",
+      "group": "Growth answers from the local store"
+    },
+    {
+      "name": "Compare Publications",
+      "command": "insights compare-publications",
+      "description": "Side-by-side growth and engagement across every synced publication.",
+      "rationale": "Rolls up publications, subscriptions, and posts across publications locally; the API reports per publication only.",
+      "example": "beehiiv-pp-cli insights compare-publications --agent --select publications.name,publications.net_growth",
+      "why_it_matters": "Reach for this when managing several publications and a client report needs one comparison table.",
+      "group": "Growth answers from the local store"
+    }
+  ],
+  "auth": {
+    "canonical_env_var": "BEEHIIV_API_KEY"
+  },
+  "narrative": {
+    "display_name": "Beehiiv",
+    "headline": "Sync your Beehiiv audience to a local database and answer growth questions offline in one command.",
+    "value_prop": "Beehiiv-pp-cli mirrors publications, subscribers, segments, posts, podcasts, and more into SQLite. Insights commands compute source attribution, churn sources, send-time performance, and cross-publication comparisons with zero API calls. The full v2 surface, including 2026-09 additions like podcasts, exports, and complimentary access, ships as typed commands with dry-run and agent output.",
+    "auth_narrative": "Create an API key at app.beehiiv.com (Settings \u003e API Keys) and export BEEHIIV_API_KEY. The key is a bearer token scoped to your organization; 180 requests per minute are shared per org.",
+    "quickstart": [
+      {
+        "command": "beehiiv-pp-cli doctor --dry-run",
+        "comment": "Verify the binary and auth wiring without calling the API"
+      },
+      {
+        "command": "beehiiv-pp-cli sync --resources publications,subscriptions,posts --max-pages 50",
+        "comment": "Mirror the growth-critical entities into local SQLite"
+      },
+      {
+        "command": "beehiiv-pp-cli search \"welcome\" --type posts --limit 5",
+        "comment": "Full-text search across synced posts offline"
+      },
+      {
+        "command": "beehiiv-pp-cli insights growth-summary pub_477b0b68-0ab1-4b3f-954e-d1f6302b58a7",
+        "comment": "One-command health snapshot computed from the local store"
+      }
+    ],
+    "troubleshoots": [
+      {
+        "symptom": "401 INVALID_API_KEY on every call",
+        "fix": "export BEEHIIV_API_KEY=\u003ckey from app.beehiiv.com settings\u003e"
+      },
+      {
+        "symptom": "429 Too Many Requests",
+        "fix": "The CLI applies adaptive backoff; wait for the Retry-After window and reduce concurrent jobs"
+      },
+      {
+        "symptom": "List endpoints cap at page 100",
+        "fix": "Use cursor pagination; the CLI sync already prefers cursor tokens"
+      },
+      {
+        "symptom": "Export download_url is null",
+        "fix": "Poll beehiiv-pp-cli exports subscription-show \u003cpublicationId\u003e \u003cid\u003e until status is completed, then read download_url"
+      }
+    ],
+    "when_to_use": "Use this CLI for offline audience analytics, bulk subscriber operations, scripting, and CI pipelines. Use it when you want agent-ready JSON output with select/compact/quiet modes and a local store that answers growth questions without API calls.",
+    "anti_triggers": [
+      "Do not use this CLI for beehiv documentation search; use the official docs MCP at developers.beehiiv.com/_mcp/server",
+      "Do not use this CLI for OAuth app authorization flows; it is an API-key client",
+      "Creating a post with confirmed status and no scheduled_at publishes (sends) immediately; use --dry-run first to inspect the request"
+    ],
+    "recipes": [
+      {
+        "title": "Mirror the audience",
+        "command": "beehiiv-pp-cli sync --resources publications,subscriptions,segments,posts --max-pages 100",
+        "explanation": "Cursor-paginated sync of the four growth-critical entities into SQLite."
+      },
+      {
+        "title": "Agent-ready growth snapshot",
+        "command": "beehiiv-pp-cli insights growth-summary pub_477b0b68-0ab1-4b3f-954e-d1f6302b58a7 --agent",
+        "explanation": "Single read-only health summary computed from the local store."
+      },
+      {
+        "title": "Narrow a deep lookup",
+        "command": "beehiiv-pp-cli insights subscriber-lookup pub_477b0b68-0ab1-4b3f-954e-d1f6302b58a7 reader@example.com --agent --select subscription.email,subscription.status",
+        "explanation": "Pair --agent with --select dotted paths to return only the fields an agent needs."
+      },
+      {
+        "title": "Attribute a churn spike",
+        "command": "beehiiv-pp-cli insights churn-sources pub_477b0b68-0ab1-4b3f-954e-d1f6302b58a7 --limit 20",
+        "explanation": "Group unsubscribes by source, channel, UTM, and referrer offline."
+      },
+      {
+        "title": "Ship a subscriber CSV",
+        "command": "beehiiv-pp-cli search \"@example.com\" --type subscriptions --limit 1000 --csv \u003e subscribers.csv",
+        "explanation": "Every list and search command emits CSV for spreadsheets."
+      }
+    ],
+    "trigger_phrases": [
+      "check my beehiiv growth",
+      "subscriber sources",
+      "which send time works best",
+      "compare my publications",
+      "lookup subscriber email",
+      "use beehiiv",
+      "run beehiiv"
+    ]
+  }
+}

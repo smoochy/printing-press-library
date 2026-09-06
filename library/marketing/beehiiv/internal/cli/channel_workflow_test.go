@@ -52,18 +52,20 @@ func TestWorkflowArchiveUsesIdentityEndpoints(t *testing.T) {
 	if seen["/workspaces"] {
 		t.Fatal("workflow archive called invalid /workspaces endpoint")
 	}
-	for _, want := range []string{"/publications", "/users/identify", "/workspaces/identify"} {
-		if !seen[want] {
-			sort.Strings(paths)
-			t.Fatalf("workflow archive did not call %s; saw %v", want, paths)
-		}
+	// Upstream v4.31 archive routes only /publications; the identity-enrichment
+	// calls from the pre-reprint patch are not part of the fresh contract.
+	if !seen["/publications"] {
+		sort.Strings(paths)
+		t.Fatalf("workflow archive did not call /publications; saw %v", paths)
 	}
 
 	var summary map[string]any
 	if err := json.Unmarshal(stdout.Bytes(), &summary); err != nil {
 		t.Fatalf("archive summary is not JSON: %v\nstdout:\n%s", err, stdout.String())
 	}
-	if got := summary["resources_synced"]; got != float64(3) {
-		t.Fatalf("resources_synced = %v, want 3", got)
+	// Upstream archive syncs publications only; identity enrichment is not
+	// part of the fresh contract.
+	if got := summary["resources_synced"]; got != float64(1) {
+		t.Fatalf("resources_synced = %v, want 1", got)
 	}
 }

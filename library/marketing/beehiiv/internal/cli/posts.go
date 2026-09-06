@@ -9,8 +9,10 @@ import (
 
 func newPostsCmd(flags *rootFlags) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "posts",
-		Short: "Manage posts",
+		Use:         "posts",
+		Short:       "Get, create, update, and delete posts",
+		Annotations: map[string]string{"mcp:read-only": "true", "pp:parent-group": "true", "pp:api-resource": "true", "pp:typed-exit-codes": "0,2"},
+		RunE:        parentNoSubcommandRunE(flags),
 	}
 
 	cmd.AddCommand(newPostsAggregateStatsCmd(flags))
@@ -19,5 +21,7 @@ func newPostsCmd(flags *rootFlags) *cobra.Command {
 	cmd.AddCommand(newPostsIndexCmd(flags))
 	cmd.AddCommand(newPostsShowCmd(flags))
 	cmd.AddCommand(newPostsUpdateCmd(flags))
+	cmd.AddCommand(newPostsPreviewCmd(flags))
+	cmd.AddCommand(newPostsTestSendsCmd(flags))
 	return cmd
 }

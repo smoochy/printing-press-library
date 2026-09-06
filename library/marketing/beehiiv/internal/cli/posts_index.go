@@ -30,11 +30,23 @@ func newPostsIndexCmd(flags *rootFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "index <publicationId>",
 		Short:       "List posts <Badge intent='info' minimal outlined>OAuth Scope: posts:read</Badge>",
-		Example:     "  beehiiv-pp-cli posts index 550e8400-e29b-41d4-a716-446655440000",
+		Example:     "  beehiiv-pp-cli posts index pub_00000000-0000-0000-0000-000000000000",
 		Annotations: map[string]string{"pp:endpoint": "posts.index", "pp:method": "GET", "pp:path": "/publications/{publicationId}/posts", "mcp:read-only": "true"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return cmd.Help()
+				// A missing required positional is a usage error in every output
+				// mode (matches command_promoted.go.tmpl). Machine callers
+				// (--json/--agent) also get a JSON error envelope on stdout;
+				// usageErr sets exit 2.
+				if flags.asJSON {
+					if printErr := printJSONFiltered(cmd.OutOrStdout(), map[string]any{
+						"error": "missing required argument",
+						"usage": fmt.Sprintf("%s%s", cmd.CommandPath(), " <publicationId>"),
+					}, flags); printErr != nil {
+						return printErr
+					}
+				}
+				return usageErr(fmt.Errorf("missing required argument\nUsage: %s%s", cmd.CommandPath(), " <publicationId>"))
 			}
 			if cmd.Flags().Changed("audience") {
 				allowedAudience := []string{"free", "premium", "all"}
@@ -46,7 +58,7 @@ func newPostsIndexCmd(flags *rootFlags) *cobra.Command {
 					}
 				}
 				if !validAudience {
-					fmt.Fprintf(os.Stderr, "warning: --%s %q not in allowed set %v\n", "audience", flagAudience, allowedAudience)
+					return fmt.Errorf("invalid value %q for --%s: must be one of %v", flagAudience, "audience", allowedAudience)
 				}
 			}
 			if cmd.Flags().Changed("platform") {
@@ -59,7 +71,7 @@ func newPostsIndexCmd(flags *rootFlags) *cobra.Command {
 					}
 				}
 				if !validPlatform {
-					fmt.Fprintf(os.Stderr, "warning: --%s %q not in allowed set %v\n", "platform", flagPlatform, allowedPlatform)
+					return fmt.Errorf("invalid value %q for --%s: must be one of %v", flagPlatform, "platform", allowedPlatform)
 				}
 			}
 			if cmd.Flags().Changed("status") {
@@ -72,7 +84,7 @@ func newPostsIndexCmd(flags *rootFlags) *cobra.Command {
 					}
 				}
 				if !validStatus {
-					fmt.Fprintf(os.Stderr, "warning: --%s %q not in allowed set %v\n", "status", flagStatus, allowedStatus)
+					return fmt.Errorf("invalid value %q for --%s: must be one of %v", flagStatus, "status", allowedStatus)
 				}
 			}
 			if cmd.Flags().Changed("order-by") {
@@ -85,7 +97,7 @@ func newPostsIndexCmd(flags *rootFlags) *cobra.Command {
 					}
 				}
 				if !validOrderBy {
-					fmt.Fprintf(os.Stderr, "warning: --%s %q not in allowed set %v\n", "order-by", flagOrderBy, allowedOrderBy)
+					return fmt.Errorf("invalid value %q for --%s: must be one of %v", flagOrderBy, "order-by", allowedOrderBy)
 				}
 			}
 			if cmd.Flags().Changed("direction") {
@@ -98,7 +110,7 @@ func newPostsIndexCmd(flags *rootFlags) *cobra.Command {
 					}
 				}
 				if !validDirection {
-					fmt.Fprintf(os.Stderr, "warning: --%s %q not in allowed set %v\n", "direction", flagDirection, allowedDirection)
+					return fmt.Errorf("invalid value %q for --%s: must be one of %v", flagDirection, "direction", allowedDirection)
 				}
 			}
 			if cmd.Flags().Changed("hidden-from-feed") {
@@ -111,51 +123,74 @@ func newPostsIndexCmd(flags *rootFlags) *cobra.Command {
 					}
 				}
 				if !validHiddenFromFeed {
-					fmt.Fprintf(os.Stderr, "warning: --%s %q not in allowed set %v\n", "hidden-from-feed", flagHiddenFromFeed, allowedHiddenFromFeed)
+					return fmt.Errorf("invalid value %q for --%s: must be one of %v", flagHiddenFromFeed, "hidden-from-feed", allowedHiddenFromFeed)
 				}
 			}
+			path := "/publications/{publicationId}/posts"
+			if len(args) < 1 || args[0] == "" {
+				return usageErr(fmt.Errorf("publicationId is required\nUsage: %s <%s>", cmd.CommandPath(), "publicationId"))
+			}
+			path = replacePathParam(path, "publicationId", args[0])
 			c, err := flags.newClient()
 			if err != nil {
 				return err
 			}
-
-			path := "/publications/{publicationId}/posts"
-			path = replacePathParam(path, "publicationId", args[0])
-			data, prov, err := resolvePaginatedRead(cmd.Context(), c, flags, "posts", path, map[string]string{
-				"expand":           fmt.Sprintf("%v", flagExpand),
-				"audience":         fmt.Sprintf("%v", flagAudience),
-				"platform":         fmt.Sprintf("%v", flagPlatform),
-				"status":           fmt.Sprintf("%v", flagStatus),
-				"content_tags[]":   fmt.Sprintf("%v", flagContentTags),
-				"slugs[]":          fmt.Sprintf("%v", flagSlugs),
-				"authors[]":        fmt.Sprintf("%v", flagAuthors),
-				"premium_tiers":    fmt.Sprintf("%v", flagPremiumTiers),
-				"limit":            fmt.Sprintf("%v", flagLimit),
-				"page":             fmt.Sprintf("%v", flagPage),
-				"order_by":         fmt.Sprintf("%v", flagOrderBy),
-				"direction":        fmt.Sprintf("%v", flagDirection),
-				"hidden_from_feed": fmt.Sprintf("%v", flagHiddenFromFeed),
-			}, nil, flagAll, "", "", "")
-			if err != nil {
-				return classifyAPIError(err, flags)
+			if flagExpand != "" {
+				path = appendArrayQueryParam(path, "expand", flagExpand, "form", true)
 			}
-			// Print provenance to stderr for human-facing output
-			{
+			if flagContentTags != "" {
+				path = appendArrayQueryParam(path, "content_tags[]", flagContentTags, "form", true)
+			}
+			if flagSlugs != "" {
+				path = appendArrayQueryParam(path, "slugs[]", flagSlugs, "form", true)
+			}
+			if flagAuthors != "" {
+				path = appendArrayQueryParam(path, "authors[]", flagAuthors, "form", true)
+			}
+			if flagPremiumTiers != "" {
+				path = appendArrayQueryParam(path, "premium_tiers", flagPremiumTiers, "form", true)
+			}
+			data, prov, err := resolvePaginatedReadWithStrategy(cmd.Context(), c, flags, "live", "posts", path, map[string]string{
+				"audience":         formatCLIParamValue(flagAudience),
+				"platform":         formatCLIParamValue(flagPlatform),
+				"status":           formatCLIParamValue(flagStatus),
+				"limit":            formatCLIParamValue(flagLimit),
+				"page":             formatCLIParamValue(flagPage),
+				"order_by":         formatCLIParamValue(flagOrderBy),
+				"direction":        formatCLIParamValue(flagDirection),
+				"hidden_from_feed": formatCLIParamValue(flagHiddenFromFeed),
+			}, nil, flagAll, "page", "page", "limit", 0, "", "", "data", cmd.ErrOrStderr())
+			if err != nil {
+				return classifyAPIError(cmd.OutOrStdout(), err, flags)
+			}
+			outputData := collectionItemsForOutput(data, path)
+			// Print provenance to stderr for human-facing output only.
+			// Machine-format flags (--json, --csv, --compact, --quiet, --plain,
+			// --select) and piped stdout suppress this line; the JSON envelope
+			// already carries meta.source for those consumers.
+			// SYNC: keep this gate aligned with command_promoted.go.tmpl.
+			if wantsHumanTable(cmd.OutOrStdout(), flags) {
 				var countItems []json.RawMessage
-				_ = json.Unmarshal(data, &countItems)
+				_ = json.Unmarshal(outputData, &countItems)
 				printProvenance(cmd, len(countItems), prov)
 			}
 			// For JSON output, wrap with provenance envelope before passing through flags.
 			// --select wins over --compact when both are set; --compact only runs when
-			// no explicit fields were requested.
-			if flags.asJSON || !isTerminal(cmd.OutOrStdout()) {
+			// no explicit fields were requested. Explicit format flags (--csv, --quiet,
+			// --plain) opt out of the auto-JSON path so piped consumers that asked for
+			// a non-JSON format reach the standard pipeline below.
+			if flags.asJSON || (!isTerminal(cmd.OutOrStdout()) && !flags.csv && !flags.quiet && !flags.plain) {
 				filtered := data
 				if flags.selectFields != "" {
 					filtered = filterFields(filtered, flags.selectFields)
 				} else if flags.compact {
-					filtered = compactFields(filtered)
+					filtered = compactFields(filtered, map[string]bool{"audience": true, "authors": true, "content": true, "content_tags": true, "created": true, "displayed_date": true, "email_capture_popup": true, "enforce_gated_content": true, "hidden_from_feed": true, "id": true, "meta_default_description": true, "meta_default_title": true, "newsletter_list_id": true, "platform": true, "preview_text": true, "publish_date": true, "slug": true, "split_tested": true, "stats": true, "status": true, "subject_line": true, "subtitle": true, "thumbnail_url": true, "title": true, "web_url": true})
 				}
 				wrapped, wrapErr := wrapWithProvenance(filtered, prov)
+				if wrapErr != nil {
+					return wrapErr
+				}
+				wrapped, wrapErr = wrapPlatformStructuredOutput(wrapped, flags, "results", true)
 				if wrapErr != nil {
 					return wrapErr
 				}
@@ -164,7 +199,7 @@ func newPostsIndexCmd(flags *rootFlags) *cobra.Command {
 			// For all other output modes (table, csv, plain, quiet), use the standard pipeline
 			if wantsHumanTable(cmd.OutOrStdout(), flags) {
 				var items []map[string]any
-				if json.Unmarshal(data, &items) == nil && len(items) > 0 {
+				if json.Unmarshal(outputData, &items) == nil && len(items) > 0 {
 					if err := printAutoTable(cmd.OutOrStdout(), items); err != nil {
 						return err
 					}
@@ -174,22 +209,26 @@ func newPostsIndexCmd(flags *rootFlags) *cobra.Command {
 					return nil
 				}
 			}
-			return printOutputWithFlags(cmd.OutOrStdout(), data, flags)
+			formatData := data
+			if flags.csv || flags.plain {
+				formatData = outputData
+			}
+			return printOutputWithFlagsMeta(cmd.OutOrStdout(), formatData, flags, map[string]any{"source": "live"}, map[string]bool{"audience": true, "authors": true, "content": true, "content_tags": true, "created": true, "displayed_date": true, "email_capture_popup": true, "enforce_gated_content": true, "hidden_from_feed": true, "id": true, "meta_default_description": true, "meta_default_title": true, "newsletter_list_id": true, "platform": true, "preview_text": true, "publish_date": true, "slug": true, "split_tested": true, "stats": true, "status": true, "subject_line": true, "subtitle": true, "thumbnail_url": true, "title": true, "web_url": true})
 		},
 	}
-	cmd.Flags().StringVar(&flagExpand, "expand", "", "Optionally expand the results by adding additional information. <br>`stats` - Adds statistics about the post(s)....")
+	cmd.Flags().StringVar(&flagExpand, "expand", "", "Optionally expand the results by adding additional information. `stats` - Adds statistics about the post(s).")
 	cmd.Flags().StringVar(&flagAudience, "audience", "", "Optionally filter the results by audience (one of: free, premium, all)")
-	cmd.Flags().StringVar(&flagPlatform, "platform", "", "Optionally filter the results by platform.<br>`web` - Posts only published to web.<br>`email` - Posts only published... (one of: web, email, both, all)")
-	cmd.Flags().StringVar(&flagStatus, "status", "", "Optionally filter the results by the status of the post.<br>`draft` - not been scheduled.<br>`confirmed` - The post... (one of: draft, confirmed, archived, all)")
-	cmd.Flags().StringVar(&flagContentTags, "content-tags", "", "Optionally filter posts by content_tags. Adding a content tag will return any post with that content tag associated...")
-	cmd.Flags().StringVar(&flagSlugs, "slugs", "", "Optionally filter posts by their slugs. Adding a slug will return any post with that exact slug associated to...")
-	cmd.Flags().StringVar(&flagAuthors, "authors", "", "Optionally filter posts by their authors. Adding an author name will return any post with that author associated to...")
-	cmd.Flags().StringVar(&flagPremiumTiers, "premium-tiers", "", "Optionally filter posts by audience based on premium tiers.<br> This takes in an array of Display Names of the...")
+	cmd.Flags().StringVar(&flagPlatform, "platform", "", "Optionally filter the results by platform. `web` - Posts only published to web. `email` - Posts only published to email. (one of: web, email, both, all)")
+	cmd.Flags().StringVar(&flagStatus, "status", "", "Optionally filter the results by the status of the post. `draft` - not been scheduled. (one of: draft, confirmed, archived, all)")
+	cmd.Flags().StringVar(&flagContentTags, "content-tags", "", "Optionally filter posts by content_tags.")
+	cmd.Flags().StringVar(&flagSlugs, "slugs", "", "Optionally filter posts by their slugs. Adding a slug will return any post with that exact slug associated to it.")
+	cmd.Flags().StringVar(&flagAuthors, "authors", "", "Optionally filter posts by their authors.")
+	cmd.Flags().StringVar(&flagPremiumTiers, "premium-tiers", "", "Optionally filter posts by audience based on premium tiers.")
 	cmd.Flags().IntVar(&flagLimit, "limit", 0, "A limit on the number of objects to be returned. The limit can range between 1 and 100, and the default is 10.")
-	cmd.Flags().StringVar(&flagPage, "page", "", "Pagination returns the results in pages. Each page contains the number of results specified by the `limit` (default:...")
-	cmd.Flags().StringVar(&flagOrderBy, "order-by", "", "The field that the results are sorted by. Defaults to created<br> `created` - The time in which the post was first... (one of: created, publish_date, displayed_date)")
-	cmd.Flags().StringVar(&flagDirection, "direction", "", "The direction that the results are sorted in. Defaults to asc<br> `asc` - Ascending, sorts from smallest to... (one of: asc, desc)")
-	cmd.Flags().StringVar(&flagHiddenFromFeed, "hidden-from-feed", "", "Optionally filter the results by the `hidden_from_feed` attribute of the post.<br>`all` - Does not restrict results... (one of: all, true, false)")
+	cmd.Flags().StringVar(&flagPage, "page", "", "Pagination returns the results in pages.")
+	cmd.Flags().StringVar(&flagOrderBy, "order-by", "", "The field that the results are sorted by. Defaults to created `created` - The time in which the post was first created. (one of: created, publish_date, displayed_date)")
+	cmd.Flags().StringVar(&flagDirection, "direction", "", "The direction that the results are sorted in. Defaults to asc `asc` - Ascending, sorts from smallest to largest. (one of: asc, desc)")
+	cmd.Flags().StringVar(&flagHiddenFromFeed, "hidden-from-feed", "", "Optionally filter the results by the `hidden_from_feed` attribute of the post. (one of: all, true, false)")
 	cmd.Flags().BoolVar(&flagAll, "all", false, "Fetch all pages")
 
 	return cmd

@@ -2049,9 +2049,9 @@
       "path": "library/other/ars-sicilia",
       "release": {
         "cli_name": "ars-sicilia-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-02T09:26:47Z",
-        "source_commit": "5d0ab8327e37afa2b30749755cf2cda7a19cf9c4"
+        "version": "2026.9.3",
+        "released_at": "2026-09-06T09:10:14Z",
+        "source_commit": "9f1f332dc3515f5cc26058596e39134a25b3ba62"
       },
       "printer": "aborruso",
       "printer_name": "aborruso",
@@ -2824,37 +2824,40 @@
     {
       "name": "beehiiv",
       "category": "marketing",
-      "api": "beehiiv",
+      "api": "Beehiiv",
       "description": "Manage beehiiv publications, subscribers, segments, posts, automations, and newsletter analytics from the terminal.",
       "search_terms": [
         "beehiiv",
         "beehiiv-pp-cli",
-        "Manage beehiiv publications, subscribers, segments, posts, automations, and newsletter analytics from the terminal.",
-        "Growth Summary",
-        "insights growth-summary",
-        "Summarize publication, subscriber, post, referral, and custom-field health in one read-only response.",
+        "Beehiiv v2 REST API. Auth: Bearer token via BEEHIIV_API_KEY. Rate limit: 180 requests per minute per organization.",
         "Subscriber Sources",
         "insights subscriber-sources",
-        "Group subscribers by UTM, channel, and referring-site fields to see where audience growth is coming from.",
+        "See exactly where new subscribers come from: UTM, channel, and referring site, grouped in one call.",
         "Post Performance",
         "insights post-performance",
-        "List recent posts with status, audience, publish timing, and any available expanded stats.",
-        "Field Coverage",
-        "insights field-coverage",
-        "Inspect custom-field definitions alongside subscriber sample size for enrichment planning.",
+        "Review recent sends with status, timing, and expanded stats in one compact table.",
         "Referral Health",
         "insights referral-health",
-        "Summarize referral-program configuration and subscriber referral-code coverage.",
+        "Check referral-program config and how many subscribers actually carry referral codes.",
         "Subscriber Lookup",
         "insights subscriber-lookup",
-        "Find one subscriber by email or subscription ID and return a compact subscriber record."
+        "Find one subscriber by email or subscription ID and get a compact record instantly.",
+        "Churn Sources",
+        "insights churn-sources",
+        "See which sources, channels, and campaigns drive unsubscribes.",
+        "Send-Times",
+        "insights send-times",
+        "Find your best send slot: open rate by weekday and hour from your own history.",
+        "Compare Publications",
+        "insights compare-publications",
+        "Side-by-side growth and engagement across every synced publication."
       ],
       "path": "library/marketing/beehiiv",
       "release": {
         "cli_name": "beehiiv-pp-cli",
-        "version": "2026.8.1",
-        "released_at": "2026-08-17T07:57:07Z",
-        "source_commit": "40363ac0936c4f406625f8399d8ad9b57673170e"
+        "version": "2026.9.1",
+        "released_at": "2026-09-06T09:14:25Z",
+        "source_commit": "0babe5d9363597c4f197d6c887c242bcc36696ba"
       },
       "printer": "kjmagnan1s",
       "printer_name": "Kevin Magnan",
@@ -2862,16 +2865,23 @@
         "handle": "kjmagnan1s",
         "name": "Kevin Magnan"
       },
+      "contributors": [
+        {
+          "handle": "jhigh1594",
+          "name": "Jon High"
+        }
+      ],
       "mcp": {
         "binary": "beehiiv-pp-mcp",
         "transports": [
-          "stdio"
+          "stdio",
+          "http"
         ],
-        "tool_count": 82,
+        "tool_count": 98,
         "public_tool_count": 0,
         "auth_type": "bearer_token",
         "env_vars": [
-          "BEEHIIV_BEARER_AUTH"
+          "PRINTING_PRESS_CLIENT_PROFILE"
         ],
         "mcp_ready": "full",
         "spec_format": "openapi3"
@@ -4953,9 +4963,9 @@
       "path": "library/productivity/concur",
       "release": {
         "cli_name": "concur-pp-cli",
-        "version": "2026.8.2",
-        "released_at": "2026-08-30T09:08:18Z",
-        "source_commit": "d97ee8c93245eee634bbf3f75541341e48fbfc44"
+        "version": "2026.9.2",
+        "released_at": "2026-09-06T09:06:17Z",
+        "source_commit": "eec5552f5eee386af9ab4f60fb492ead6ca542a8"
       },
       "printer": "enlewof",
       "printer_name": "Allen Lew",
@@ -6889,9 +6899,9 @@
       "path": "library/health/drug-enforcement",
       "release": {
         "cli_name": "drug-enforcement-pp-cli",
-        "version": "2026.8.2",
-        "released_at": "2026-08-17T08:21:18Z",
-        "source_commit": "bc4b586302c2f3040178080f61960f98fff3529d"
+        "version": "2026.9.2",
+        "released_at": "2026-09-06T09:10:14Z",
+        "source_commit": "ea94436293ef57bc4089a9359da8b52d11997eff"
       },
       "printer": "laci141",
       "printer_name": "laci141",
@@ -11016,9 +11026,9 @@
       "path": "library/health/grants",
       "release": {
         "cli_name": "grants-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-04T09:11:15Z",
-        "source_commit": "a914de3dd810f25d9d5f76cf910e6d158ac71050"
+        "version": "2026.9.2",
+        "released_at": "2026-09-05T09:20:11Z",
+        "source_commit": "586c652e455e90e5819ca354e6fb15af5935bd9f"
       },
       "printer": "laci141",
       "printer_name": "laci141",
@@ -15745,6 +15755,72 @@
         "env_vars": [],
         "mcp_ready": "full",
         "spec_format": "internal"
+      }
+    },
+    {
+      "name": "nccpl",
+      "category": "payments",
+      "api": "Nccpl",
+      "description": "Pakistan's clearing-layer data as a local research panel with a coverage audit and an arithmetic self-check, not another dashboard.",
+      "search_terms": [
+        "nccpl",
+        "nccpl-pp-cli",
+        "Pakistan's clearing-layer data as a local research panel with a coverage audit and an arithmetic self-check, not another dashboard.",
+        "Arithmetic invariant validator",
+        "verify",
+        "Prove a date's flow numbers are internally consistent before they reach a regression.",
+        "Per-resource coverage and gap ledger",
+        "coverage",
+        "List which sessions are missing per resource, how stale each one is, and how wide each date's data actually is.",
+        "Live endpoint self-test",
+        "contract-check",
+        "Assert every endpoint family still answers correctly for a date it just reported as its own latest.",
+        "Vintage-stamped research panel export",
+        "panel",
+        "Emit any synced resource as a tidy long-format panel, with gaps marked rather than filled.",
+        "Point-in-time symbol roster",
+        "universe",
+        "Reconstruct which symbols were listed and clearing-eligible on any past date.",
+        "Risk-parameter change detector",
+        "risk-changes",
+        "Date every step change in a symbol's free float, VAR margin and haircut.",
+        "Unified leverage and short-interest panel",
+        "leverage",
+        "Join MTS, MFS and MSF open positions with SLB net open position into one per-symbol cross-section.",
+        "Gate-free FIPI/LIPI flow feed",
+        "flows",
+        "Fetch daily FIPI/LIPI sector flows into the local store without a browser.",
+        "Browser-capture ingest",
+        "ingest",
+        "Load NCCPL responses captured through your own browser into the same local store.",
+        "Browser-assisted capture",
+        "capture",
+        "Fetch the gated NCCPL datasets through a controlled browser and store them locally; opt in with --launch, and add --headless to run with no window."
+      ],
+      "path": "library/payments/nccpl",
+      "release": {
+        "cli_name": "nccpl-pp-cli",
+        "version": "2026.9.1",
+        "released_at": "2026-09-06T09:10:14Z",
+        "source_commit": "7a2da781d990ccf0366e3975ad968752dda52eb2"
+      },
+      "printer": "qazmataz",
+      "printer_name": "qazmataz",
+      "creator": {
+        "handle": "qazmataz",
+        "name": "qazmataz"
+      },
+      "mcp": {
+        "binary": "nccpl-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 42,
+        "public_tool_count": 21,
+        "auth_type": "composed",
+        "env_vars": [],
+        "mcp_ready": "partial"
       }
     },
     {
@@ -20817,6 +20893,12 @@
         "Monitor a topic or reading list for newly-announced retractions since the last run."
       ],
       "path": "library/other/retraction-checker",
+      "release": {
+        "cli_name": "retraction-checker-pp-cli",
+        "version": "2026.9.1",
+        "released_at": "2026-09-06T09:10:14Z",
+        "source_commit": "7ae6bc744bf763a2531dc4371c10ad320ff0ee20"
+      },
       "printer": "laci141",
       "printer_name": "laci141",
       "creator": {
@@ -23420,9 +23502,9 @@
       "path": "library/payments/splitwise",
       "release": {
         "cli_name": "splitwise-pp-cli",
-        "version": "2026.8.1",
-        "released_at": "2026-08-17T07:57:07Z",
-        "source_commit": "40363ac0936c4f406625f8399d8ad9b57673170e"
+        "version": "2026.9.1",
+        "released_at": "2026-09-05T09:20:11Z",
+        "source_commit": "a53f809033e8810da500b950fd6d1e47541db54d"
       },
       "printer": "vinnyp",
       "printer_name": "Vinny Pasceri",
@@ -25308,9 +25390,9 @@
       "path": "library/developer-tools/thelancet",
       "release": {
         "cli_name": "thelancet-pp-cli",
-        "version": "2026.8.1",
-        "released_at": "2026-08-23T10:12:15Z",
-        "source_commit": "1a0cb603e4e6b53d46edcdd2c8c059e6da7e77ca"
+        "version": "2026.9.1",
+        "released_at": "2026-09-06T09:10:14Z",
+        "source_commit": "e8d13ce8e4d4d32055c9da370687662b5a18a449"
       },
       "printer": "laci141",
       "printer_name": "laci141",
@@ -27459,9 +27541,9 @@
       "path": "library/other/weather-goat",
       "release": {
         "cli_name": "weather-goat-pp-cli",
-        "version": "2026.8.1",
-        "released_at": "2026-08-17T07:57:07Z",
-        "source_commit": "40363ac0936c4f406625f8399d8ad9b57673170e"
+        "version": "2026.9.1",
+        "released_at": "2026-09-05T09:20:11Z",
+        "source_commit": "70976e594cc638bc06e3ad7703b4ab068f780a0f"
       },
       "printer": "tmchow",
       "printer_name": "Trevin Chow",

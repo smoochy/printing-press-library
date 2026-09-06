@@ -2,6 +2,10 @@
 
 This file is maintained by printing-press-library release automation. Do not hand-edit release sections in normal PRs.
 
+## 2026.9.2 - 2026-09-06
+
+- feat(drug-enforcement): wrap Product and Reason to the block's width budget (#1946).
+
 ## 2026.9.1 - 2026-09-05
 
 - feat(drug-enforcement): emit full code_info as wrapped Lots/Expiry (#1942).

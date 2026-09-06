@@ -9,8 +9,10 @@ import (
 
 func newAutomationsJourneysCmd(flags *rootFlags) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "journeys",
-		Short: "Manage journeys",
+		Use:         "journeys",
+		Short:       "Get and create journeys for automations",
+		Annotations: map[string]string{"mcp:read-only": "true", "pp:parent-group": "true", "pp:typed-exit-codes": "0,2"},
+		RunE:        parentNoSubcommandRunE(flags),
 	}
 
 	cmd.AddCommand(newAutomationsJourneysAutomationCreateCmd(flags))

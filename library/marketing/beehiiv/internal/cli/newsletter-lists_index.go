@@ -20,12 +20,24 @@ func newNewsletterListsIndexCmd(flags *rootFlags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "index <publicationId>",
 		Aliases:     []string{"get"},
-		Short:       "<Note title='Currently in beta' icon='b'> Newsletter Lists is currently in beta, the API is subject to change....",
-		Example:     "  beehiiv-pp-cli newsletter-lists index 550e8400-e29b-41d4-a716-446655440000",
+		Short:       "<Note title='Currently in beta' icon='b'> Newsletter Lists is currently in beta, the API is subject to change.",
+		Example:     "  beehiiv-pp-cli newsletter-lists index pub_00000000-0000-0000-0000-000000000000",
 		Annotations: map[string]string{"pp:endpoint": "newsletter-lists.index", "pp:method": "GET", "pp:path": "/publications/{publicationId}/newsletter_lists", "mcp:read-only": "true"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return cmd.Help()
+				// A missing required positional is a usage error in every output
+				// mode (matches command_promoted.go.tmpl). Machine callers
+				// (--json/--agent) also get a JSON error envelope on stdout;
+				// usageErr sets exit 2.
+				if flags.asJSON {
+					if printErr := printJSONFiltered(cmd.OutOrStdout(), map[string]any{
+						"error": "missing required argument",
+						"usage": fmt.Sprintf("%s%s", cmd.CommandPath(), " <publicationId>"),
+					}, flags); printErr != nil {
+						return printErr
+					}
+				}
+				return usageErr(fmt.Errorf("missing required argument\nUsage: %s%s", cmd.CommandPath(), " <publicationId>"))
 			}
 			if cmd.Flags().Changed("direction") {
 				allowedDirection := []string{"asc", "desc"}
@@ -37,41 +49,54 @@ func newNewsletterListsIndexCmd(flags *rootFlags) *cobra.Command {
 					}
 				}
 				if !validDirection {
-					fmt.Fprintf(os.Stderr, "warning: --%s %q not in allowed set %v\n", "direction", flagDirection, allowedDirection)
+					return fmt.Errorf("invalid value %q for --%s: must be one of %v", flagDirection, "direction", allowedDirection)
 				}
 			}
+			path := "/publications/{publicationId}/newsletter_lists"
+			if len(args) < 1 || args[0] == "" {
+				return usageErr(fmt.Errorf("publicationId is required\nUsage: %s <%s>", cmd.CommandPath(), "publicationId"))
+			}
+			path = replacePathParam(path, "publicationId", args[0])
 			c, err := flags.newClient()
 			if err != nil {
 				return err
 			}
-
-			path := "/publications/{publicationId}/newsletter_lists"
-			path = replacePathParam(path, "publicationId", args[0])
-			data, prov, err := resolvePaginatedRead(cmd.Context(), c, flags, "newsletter-lists", path, map[string]string{
-				"limit":     fmt.Sprintf("%v", flagLimit),
-				"page":      fmt.Sprintf("%v", flagPage),
-				"direction": fmt.Sprintf("%v", flagDirection),
-			}, nil, flagAll, "", "", "")
+			data, prov, err := resolvePaginatedReadWithStrategy(cmd.Context(), c, flags, "live", "newsletter-lists", path, map[string]string{
+				"limit":     formatCLIParamValue(flagLimit),
+				"page":      formatCLIParamValue(flagPage),
+				"direction": formatCLIParamValue(flagDirection),
+			}, nil, flagAll, "page", "page", "limit", 0, "", "", "data", cmd.ErrOrStderr())
 			if err != nil {
-				return classifyAPIError(err, flags)
+				return classifyAPIError(cmd.OutOrStdout(), err, flags)
 			}
-			// Print provenance to stderr for human-facing output
-			{
+			outputData := collectionItemsForOutput(data, path)
+			// Print provenance to stderr for human-facing output only.
+			// Machine-format flags (--json, --csv, --compact, --quiet, --plain,
+			// --select) and piped stdout suppress this line; the JSON envelope
+			// already carries meta.source for those consumers.
+			// SYNC: keep this gate aligned with command_promoted.go.tmpl.
+			if wantsHumanTable(cmd.OutOrStdout(), flags) {
 				var countItems []json.RawMessage
-				_ = json.Unmarshal(data, &countItems)
+				_ = json.Unmarshal(outputData, &countItems)
 				printProvenance(cmd, len(countItems), prov)
 			}
 			// For JSON output, wrap with provenance envelope before passing through flags.
 			// --select wins over --compact when both are set; --compact only runs when
-			// no explicit fields were requested.
-			if flags.asJSON || !isTerminal(cmd.OutOrStdout()) {
+			// no explicit fields were requested. Explicit format flags (--csv, --quiet,
+			// --plain) opt out of the auto-JSON path so piped consumers that asked for
+			// a non-JSON format reach the standard pipeline below.
+			if flags.asJSON || (!isTerminal(cmd.OutOrStdout()) && !flags.csv && !flags.quiet && !flags.plain) {
 				filtered := data
 				if flags.selectFields != "" {
 					filtered = filterFields(filtered, flags.selectFields)
 				} else if flags.compact {
-					filtered = compactFields(filtered)
+					filtered = compactFields(filtered, map[string]bool{"auto_subscribe": true, "created_at": true, "description": true, "id": true, "name": true, "slug": true, "status": true, "subscriber_count": true, "updated_at": true})
 				}
 				wrapped, wrapErr := wrapWithProvenance(filtered, prov)
+				if wrapErr != nil {
+					return wrapErr
+				}
+				wrapped, wrapErr = wrapPlatformStructuredOutput(wrapped, flags, "results", true)
 				if wrapErr != nil {
 					return wrapErr
 				}
@@ -80,7 +105,7 @@ func newNewsletterListsIndexCmd(flags *rootFlags) *cobra.Command {
 			// For all other output modes (table, csv, plain, quiet), use the standard pipeline
 			if wantsHumanTable(cmd.OutOrStdout(), flags) {
 				var items []map[string]any
-				if json.Unmarshal(data, &items) == nil && len(items) > 0 {
+				if json.Unmarshal(outputData, &items) == nil && len(items) > 0 {
 					if err := printAutoTable(cmd.OutOrStdout(), items); err != nil {
 						return err
 					}
@@ -90,12 +115,16 @@ func newNewsletterListsIndexCmd(flags *rootFlags) *cobra.Command {
 					return nil
 				}
 			}
-			return printOutputWithFlags(cmd.OutOrStdout(), data, flags)
+			formatData := data
+			if flags.csv || flags.plain {
+				formatData = outputData
+			}
+			return printOutputWithFlagsMeta(cmd.OutOrStdout(), formatData, flags, map[string]any{"source": "live"}, map[string]bool{"auto_subscribe": true, "created_at": true, "description": true, "id": true, "name": true, "slug": true, "status": true, "subscriber_count": true, "updated_at": true})
 		},
 	}
 	cmd.Flags().IntVar(&flagLimit, "limit", 0, "A limit on the number of objects to be returned. The limit can range between 1 and 100, and the default is 10.")
-	cmd.Flags().StringVar(&flagPage, "page", "", "Pagination returns the results in pages. Each page contains the number of results specified by the `limit` (default:...")
-	cmd.Flags().StringVar(&flagDirection, "direction", "", "The direction that the results are sorted in. Defaults to asc<br> `asc` - Ascending, sorts from smallest to... (one of: asc, desc)")
+	cmd.Flags().StringVar(&flagPage, "page", "", "Pagination returns the results in pages.")
+	cmd.Flags().StringVar(&flagDirection, "direction", "", "The direction that the results are sorted in. Defaults to asc `asc` - Ascending, sorts from smallest to largest. (one of: asc, desc)")
 	cmd.Flags().BoolVar(&flagAll, "all", false, "Fetch all pages")
 
 	return cmd

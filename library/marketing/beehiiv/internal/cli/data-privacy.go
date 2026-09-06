@@ -9,8 +9,10 @@ import (
 
 func newDataPrivacyCmd(flags *rootFlags) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "data-privacy",
-		Short: "Manage data privacy",
+		Use:         "data-privacy",
+		Short:       "Get and create data privacy",
+		Annotations: map[string]string{"mcp:read-only": "true", "pp:parent-group": "true", "pp:api-resource": "true", "pp:typed-exit-codes": "0,2"},
+		RunE:        parentNoSubcommandRunE(flags),
 	}
 
 	cmd.AddCommand(newDataPrivacyDataDeletionCreateCmd(flags))
