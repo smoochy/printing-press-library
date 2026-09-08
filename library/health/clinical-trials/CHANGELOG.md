@@ -2,6 +2,10 @@
 
 This file is maintained by printing-press-library release automation. Do not hand-edit release sections in normal PRs.
 
+## 2026.9.3 - 2026-09-07
+
+- clinical-trials: always emit phase on digest, similar, enrollment-check (#1957).
+
 ## 2026.9.2 - 2026-09-04
 
 - fix(clinical-trials): align the Go floor with its siblings and drop a dead toolchain line (#1924).

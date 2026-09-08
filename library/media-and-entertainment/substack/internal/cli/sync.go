@@ -508,7 +508,7 @@ func syncResource(ctx context.Context, c interface {
 	}
 
 	cursor := existingCursor
-	pageSize := determinePaginationDefaults()
+	pageSize := paginationForResource(resource)
 
 	var progressCount int64
 	pagesFetched := 0
@@ -806,6 +806,17 @@ func determinePaginationDefaults() paginationDefaults {
 	}
 }
 
+// paginationForResource returns the sync paginator for one resource.
+// GET /reader/subscriptions uses an opaque cursor, not the generated offset default.
+func paginationForResource(resource string) paginationDefaults {
+	pageSize := determinePaginationDefaults()
+	if resource == "reader" {
+		pageSize.cursorParam = "cursor"
+		pageSize.cursorType = "cursor"
+	}
+	return pageSize
+}
+
 // substackMaxPageSize is the largest limit Substack's list endpoints accept.
 // Anything above it is rejected with HTTP 400
 // {"errors":[{"location":"query","param":"limit","msg":"Invalid value"}]},
@@ -860,6 +871,8 @@ func resourceSupportsPagination(resource string) bool {
 	case "posts":
 		return true
 	case "posts-published":
+		return true
+	case "reader": // PATCH(reader-subscriptions-list): opaque cursor pages, not a single response.
 		return true
 	}
 	return false
@@ -1345,6 +1358,7 @@ func defaultSyncResources() []string {
 		"posts-published",
 		"posts-ranked",
 		"profiles",
+		"reader",
 		"sections",
 		"subs",
 		"tags",
@@ -1364,6 +1378,7 @@ func knownSyncResourceNames() []string {
 		"posts-published",
 		"posts-ranked",
 		"profiles",
+		"reader",
 		"sections",
 		"subs",
 		"tags",
@@ -1384,6 +1399,7 @@ func syncResourcePath(resource string) (string, error) {
 		"posts-published": publicationAPIPath("/post_management/published"),
 		"posts-ranked":    publicationAPIPath("/publication/users/ranked"),
 		"profiles":        "/handle/options",
+		"reader":          "/reader/subscriptions",
 		"sections":        publicationAPIPath("/subscriptions"),
 		"subs":            publicationAPIPath("/publication/users"),
 		"tags":            publicationAPIPath("/publication/post-tag"),
@@ -1403,7 +1419,10 @@ func syncResourcePath(resource string) (string, error) {
 // Includes both flat resources and dependent (parent-child) resources so
 // annotations on a child path-item are honored at runtime, not just on
 // flat paths.
-var resourceIDFieldOverrides = map[string]string{}
+var resourceIDFieldOverrides = map[string]string{
+	// PATCH(reader-subscriptions-list): GET /reader/subscriptions rows key on subscription_id.
+	"reader": "subscription_id",
+}
 
 // genericIDFieldFallbacks is the runtime safety net for resources that did
 // NOT receive a templated IDField. API-specific names belong in spec

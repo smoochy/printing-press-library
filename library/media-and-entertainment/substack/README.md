@@ -5,7 +5,7 @@
 Substack has no public API and the closed-source tools that work around it (WriteStack, StackSweller) stop at Notes scheduling and a heatmap. This CLI covers the read endpoints the community has reverse-engineered across the 8 wrappers we studied, plus rich authoring (30+ flags on `drafts create`/`update`, Markdown→ProseMirror conversion), a multi-publication portfolio layer (`portfolio sync` → `portfolio`, `posts best`, `grep`, `schedule board`, `subs churn`, `subs cross-sell`), and local-SQLite analytics. Every command is MCP-callable so an agent can drive the full publish → engage → measure → swap loop.
 
 Created by [@chirantan](https://github.com/chirantan) (Chirantan Rajhans).
-Contributors: [@JPresting](https://github.com/JPresting) (JimPresting), [@tmchow](https://github.com/tmchow) (Trevin Chow), [@MBemera](https://github.com/MBemera) (Matthew Bright).
+Contributors: [@JPresting](https://github.com/JPresting) (JimPresting), [@tmchow](https://github.com/tmchow) (Trevin Chow), [@MBemera](https://github.com/MBemera) (Matthew Bright), [@seunawoyele](https://github.com/seunawoyele) (Seun Awoyele).
 
 ## Install
 
@@ -639,6 +639,8 @@ Covered command paths:
 - `substack-pp-cli profiles get`
 - `substack-pp-cli profiles list`
 - `substack-pp-cli profiles search`
+- `substack-pp-cli reader`
+- `substack-pp-cli reader subscriptions`
 - `substack-pp-cli sections`
 - `substack-pp-cli sections get`
 - `substack-pp-cli sections list`

@@ -2,17 +2,17 @@
   "schema_version": 1,
   "slug": "clinical-trials",
   "cli_name": "clinical-trials-pp-cli",
-  "version": "2026.9.2",
-  "released_at": "2026-09-04T09:12:13Z",
-  "source_commit": "cdb82d44879717d53b854d803fdacbb0984fa689",
+  "version": "2026.9.3",
+  "released_at": "2026-09-07T09:12:02Z",
+  "source_commit": "180d417d93b026ff25494c27c077bac30ad447ba",
   "printing_press_version": "4.25.0",
   "run_id": "20260623-164233-df565e8d",
   "changes": [
     {
-      "title": "fix(clinical-trials): align the Go floor with its siblings and drop a dead toolchain line",
-      "pr": 1924,
-      "url": "https://github.com/mvanhorn/printing-press-library/pull/1924",
-      "commit": "cdb82d44879717d53b854d803fdacbb0984fa689"
+      "title": "clinical-trials: always emit phase on digest, similar, enrollment-check",
+      "pr": 1957,
+      "url": "https://github.com/mvanhorn/printing-press-library/pull/1957",
+      "commit": "180d417d93b026ff25494c27c077bac30ad447ba"
     }
   ]
 }

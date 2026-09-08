@@ -17,7 +17,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var version = "2026.8.1"
+var version = "2026.9.1"
 
 type rootFlags struct {
 	asJSON        bool
@@ -277,9 +277,7 @@ See README.md or the bundled SKILL.md for recipes.`,
 	rootCmd.AddCommand(newSyncCmd(flags))
 	rootCmd.AddCommand(newWorkflowCmd(flags))
 	rootCmd.AddCommand(newAPICmd(flags))
-	discoverCmd := newDiscoverPromotedCmd(flags)
-	discoverCmd.AddCommand(newDiscoverPatternsCmd(flags))
-	rootCmd.AddCommand(discoverCmd)
+	rootCmd.AddCommand(newDiscoverPromotedCmd(flags))
 	rootCmd.AddCommand(newFeedPromotedCmd(flags))
 	rootCmd.AddCommand(newImagesPromotedCmd(flags))
 	rootCmd.AddCommand(newRecommendationsPromotedCmd(flags))
@@ -294,6 +292,8 @@ See README.md or the bundled SKILL.md for recipes.`,
 	rootCmd.AddCommand(newPortfolioCmd(flags))
 	rootCmd.AddCommand(newGrepCmd(flags))
 	rootCmd.AddCommand(newScheduleCmd(flags))
+	// PATCH(reader-subscriptions-list): reader sub-tree for reader-side subscriptions.
+	rootCmd.AddCommand(newReaderCmd(flags))
 	return rootCmd
 }
 

@@ -4521,9 +4521,9 @@
       "path": "library/health/clinical-trials",
       "release": {
         "cli_name": "clinical-trials-pp-cli",
-        "version": "2026.9.2",
-        "released_at": "2026-09-04T09:12:13Z",
-        "source_commit": "cdb82d44879717d53b854d803fdacbb0984fa689"
+        "version": "2026.9.3",
+        "released_at": "2026-09-07T09:12:02Z",
+        "source_commit": "180d417d93b026ff25494c27c077bac30ad447ba"
       },
       "printer": "laci141",
       "printer_name": "laci141",
@@ -21984,26 +21984,31 @@
       "description": "Search Seats.aero award-flight availability, route coverage, mileage-program feeds, and trip details from the terminal.",
       "search_terms": [
         "seats-aero",
-        "Seats Aero Partner",
+        "Seats.aero",
         "seats-aero-pp-cli",
-        "Seats.aero Partner API for award travel availability, cached search, route lists, and trip revalidation details.",
-        "Seats.aero Partner API key from https://seats.aero/partner-api.",
-        "Award deal finder",
-        "seats-aero-partner-search",
-        "Find bookable award seats between airports with cabin, direct-flight, carrier, date, and lowest-mileage filters in one agent-safe command.",
-        "Program route atlas",
-        "routes",
-        "List every route tracked for a mileage program so agents can discover origin-destination coverage before searching availability.",
-        "Bulk award calendar",
-        "availability",
-        "Pull a mileage program availability feed by cabin, date window, and regions to build award calendars and destination shortlists."
+        "Every Seats.aero Partner API endpoint, plus a local award-availability store that tells you what is new, what is still live, and where your miles reach nonstop.",
+        "New-since award watch",
+        "new-since",
+        "See which award seats appeared on a route since you last looked, from your synced local data.",
+        "Credit-aware recheck",
+        "recheck",
+        "Re-verify aging award rows are still live right before booking. It performs one live quota probe per run (1 daily call), and --apply is refused when quota is unknown unless --ignore-quota is passed.",
+        "Cross-program direct-only scan",
+        "direct-scan",
+        "Find direct-flight award seats under a mileage ceiling across every synced program at once.",
+        "Cabin/date calendar matrix",
+        "calendar",
+        "Turn one route's synced availability into a date-by-cabin matrix you can scan at a glance.",
+        "Nonstop reach finder",
+        "reach",
+        "Discover where your miles can take you nonstop from one airport, ranked by cost and cross-checked against real dated seats."
       ],
       "path": "library/travel/seats-aero",
       "release": {
         "cli_name": "seats-aero-pp-cli",
-        "version": "2026.8.1",
-        "released_at": "2026-08-17T07:57:07Z",
-        "source_commit": "40363ac0936c4f406625f8399d8ad9b57673170e"
+        "version": "2026.9.1",
+        "released_at": "2026-09-07T09:13:30Z",
+        "source_commit": "eafbccd10603fb8bbd66cac152e7fe216efca1a5"
       },
       "printer": "cathrynlavery",
       "printer_name": "Cathryn Lavery",
@@ -22011,12 +22016,19 @@
         "handle": "cathrynlavery",
         "name": "Cathryn Lavery"
       },
+      "contributors": [
+        {
+          "handle": "vinnyp",
+          "name": "Vinny Pasceri"
+        }
+      ],
       "mcp": {
         "binary": "seats-aero-pp-mcp",
         "transports": [
-          "stdio"
+          "stdio",
+          "http"
         ],
-        "tool_count": 4,
+        "tool_count": 7,
         "public_tool_count": 0,
         "auth_type": "api_key",
         "env_vars": [
@@ -24160,6 +24172,10 @@
         {
           "handle": "MBemera",
           "name": "Matthew Bright"
+        },
+        {
+          "handle": "seunawoyele",
+          "name": "Seun Awoyele"
         }
       ],
       "mcp": {
@@ -27332,14 +27348,38 @@
         "Preview or apply a JSON0 operation array read from disk with --ops-file. Also: apply an ops-file batch of plan edits.",
         "Raw JSON0 escape hatch",
         "plan raw op",
-        "Preview or apply an explicit ShareDB JSON0 operation array."
+        "Preview or apply an explicit ShareDB JSON0 operation array.",
+        "Full itinerary block read",
+        "plan block get",
+        "Read a complete note, schedule and place details by stable block ID.",
+        "Semantic batch edits",
+        "plan edit",
+        "Preview and atomically apply named Markdown, label and schedule changes by block ID.",
+        "Saved travel legs",
+        "plan route legs",
+        "Read saved driving and walking durations and distances in itinerary order, missing coverage and explicit-mode schedule slack.",
+        "Saved place suggestions",
+        "plan suggestions",
+        "Read saved candidate places for an itinerary section without duplicating planned stops.",
+        "Efficient day planning",
+        "plan day",
+        "Read complete day constraints and saved travel in one deduplicated response, with opt-in verified local state changes.",
+        "Trip orientation",
+        "plan overview",
+        "Orient across every day with stop locations, schedules, saved travel, accommodation changes and global constraints.",
+        "Multi-day planning",
+        "plan days",
+        "Read full selected days with shared notes, reservations and place metadata represented once.",
+        "Batch itinerary creation",
+        "plan block add-batch",
+        "Validate and preview multiple stops, notes, checklists and schedules before one ShareDB transaction."
       ],
       "path": "library/travel/wanderlog",
       "release": {
         "cli_name": "wanderlog-pp-cli",
-        "version": "2026.8.2",
-        "released_at": "2026-08-25T09:27:30Z",
-        "source_commit": "5005e7bbdf918019ce36d2a5d17204a123eebfd4"
+        "version": "2026.9.1",
+        "released_at": "2026-09-07T09:13:30Z",
+        "source_commit": "855996abd7e6de374fe5f4059982dfdfbb91edbc"
       },
       "printer": "zjsng",
       "printer_name": "zjsng",

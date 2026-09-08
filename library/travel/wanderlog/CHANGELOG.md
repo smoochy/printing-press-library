@@ -2,6 +2,10 @@
 
 This file is maintained by printing-press-library release automation. Do not hand-edit release sections in normal PRs.
 
+## 2026.9.1 - 2026-09-07
+
+- feat(wanderlog): add efficient trip planning and reliable batch writes (#1955).
+
 ## 2026.8.2 - 2026-08-25
 
 - fix(wanderlog): harden ShareDB id generation, dry-run guards, and --check payload (#1803).
