@@ -2,6 +2,10 @@
 
 This file is maintained by printing-press-library release automation. Do not hand-edit release sections in normal PRs.
 
+## 2026.9.1 - 2026-09-08
+
+- feat(shelters): add shelters (#1963).
+
 ## 2026.8.2 - 2026-08-17
 
 - fix(cli): remove redundant toolchain directives (#1737).

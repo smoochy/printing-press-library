@@ -3045,6 +3045,59 @@
       "printer_name": "Allen Lew"
     },
     {
+      "name": "bing-webmaster",
+      "category": "developer-tools",
+      "api": "Bing Webmaster Tools",
+      "description": "The Bing Webmaster Tools API: manage sites, submit URLs, and read query/traffic/crawl/link stats from the Bing search index.",
+      "search_terms": [
+        "bing-webmaster",
+        "Bing Webmaster Tools",
+        "bing-webmaster-pp-cli",
+        "The Bing Webmaster Tools API: manage sites, submit URLs, and read query/traffic/crawl/link stats from the Bing search index.",
+        "Query-performance delta review",
+        "review",
+        "See which Bing queries you gained or lost, and how CTR and average position shifted, vs the previous period — not just a raw snapshot.",
+        "Ranking-drift detection",
+        "drift",
+        "Track average-position movement per query and page over time and surface the biggest climbers and droppers.",
+        "Quota-aware submission planning",
+        "publish plan",
+        "Read a real sitemap or URL file and live Bing quota, deduplicate the supplied URLs, and calculate quota-capped batches without submitting anything.",
+        "Crawl-error triage",
+        "triage",
+        "Categorize crawl issues by severity, diff them against your last sync, and map each issue to the affected child URLs in one view.",
+        "Submission quota intelligence",
+        "quota",
+        "One view of URL and content submission quota — daily and monthly remaining — plus a pacing recommendation.",
+        "Bing-vs-Google coverage gap",
+        "gap",
+        "Reconcile your Bing query/page performance against a Google Search Console export to find queries and pages you rank for on one engine but not the other.",
+        "Feed/sitemap health monitor",
+        "feed-health",
+        "Track submitted, discovered, and indexed counts for each feed over time and flag drops.",
+        "Indexation watch",
+        "watch",
+        "Diff the latest sync against the previous one and surface indexation, crawl, and impression regressions per site."
+      ],
+      "path": "library/developer-tools/bing-webmaster",
+      "printer": "Pimmetjeoss",
+      "printer_name": "Pimmetjeoss",
+      "mcp": {
+        "binary": "bing-webmaster-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 60,
+        "public_tool_count": 0,
+        "auth_type": "api_key",
+        "env_vars": [
+          "BING_WEBMASTER_API_KEY"
+        ],
+        "mcp_ready": "full"
+      }
+    },
+    {
       "name": "bird",
       "category": "social-and-messaging",
       "api": "Bird",
@@ -4065,6 +4118,62 @@
         "auth_type": "none",
         "env_vars": [],
         "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
+      "name": "cdc-pakistan",
+      "category": "payments",
+      "api": "CDC Pakistan",
+      "description": "The only machine-readable view of Pakistani custody data — per-security CDS penetration and a twenty-year eligibility record, from a source no tool has ever automated.",
+      "search_terms": [
+        "cdc-pakistan",
+        "CDC Pakistan",
+        "cdc-pakistan-pp-cli",
+        "The only machine-readable view of Pakistani custody data — per-security CDS penetration and a twenty-year eligibility record, from a source no tool has ever automated.",
+        "Coverage map + paginator integrity",
+        "coverage map",
+        "See exactly which document buckets are mirrored, which are genuinely absent at source, and which were never asked for.",
+        "Identity ledger and point-in-time resolve",
+        "identity ledger",
+        "Reconstruct a security's symbol, name and ISIN history so you never splice two different issuers into one return series.",
+        "CDS eligibility state machine",
+        "eligibility state",
+        "Get a security's full CDS-eligibility history folded from twenty years of notices into a six-state lifecycle.",
+        "Row-level extraction audit",
+        "verify rows",
+        "Prove the PDF extraction is trustworthy by asserting the report's own percentage column against its own share and capital columns.",
+        "Schema and seam gate",
+        "verify schema",
+        "Refuse to blend vintages whose column sets are incompatible, and refuse a month that is missing one of its parts.",
+        "Three-way float reconciliation",
+        "float triangulate",
+        "Put CDC custody penetration beside PSX free-float shares and NCCPL free-float percent, with each denominator named.",
+        "Per-symbol Government of Pakistan stake",
+        "gop stake",
+        "Derive state-held capital per security from the difference between the including-GoP and excluding-GoP capital columns.",
+        "Append-only statistics history",
+        "stats history",
+        "Track the sixteen CDS aggregate metrics forward from your first sync, with archived rows labelled as such."
+      ],
+      "path": "library/payments/cdc-pakistan",
+      "printer": "qazmataz",
+      "printer_name": "qazmataz",
+      "creator": {
+        "handle": "qazmataz",
+        "name": "qazmataz"
+      },
+      "mcp": {
+        "binary": "cdc-pakistan-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 3,
+        "public_tool_count": 0,
+        "auth_type": "cookie",
+        "env_vars": [],
+        "mcp_ready": "partial",
         "spec_format": "internal"
       }
     },
@@ -5400,6 +5509,12 @@
         "handle": "richie305",
         "name": "David Richie"
       },
+      "contributors": [
+        {
+          "handle": "prashantkamani",
+          "name": "Prashant Kamani"
+        }
+      ],
       "mcp": {
         "binary": "costco-pp-mcp",
         "transports": [
@@ -13488,6 +13603,63 @@
       }
     },
     {
+      "name": "keyword-planner",
+      "category": "marketing",
+      "api": "Google Keyword Planner",
+      "description": "Turn Google Keyword Planner reads into an immutable local evidence portfolio for offline research and safe warehouse handoff.",
+      "search_terms": [
+        "keyword-planner",
+        "Google Keyword Planner",
+        "keyword-planner-pp-cli",
+        "Turn Google Keyword Planner reads into an immutable local evidence portfolio for offline research and safe warehouse handoff.",
+        "Evidence trace",
+        "portfolio trace",
+        "Trace one stored monthly value back to the exact request and raw receipt that produced it.",
+        "Coverage accountability",
+        "portfolio coverage",
+        "See requested, returned, missing, unavailable, raw-only, and incomplete coverage for a saved collection.",
+        "Variant-aware lineage",
+        "portfolio variants",
+        "Follow submitted keywords through returned terms and close variants without double-counting demand.",
+        "Immutable snapshot diff",
+        "portfolio diff",
+        "Compare two preserved collections to see changed terms, monthly values, flags, and coverage.",
+        "Portfolio integrity check",
+        "portfolio integrity",
+        "Verify that raw receipts, hashes, normalized rows, and coverage still reconcile.",
+        "Policy-safe local statistics",
+        "portfolio safe-stats",
+        "Compute descriptive monthly aggregates while excluding unavailable, ambiguous, anomalous, and incomplete rows."
+      ],
+      "path": "library/marketing/keyword-planner",
+      "printer": "vieGPT",
+      "printer_name": "Max Michel",
+      "creator": {
+        "handle": "vieGPT",
+        "name": "Max Michel"
+      },
+      "mcp": {
+        "binary": "keyword-planner-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 28,
+        "public_tool_count": 0,
+        "auth_type": "oauth2_refresh",
+        "env_vars": [
+          "GOOGLE_ADS_CLIENT_ID",
+          "GOOGLE_ADS_CLIENT_SECRET",
+          "GOOGLE_ADS_REFRESH_TOKEN",
+          "GOOGLE_ADS_DEVELOPER_TOKEN",
+          "GOOGLE_ADS_CUSTOMER_ID",
+          "GOOGLE_ADS_LOGIN_CUSTOMER_ID"
+        ],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
       "name": "kie",
       "category": "ai",
       "api": "Kie.ai",
@@ -15514,6 +15686,67 @@
           "TMDB_API_KEY",
           "OMDB_API_KEY"
         ],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
+      "name": "mufap",
+      "category": "payments",
+      "api": "MUFAP",
+      "description": "Pakistan's mutual fund industry as a dated local panel: two decades of daily NAVs, monthly PKR asset allocation, and a market-implied short rate no other tool derives.",
+      "search_terms": [
+        "mufap",
+        "mufap-pp-cli",
+        "Pakistan's mutual fund industry as a dated local panel: two decades of daily NAVs, monthly PKR asset allocation, and a market-implied short rate no other tool derives.",
+        "Market-implied PKR short rate",
+        "rates",
+        "Derive a daily short-term interest rate series from the cross-section of money-market fund yields.",
+        "Mutual fund equity exposure",
+        "exposure",
+        "Total PKR the mutual fund industry holds in listed equities, by month, from per-fund asset allocation.",
+        "Dated panel backfill",
+        "backfill daily",
+        "Fetch the daily fund panel or monthly allocation across a date range into the local store.",
+        "Panel query",
+        "panel",
+        "Query the stored daily NAV and return panel by date, fund, category or sector.",
+        "Coverage ledger",
+        "coverage",
+        "Show which dates were fetched, which returned zero rows, and which were never attempted.",
+        "Arithmetic invariant check",
+        "verify allocation",
+        "Check that fund asset-class percentages net to 100 and flag months whose percent columns are unpopulated.",
+        "Universe width",
+        "universe",
+        "Report how many funds reported on each date, by sector and category.",
+        "Return dispersion",
+        "dispersion",
+        "Cross-sectional spread of fund returns within a category on each date.",
+        "Validity freshness audit",
+        "freshness",
+        "Detect funds whose published NAV validity date lags the requested date.",
+        "Bulk dump",
+        "dump",
+        "Dump the stored panel, allocation or coverage tables as JSONL for piping, a single JSON array for agents, or CSV."
+      ],
+      "path": "library/payments/mufap",
+      "printer": "qazmataz",
+      "printer_name": "qazmataz",
+      "creator": {
+        "handle": "qazmataz",
+        "name": "qazmataz"
+      },
+      "mcp": {
+        "binary": "mufap-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 9,
+        "public_tool_count": 9,
+        "auth_type": "none",
+        "env_vars": [],
         "mcp_ready": "full",
         "spec_format": "internal"
       }
@@ -21597,9 +21830,9 @@
       "path": "library/other/scientific-consensus",
       "release": {
         "cli_name": "scientific-consensus-pp-cli",
-        "version": "2026.8.13",
-        "released_at": "2026-08-30T09:12:06Z",
-        "source_commit": "24744f700c4257a7498dc099a02572ec69e3d637"
+        "version": "2026.9.1",
+        "released_at": "2026-09-08T09:24:30Z",
+        "source_commit": "2d5f11856e8864c0165d9cf603b6df5788c48dc9"
       },
       "printer": "laci141",
       "printer_name": "laci141",
@@ -22582,21 +22815,21 @@
       "search_terms": [
         "shelters",
         "shelters-pp-cli",
-        "Credible, real-time disaster shelter information for AI agents and people",
+        "Credible, real-time US (and territories) disaster shelter information, unioning FEMA OpenShelters and the American Red Cross feed, for AI agents and people",
         "Closest open shelter, including pet-friendly",
         "near",
-        "Ranks open shelters by straight-line distance from a lat,lon, ZIP, or street address; geocodes shelters that are missing coordinates and reports any it cannot locate rather than dropping them.",
+        "Ranks open shelters by straight-line distance from a lat,lon, ZIP, or street address; geocodes shelters that are missing coordinates and reports any it cannot locate rather than dropping them; filterable by pets, ADA, wheelchair, county/parish, and confirmed onsite generator.",
         "Honest capacity, never a fabricated denominator",
         "capacity",
         "Computes utilization only where both a population and a capacity are reported, labeling the denominator (evacuation vs post-impact), and surfaces shelters reported FULL without asserting it as ground truth.",
         "One-call situational briefing",
         "brief",
-        "One command returns the open count, a breakdown by state, pet-friendly and accessible counts, and the capacity picture, with an optional human briefing.",
+        "One command returns the open count, breakdowns by state and by the driving incident, pet-friendly and accessible counts, and the capacity picture, with an optional human briefing.",
         "Filtered open-shelter listing",
-        "Open shelters flattened from the feed and filterable by state, pets, ADA, wheelchair, managing org, and status.",
+        "Open shelters from the union of FEMA OpenShelters and the American Red Cross feed (deduped, each tagged with a source field: fema, redcross, or fema+redcross), flattened and filterable by state, pets, ADA, wheelchair, managing org, status, county/parish, and confirmed onsite generator; FEMA rows best-effort enriched with the richer FEMA_NSS/0 layer (county, the driving incident, generator and floodplain/surge attributes).",
         "Flattened shelter detail by stable id",
         "shelter",
-        "Full detail for one shelter joined on the stable shelter_id rather than the churning objectid, with unreported fields as explicit null."
+        "Full detail for one shelter joined on the stable shelter_id rather than the churning objectid, with unreported fields as explicit null; enriched with FEMA_NSS/0 fields (county, the driving incident, open date, generator, floodplain/surge, and the population breakdown) when reported."
       ],
       "path": "library/other/shelters",
       "release": {
@@ -24150,9 +24383,9 @@
       "path": "library/media-and-entertainment/substack",
       "release": {
         "cli_name": "substack-pp-cli",
-        "version": "2026.8.1",
-        "released_at": "2026-08-17T07:57:07Z",
-        "source_commit": "40363ac0936c4f406625f8399d8ad9b57673170e"
+        "version": "2026.9.1",
+        "released_at": "2026-09-07T10:00:27Z",
+        "source_commit": "5701d1eaf8c90f112a451c942eaf7cff3a701b27"
       },
       "printer": "chirantan",
       "printer_name": "Chirantan Rajhans",

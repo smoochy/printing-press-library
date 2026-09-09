@@ -1,0 +1,11 @@
+{
+  "schema_version": 2,
+  "id": "bing-fetch-mutation-safety",
+  "applied_at": "2026-09-07",
+  "base_run_id": "20260905-130559",
+  "base_printing_press_version": "4.31.7",
+  "summary": "Classify submission fetch as a mutation and use guarded POST transport.",
+  "reason": "FetchUrl requests server-side fetch work and returns void; it is not a read-only query. Live dogfood must test this command with dry-run rather than dispatching it as a read.",
+  "files": ["internal/cli/submission_fetch.go"],
+  "validated_outcome": "Full live runner recorded happy_path and json_fidelity with --dry-run, and skipped error_path_real as mutating command dry-run only."
+}

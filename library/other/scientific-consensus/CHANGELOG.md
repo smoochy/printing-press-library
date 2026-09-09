@@ -2,6 +2,10 @@
 
 This file is maintained by printing-press-library release automation. Do not hand-edit release sections in normal PRs.
 
+## 2026.9.1 - 2026-09-08
+
+- scientific-consensus: guard five untested edges of the controversies command (#1964).
+
 ## 2026.8.13 - 2026-08-30
 
 - feat(scientific-consensus): give the pyramid's example a DOI and a year (#1859).

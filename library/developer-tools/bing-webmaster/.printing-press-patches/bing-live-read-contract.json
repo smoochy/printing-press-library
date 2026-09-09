@@ -1,0 +1,11 @@
+{
+  "schema_version": 2,
+  "id": "bing-live-read-contract",
+  "applied_at": "2026-09-07",
+  "base_run_id": "20260905-130559",
+  "base_printing_press_version": "4.31.7",
+  "summary": "Correct directory-index reads to wrapped POST and provide environment-driven live site fixtures.",
+  "reason": "Microsoft documents GetChildrenUrlInfo as a read-only POST with page and filterProperties in the body; GET returns HTTP 405. The runner otherwise uses example.com without account access. BING_WEBMASTER_TEST_SITE supplies discovery annotations without hardcoding account data or changing command defaults.",
+  "files": ["spec.yaml", "README.md", "internal/cli/root.go", "internal/cli/crawl_children-info.go", "internal/cli/children_info_test.go", "internal/cli/live_fixture.go", "internal/cli/live_fixture_test.go", "internal/mcp/code_orch.go", "internal/mcp/children_info_test.go"],
+  "source": "https://learn.microsoft.com/en-us/dotnet/api/microsoft.bing.webmaster.api.interfaces.iwebmasterapi.getchildrenurlinfo?view=bing-webmaster-dotnet"
+}

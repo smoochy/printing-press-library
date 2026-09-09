@@ -1,0 +1,63 @@
+{
+  "schema_version": 2,
+  "generated_at": "2026-09-05T13:05:59.706289147Z",
+  "printing_press_version": "4.31.7",
+  "api_name": "bing-webmaster",
+  "display_name": "Bing Webmaster Tools",
+  "cli_name": "bing-webmaster-pp-cli",
+  "printer": "Pimmetjeoss",
+  "printer_name": "Pimmetjeoss",
+  "run_id": "20260905-130559",
+  "category": "developer-tools",
+  "description": "The Bing Webmaster Tools API: manage sites, submit URLs, and read query/traffic/crawl/link stats from the Bing search index.",
+  "mcp_binary": "bing-webmaster-pp-mcp",
+  "mcp_tool_count": 60,
+  "mcp_ready": "full",
+  "auth_type": "api_key",
+  "auth_env_vars": [
+    "BING_WEBMASTER_API_KEY"
+  ],
+  "auth_key_url": "https://www.bing.com/webmasters",
+  "novel_features": [
+    {
+      "name": "Query-performance delta review",
+      "command": "review",
+      "description": "See which Bing queries you gained or lost, and how CTR and average position shifted, vs the previous period \u2014 not just a raw snapshot."
+    },
+    {
+      "name": "Ranking-drift detection",
+      "command": "drift",
+      "description": "Track average-position movement per query and page over time and surface the biggest climbers and droppers."
+    },
+    {
+      "name": "Quota-aware submission planning",
+      "command": "publish plan",
+      "description": "Read a real sitemap or URL file and live Bing quota, deduplicate the supplied URLs, and calculate quota-capped batches without submitting anything."
+    },
+    {
+      "name": "Crawl-error triage",
+      "command": "triage",
+      "description": "Categorize crawl issues by severity, diff them against your last sync, and map each issue to the affected child URLs in one view."
+    },
+    {
+      "name": "Submission quota intelligence",
+      "command": "quota",
+      "description": "One view of URL and content submission quota \u2014 daily and monthly remaining \u2014 plus a pacing recommendation."
+    },
+    {
+      "name": "Bing-vs-Google coverage gap",
+      "command": "gap",
+      "description": "Reconcile your Bing query/page performance against a Google Search Console export to find queries and pages you rank for on one engine but not the other."
+    },
+    {
+      "name": "Feed/sitemap health monitor",
+      "command": "feed-health",
+      "description": "Track submitted, discovered, and indexed counts for each feed over time and flag drops."
+    },
+    {
+      "name": "Indexation watch",
+      "command": "watch",
+      "description": "Diff the latest sync against the previous one and surface indexation, crawl, and impression regressions per site."
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "schema_version": 2,
+  "id": "bing-webmaster-live-publish-plan",
+  "applied_at": "2026-09-07",
+  "base_run_id": "20260905-130559",
+  "base_printing_press_version": "4.31.7",
+  "summary": "Separate an unconditionally read-only live publish planner from confirmed submission; fail closed on missing or exhausted quota.",
+  "reason": "Mixed plan/execute commands cannot honestly carry read-only classification. Live acceptance now explicitly covers planning, not submission.",
+  "files": [
+    "internal/cli/publish.go",
+    "internal/cli/publish_plan_test.go"
+  ],
+  "validated_outcome": "Go tests pass; full live matrix with research metadata passes; staged package validation including phase5 passes."
+}

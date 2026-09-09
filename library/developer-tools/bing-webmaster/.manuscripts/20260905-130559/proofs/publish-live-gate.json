@@ -1,0 +1,2448 @@
+{
+  "dir": "bing-webmaster",
+  "binary": "bing-webmaster-pp-cli",
+  "level": "full",
+  "verdict": "PASS",
+  "matrix_size": 267,
+  "passed": 267,
+  "failed": 0,
+  "skipped": 166,
+  "unverified": 166,
+  "pass_rate": 100,
+  "commands": [
+    "blocked add",
+    "blocked add-preview-block",
+    "blocked list",
+    "blocked preview-blocks",
+    "blocked remove",
+    "blocked remove-preview-block",
+    "crawl children-info",
+    "crawl issues",
+    "crawl save-settings",
+    "crawl settings",
+    "crawl stats",
+    "crawl url-info",
+    "deeplinks add-block",
+    "deeplinks blocks",
+    "deeplinks remove-block",
+    "deeplinks update",
+    "doctor",
+    "drift",
+    "export",
+    "feed-health",
+    "feedback",
+    "feedback list",
+    "feeds details",
+    "feeds list",
+    "feeds remove",
+    "feeds submit",
+    "gap",
+    "geo add",
+    "geo remove",
+    "geo settings",
+    "import",
+    "keywords get",
+    "keywords related",
+    "keywords stats",
+    "learnings candidates",
+    "learnings confirm",
+    "learnings forget",
+    "learnings list",
+    "learnings purge",
+    "learnings reject",
+    "learnings stats",
+    "links add-connected",
+    "links connected",
+    "links counts",
+    "links url-links",
+    "params add",
+    "params list",
+    "params remove",
+    "params toggle",
+    "playbook amend",
+    "playbook list",
+    "profile delete",
+    "profile list",
+    "profile save",
+    "profile show",
+    "profile use",
+    "publish",
+    "publish plan",
+    "quota",
+    "recall",
+    "review",
+    "search",
+    "sites add",
+    "sites add-role",
+    "sites list",
+    "sites remove",
+    "sites remove-role",
+    "sites roles",
+    "sites submit-move",
+    "sites verify",
+    "submission content-quota",
+    "submission fetch",
+    "submission fetched",
+    "submission fetched-details",
+    "submission submit-batch",
+    "submission submit-content",
+    "submission submit-url",
+    "submission url-quota",
+    "sync",
+    "teach",
+    "teach-lookup",
+    "teach-pattern",
+    "teach-playbook",
+    "traffic children-traffic",
+    "traffic page-queries",
+    "traffic pages",
+    "traffic queries",
+    "traffic query-page-detail",
+    "traffic query-pages",
+    "traffic query-traffic",
+    "traffic rank-traffic",
+    "traffic url-traffic",
+    "triage",
+    "watch",
+    "which",
+    "workflow archive",
+    "workflow status"
+  ],
+  "tests": [
+    {
+      "command": "blocked add",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "blocked add",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "blocked add",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "blocked add",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "blocked add",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "blocked add-preview-block",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "blocked add-preview-block",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "blocked add-preview-block",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "blocked add-preview-block",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "blocked add-preview-block",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "blocked list",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "blocked list",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "blocked list",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "blocked list",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "blocked preview-blocks",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "blocked preview-blocks",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "blocked preview-blocks",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "blocked preview-blocks",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "blocked remove",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "blocked remove",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "blocked remove",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "blocked remove",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "blocked remove",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "blocked remove-preview-block",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "blocked remove-preview-block",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "blocked remove-preview-block",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "blocked remove-preview-block",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "blocked remove-preview-block",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "crawl children-info",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "crawl children-info",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "crawl children-info",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "crawl children-info",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "crawl issues",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "crawl issues",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "crawl issues",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "crawl issues",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "crawl save-settings",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "crawl save-settings",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "crawl save-settings",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "crawl save-settings",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "crawl save-settings",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "crawl settings",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "crawl settings",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "crawl settings",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "crawl settings",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "crawl stats",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "crawl stats",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "crawl stats",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "crawl stats",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "crawl url-info",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "crawl url-info",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "crawl url-info",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "crawl url-info",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "deeplinks add-block",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "deeplinks add-block",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "deeplinks add-block",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "deeplinks add-block",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "deeplinks add-block",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "deeplinks blocks",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "deeplinks blocks",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "deeplinks blocks",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "deeplinks blocks",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "deeplinks remove-block",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "deeplinks remove-block",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "deeplinks remove-block",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "deeplinks remove-block",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "deeplinks remove-block",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "deeplinks update",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "deeplinks update",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "deeplinks update",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "deeplinks update",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "deeplinks update",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "doctor",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "doctor",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "doctor",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "doctor",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "doctor",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "drift",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "drift",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "drift",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "drift",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "export",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "export",
+      "kind": "happy_path",
+      "status": "skip",
+      "reason": "command path [export] has fewer segments than placeholders (2)"
+    },
+    {
+      "command": "export",
+      "kind": "json_fidelity",
+      "status": "skip",
+      "reason": "command path [export] has fewer segments than placeholders (2)"
+    },
+    {
+      "command": "export",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "mutating command; error_path would call live API without --dry-run"
+    },
+    {
+      "command": "export",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "command path [export] has fewer segments than placeholders (2)"
+    },
+    {
+      "command": "feed-health",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "feed-health",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "feed-health",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "feed-health",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "feedback",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "feedback",
+      "kind": "happy_path",
+      "status": "skip",
+      "reason": "non-id positional \"text\" at depth 0"
+    },
+    {
+      "command": "feedback",
+      "kind": "json_fidelity",
+      "status": "skip",
+      "reason": "non-id positional \"text\" at depth 0"
+    },
+    {
+      "command": "feedback",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "mutating command; error_path would call live API without --dry-run"
+    },
+    {
+      "command": "feedback",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "non-id positional \"text\" at depth 0"
+    },
+    {
+      "command": "feedback list",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "feedback list",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "feedback list",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "feedback list",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "feeds details",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "feeds details",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "feeds details",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "feeds details",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "feeds list",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "feeds list",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "feeds list",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "feeds list",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "feeds remove",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "feeds remove",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "feeds remove",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "feeds remove",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "feeds remove",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "feeds submit",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "feeds submit",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "feeds submit",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "feeds submit",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "feeds submit",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "gap",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "gap",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "gap",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "gap",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "geo add",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "geo add",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "geo add",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "geo add",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "geo add",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "geo remove",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "geo remove",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "geo remove",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "geo remove",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "geo remove",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "geo settings",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "geo settings",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "geo settings",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "geo settings",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "import",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "import",
+      "kind": "happy_path",
+      "status": "skip",
+      "reason": "non-id positional \"resource\" at depth 0"
+    },
+    {
+      "command": "import",
+      "kind": "json_fidelity",
+      "status": "skip",
+      "reason": "non-id positional \"resource\" at depth 0"
+    },
+    {
+      "command": "import",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "mutating command; error_path would call live API without --dry-run"
+    },
+    {
+      "command": "import",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "non-id positional \"resource\" at depth 0"
+    },
+    {
+      "command": "keywords get",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "keywords get",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "keywords get",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "keywords get",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "keywords related",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "keywords related",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "keywords related",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "keywords related",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "keywords stats",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "keywords stats",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "keywords stats",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "keywords stats",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "learnings candidates",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "learnings candidates",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "learnings candidates",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "learnings candidates",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "learnings confirm",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "learnings confirm",
+      "kind": "happy_path",
+      "status": "skip",
+      "reason": "no id parseable from companion at depth 0"
+    },
+    {
+      "command": "learnings confirm",
+      "kind": "json_fidelity",
+      "status": "skip",
+      "reason": "no id parseable from companion at depth 0"
+    },
+    {
+      "command": "learnings confirm",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "mutating command; error_path would call live API without --dry-run"
+    },
+    {
+      "command": "learnings confirm",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "no id parseable from companion at depth 0"
+    },
+    {
+      "command": "learnings forget",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "learnings forget",
+      "kind": "happy_path",
+      "status": "skip",
+      "reason": "non-id positional \"query\" at depth 0"
+    },
+    {
+      "command": "learnings forget",
+      "kind": "json_fidelity",
+      "status": "skip",
+      "reason": "non-id positional \"query\" at depth 0"
+    },
+    {
+      "command": "learnings forget",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "mutating command; error_path would call live API without --dry-run"
+    },
+    {
+      "command": "learnings forget",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "non-id positional \"query\" at depth 0"
+    },
+    {
+      "command": "learnings list",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "learnings list",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "learnings list",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "learnings list",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "learnings purge",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "learnings purge",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "learnings purge",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "learnings purge",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "learnings purge",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "learnings reject",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "learnings reject",
+      "kind": "happy_path",
+      "status": "skip",
+      "reason": "list companion previously failed at depth 0 for \"id\""
+    },
+    {
+      "command": "learnings reject",
+      "kind": "json_fidelity",
+      "status": "skip",
+      "reason": "list companion previously failed at depth 0 for \"id\""
+    },
+    {
+      "command": "learnings reject",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "mutating command; error_path would call live API without --dry-run"
+    },
+    {
+      "command": "learnings reject",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "list companion previously failed at depth 0 for \"id\""
+    },
+    {
+      "command": "learnings stats",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "learnings stats",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "learnings stats",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "learnings stats",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "links add-connected",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "links add-connected",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "links add-connected",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "links add-connected",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "links add-connected",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "links connected",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "links connected",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "links connected",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "links connected",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "links counts",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "links counts",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "links counts",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "links counts",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "links url-links",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "links url-links",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "links url-links",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "links url-links",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "params add",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "params add",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "params add",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "params add",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "params add",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "params list",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "params list",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "params list",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "params list",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "params remove",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "params remove",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "params remove",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "params remove",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "params remove",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "params toggle",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "params toggle",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "params toggle",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "params toggle",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "params toggle",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "playbook amend",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "playbook amend",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "playbook amend",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "playbook amend",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "playbook amend",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "playbook list",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "playbook list",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "playbook list",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "playbook list",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "profile delete",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "profile delete",
+      "kind": "happy_path",
+      "status": "skip",
+      "reason": "non-id positional \"name\" at depth 0"
+    },
+    {
+      "command": "profile delete",
+      "kind": "json_fidelity",
+      "status": "skip",
+      "reason": "non-id positional \"name\" at depth 0"
+    },
+    {
+      "command": "profile delete",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "mutating command; error_path would call live API without --dry-run"
+    },
+    {
+      "command": "profile delete",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "non-id positional \"name\" at depth 0"
+    },
+    {
+      "command": "profile list",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "profile list",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "profile list",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "profile list",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "profile save",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "profile save",
+      "kind": "happy_path",
+      "status": "skip",
+      "reason": "non-id positional \"name\" at depth 0"
+    },
+    {
+      "command": "profile save",
+      "kind": "json_fidelity",
+      "status": "skip",
+      "reason": "non-id positional \"name\" at depth 0"
+    },
+    {
+      "command": "profile save",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "mutating command; error_path would call live API without --dry-run"
+    },
+    {
+      "command": "profile save",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "non-id positional \"name\" at depth 0"
+    },
+    {
+      "command": "profile show",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "profile show",
+      "kind": "happy_path",
+      "status": "skip",
+      "reason": "non-id positional \"name\" at depth 0"
+    },
+    {
+      "command": "profile show",
+      "kind": "json_fidelity",
+      "status": "skip",
+      "reason": "non-id positional \"name\" at depth 0"
+    },
+    {
+      "command": "profile show",
+      "kind": "error_path",
+      "status": "pass",
+      "exit_code": 1
+    },
+    {
+      "command": "profile use",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "profile use",
+      "kind": "happy_path",
+      "status": "skip",
+      "reason": "non-id positional \"name\" at depth 0"
+    },
+    {
+      "command": "profile use",
+      "kind": "json_fidelity",
+      "status": "skip",
+      "reason": "non-id positional \"name\" at depth 0"
+    },
+    {
+      "command": "profile use",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "mutating command; error_path would call live API without --dry-run"
+    },
+    {
+      "command": "profile use",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "non-id positional \"name\" at depth 0"
+    },
+    {
+      "command": "publish",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "publish",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "publish",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "publish",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "publish",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "publish plan",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "publish plan",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "publish plan",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "publish plan",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "quota",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "quota",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "quota",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "quota",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "recall",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "recall",
+      "kind": "happy_path",
+      "status": "skip",
+      "reason": "non-id positional \"query\" at depth 0"
+    },
+    {
+      "command": "recall",
+      "kind": "json_fidelity",
+      "status": "skip",
+      "reason": "non-id positional \"query\" at depth 0"
+    },
+    {
+      "command": "recall",
+      "kind": "error_path",
+      "status": "pass"
+    },
+    {
+      "command": "review",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "review",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "review",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "review",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "search",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "search",
+      "kind": "happy_path",
+      "status": "skip",
+      "reason": "non-id positional \"query\" at depth 0"
+    },
+    {
+      "command": "search",
+      "kind": "json_fidelity",
+      "status": "skip",
+      "reason": "non-id positional \"query\" at depth 0"
+    },
+    {
+      "command": "search",
+      "kind": "error_path",
+      "status": "pass"
+    },
+    {
+      "command": "sites add",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "sites add",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "sites add",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "sites add",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "sites add",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "sites add-role",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "sites add-role",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "sites add-role",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "sites add-role",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "sites add-role",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "sites list",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "sites list",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "sites list",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "sites list",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "sites remove",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "sites remove",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "sites remove",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "sites remove",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "sites remove",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "sites remove-role",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "sites remove-role",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "sites remove-role",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "sites remove-role",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "sites remove-role",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "sites roles",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "sites roles",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "sites roles",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "sites roles",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "sites submit-move",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "sites submit-move",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "sites submit-move",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "sites submit-move",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "sites submit-move",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "sites verify",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "sites verify",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "sites verify",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "sites verify",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "sites verify",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "submission content-quota",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "submission content-quota",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "submission content-quota",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "submission content-quota",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "submission fetch",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "submission fetch",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "submission fetch",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "submission fetch",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "submission fetch",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "submission fetched",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "submission fetched",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "submission fetched",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "submission fetched",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "submission fetched-details",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "submission fetched-details",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "submission fetched-details",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "submission fetched-details",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "submission submit-batch",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "submission submit-batch",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "submission submit-batch",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "submission submit-batch",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "submission submit-batch",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "submission submit-content",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "submission submit-content",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "submission submit-content",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "submission submit-content",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "submission submit-content",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "submission submit-url",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "submission submit-url",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "submission submit-url",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "submission submit-url",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "submission submit-url",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "submission url-quota",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "submission url-quota",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "submission url-quota",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "submission url-quota",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "sync",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "sync",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "sync",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "sync",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "sync",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "teach",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "teach",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "teach",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "teach",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "teach",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "teach-lookup",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "teach-lookup",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "teach-lookup",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "teach-lookup",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "teach-lookup",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "teach-pattern",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "teach-pattern",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "teach-pattern",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "teach-pattern",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "teach-pattern",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "teach-playbook",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "teach-playbook",
+      "kind": "happy_path",
+      "status": "skip",
+      "reason": "file fixture required: --playbook-file ~/playbooks/recipe.json"
+    },
+    {
+      "command": "teach-playbook",
+      "kind": "json_fidelity",
+      "status": "skip",
+      "reason": "file fixture required: --playbook-file ~/playbooks/recipe.json"
+    },
+    {
+      "command": "teach-playbook",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "teach-playbook",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "traffic children-traffic",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "traffic children-traffic",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "traffic children-traffic",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "traffic children-traffic",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "traffic page-queries",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "traffic page-queries",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "traffic page-queries",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "traffic page-queries",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "traffic pages",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "traffic pages",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "traffic pages",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "traffic pages",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "traffic queries",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "traffic queries",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "traffic queries",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "traffic queries",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "traffic query-page-detail",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "traffic query-page-detail",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "traffic query-page-detail",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "traffic query-page-detail",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "traffic query-pages",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "traffic query-pages",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "traffic query-pages",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "traffic query-pages",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "traffic query-traffic",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "traffic query-traffic",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "traffic query-traffic",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "traffic query-traffic",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "traffic rank-traffic",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "traffic rank-traffic",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "traffic rank-traffic",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "traffic rank-traffic",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "traffic url-traffic",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "traffic url-traffic",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "traffic url-traffic",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "traffic url-traffic",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "triage",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "triage",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "triage",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "triage",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "watch",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "watch",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "watch",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "watch",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "which",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "which",
+      "kind": "happy_path",
+      "status": "skip",
+      "reason": "non-id positional \"query\" at depth 0"
+    },
+    {
+      "command": "which",
+      "kind": "json_fidelity",
+      "status": "skip",
+      "reason": "non-id positional \"query\" at depth 0"
+    },
+    {
+      "command": "which",
+      "kind": "error_path",
+      "status": "pass",
+      "exit_code": 2
+    },
+    {
+      "command": "workflow archive",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "workflow archive",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "workflow archive",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "workflow archive",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    },
+    {
+      "command": "workflow archive",
+      "kind": "error_path_real",
+      "status": "skip",
+      "reason": "mutating command dry-run only"
+    },
+    {
+      "command": "workflow status",
+      "kind": "help",
+      "status": "pass"
+    },
+    {
+      "command": "workflow status",
+      "kind": "happy_path",
+      "status": "pass"
+    },
+    {
+      "command": "workflow status",
+      "kind": "json_fidelity",
+      "status": "pass"
+    },
+    {
+      "command": "workflow status",
+      "kind": "error_path",
+      "status": "skip",
+      "reason": "no positional argument"
+    }
+  ],
+  "ran_at": "2026-09-07T22:47:18.785038089Z",
+  "privacy_note": "Arguments and samples omitted; statuses unchanged. Synthetic local GSC CSV; live planning only; no URL submission."
+}

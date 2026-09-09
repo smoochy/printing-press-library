@@ -1,0 +1,14 @@
+{
+  "schema_version": 2,
+  "id": "bing-webmaster-preserve-mcp-contract",
+  "applied_at": "2026-09-07",
+  "base_run_id": "20260905-130559",
+  "base_printing_press_version": "4.31.7",
+  "summary": "Preserve prior MCP learning attribution, recall protocol and raw argument flag exclusion.",
+  "reason": "Pre-push comparison found mcp-sync dropped existing PR behavior.",
+  "files": [
+    "cmd/bing-webmaster-pp-mcp/main.go",
+    "internal/mcp/tools.go",
+    "internal/mcp/cobratree/shellout.go"
+  ]
+}

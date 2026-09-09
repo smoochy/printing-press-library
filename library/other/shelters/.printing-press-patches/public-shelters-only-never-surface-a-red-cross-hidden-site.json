@@ -1,0 +1,19 @@
+{
+  "schema_version": 2,
+  "id": "public-shelters-only-never-surface-a-red-cross-hidden-site",
+  "applied_at": "2026-09-08",
+  "base_run_id": "20260908-054147",
+  "base_printing_press_version": "4.24.0",
+  "summary": "Only publicly listed shelters may be surfaced: the CLI must fetch the complete Red Cross hidden set, fail closed if it cannot be verified, and drop matches from every source by name or address identity.",
+  "reason": "The two feeds disagree about visibility. The Red Cross withholds operational-only and not-cleared-for-walk-in sites from its public map, but FEMA's OpenShelters mirror can still carry them, so a union of the two feeds can re-publish a location its operator deliberately hid. Visibility verification is mandatory in every data-source mode, side feeds must not truncate silently, and ambiguous occupancy identities must never receive a population.",
+  "files": [
+    "internal/cli/arcgis_paging.go",
+    "internal/cli/gislinks.go",
+    "internal/cli/occupancy.go",
+    "internal/cli/redcross.go",
+    "internal/cli/root.go",
+    "internal/cli/shelters_enrich.go",
+    "internal/cli/shelters_cmd.go"
+  ],
+  "validated_outcome": "Tests verify mandatory fail-closed suppression, address plus ZIP identity, dry-run network avoidance, complete two-page ArcGIS fetching, and withholding of ambiguous occupancy rows."
+}
