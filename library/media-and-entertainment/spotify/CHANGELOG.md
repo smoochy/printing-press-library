@@ -2,6 +2,10 @@
 
 This file is maintained by printing-press-library release automation. Do not hand-edit release sections in normal PRs.
 
+## 2026.9.1 - 2026-09-09
+
+- fix(spotify): route playlist diff/dedupe/merge through /playlists/{id}/items (#1967).
+
 ## 2026.8.3 - 2026-08-17
 
 - fix(catalog): align Go fallback docs with toolchain floor (#1735).

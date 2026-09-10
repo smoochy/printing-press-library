@@ -1360,6 +1360,45 @@
       }
     },
     {
+      "name": "amc-theatres",
+      "category": "media-and-entertainment",
+      "api": "Amc Theatres Showtime",
+      "description": "Browser-captured docs-derived contract for AMC Theatres Showtime API v2.",
+      "search_terms": [
+        "amc-theatres",
+        "Amc Theatres Showtime",
+        "amc-theatres-pp-cli",
+        "Browser-captured docs-derived contract for AMC Theatres Showtime API v2.",
+        "Movie plan",
+        "movie-plan",
+        "Find, filter, and rank AMC showtimes by theatre or current location without purchasing tickets."
+      ],
+      "path": "library/media-and-entertainment/amc-theatres",
+      "printer": "Avanderheyde",
+      "printer_name": "Alderik",
+      "creator": {
+        "handle": "Avanderheyde",
+        "name": "Alderik"
+      },
+      "mcp": {
+        "binary": "amc-theatres-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 5,
+        "public_tool_count": 0,
+        "auth_type": "api_key",
+        "env_vars": [
+          "AMC_THEATRES_VENDOR_KEY",
+          "AMC_THEATRES_AUTH_TOKEN",
+          "AMC_THEATRES_ENV"
+        ],
+        "mcp_ready": "full",
+        "spec_format": "openapi3"
+      }
+    },
+    {
       "name": "american-reindustrialization",
       "category": "other",
       "api": "American Reindustrialization",
@@ -3080,6 +3119,12 @@
         "Diff the latest sync against the previous one and surface indexation, crawl, and impression regressions per site."
       ],
       "path": "library/developer-tools/bing-webmaster",
+      "release": {
+        "cli_name": "bing-webmaster-pp-cli",
+        "version": "2026.9.1",
+        "released_at": "2026-09-08T09:27:09Z",
+        "source_commit": "138e959833411ad3f7e9e36eaecae5323f124062"
+      },
       "printer": "Pimmetjeoss",
       "printer_name": "Pimmetjeoss",
       "mcp": {
@@ -4157,6 +4202,12 @@
         "Track the sixteen CDS aggregate metrics forward from your first sync, with archived rows labelled as such."
       ],
       "path": "library/payments/cdc-pakistan",
+      "release": {
+        "cli_name": "cdc-pakistan-pp-cli",
+        "version": "2026.9.1",
+        "released_at": "2026-09-08T09:27:09Z",
+        "source_commit": "6278bfd7bc4eb70febb716a89b8fc2bed65c6f59"
+      },
       "printer": "qazmataz",
       "printer_name": "qazmataz",
       "creator": {
@@ -4630,9 +4681,9 @@
       "path": "library/health/clinical-trials",
       "release": {
         "cli_name": "clinical-trials-pp-cli",
-        "version": "2026.9.3",
-        "released_at": "2026-09-07T09:12:02Z",
-        "source_commit": "180d417d93b026ff25494c27c077bac30ad447ba"
+        "version": "2026.9.4",
+        "released_at": "2026-09-09T09:08:52Z",
+        "source_commit": "f1228807178270f46fe8c314ef12315b93f4a1a6"
       },
       "printer": "laci141",
       "printer_name": "laci141",
@@ -5499,9 +5550,9 @@
       "path": "library/commerce/costco",
       "release": {
         "cli_name": "costco-pp-cli",
-        "version": "2026.8.3",
-        "released_at": "2026-08-30T09:08:18Z",
-        "source_commit": "d97ee8c93245eee634bbf3f75541341e48fbfc44"
+        "version": "2026.9.1",
+        "released_at": "2026-09-08T09:26:18Z",
+        "source_commit": "4865f26ebc6aed787295bc183269a40f1817b25c"
       },
       "printer": "richie305",
       "printer_name": "David Richie",
@@ -10827,6 +10878,67 @@
       ]
     },
     {
+      "name": "google-tag-manager",
+      "category": "marketing",
+      "api": "Google Tag Manager",
+      "description": "Mirror any GTM container into a local database, then audit, diff, and query it from the terminal — everything the GTM console can't do, read-only and safe against production.",
+      "search_terms": [
+        "google-tag-manager",
+        "Google Tag Manager",
+        "google-tag-manager-pp-cli",
+        "Mirror any GTM container into a local database, then audit, diff, and query it from the terminal — everything the GTM console can't do, read-only and safe against production.",
+        "Mirror container to SQLite",
+        "pull",
+        "Walk an entire GTM container — every tag, trigger, variable, folder, template, client, zone, and gtag config — into a local SQLite store in one command.",
+        "Hygiene audit",
+        "audit",
+        "Run a battery of hygiene checks against the mirror: dead tags, orphan triggers, unused variables, paused tags, Custom HTML tags, and tags firing on All Pages.",
+        "Snapshot diff",
+        "diff",
+        "Field-level diff between two snapshots: workspace vs live, version vs version, or container vs container, with stable name+type keys so renames are not add+remove.",
+        "Cross-container fleet matrix",
+        "fleet",
+        "One table across all pulled containers: GA4/measurement-id inventory, Consent Mode coverage, Custom HTML count, and entity counts per container.",
+        "Consent Mode v2 readiness",
+        "consent-report",
+        "Per-tag consentSettings coverage and a list of tags that fire without consent gating, classified by vendor (ads vs analytics).",
+        "Full-text search across config",
+        "search",
+        "Substring search across every entity's name, type, parameters, and notes — find hardcoded GA4 ids, stray pixels, or leftover URLs across all pulled containers.",
+        "Reverse-dependency blast radius",
+        "uses",
+        "Show everything that references a variable or trigger — the safe-to-delete / what-breaks-if-I-touch-this check.",
+        "Runtime fire graph",
+        "fires",
+        "Bidirectional graph walk: which tags fire on a trigger, or which triggers and variables a tag depends on.",
+        "Git-friendly export",
+        "export",
+        "Emit a deterministic flattened representation of the container for clean version-control diffs, or container-export-compatible JSON."
+      ],
+      "path": "library/marketing/google-tag-manager",
+      "printer": "stellato",
+      "printer_name": "Greg Stellato",
+      "creator": {
+        "handle": "stellato",
+        "name": "Greg Stellato"
+      },
+      "mcp": {
+        "binary": "google-tag-manager-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 22,
+        "public_tool_count": 0,
+        "auth_type": "bearer_token",
+        "env_vars": [
+          "GTM_ACCESS_TOKEN"
+        ],
+        "mcp_ready": "full",
+        "spec_format": "openapi3"
+      }
+    },
+    {
       "name": "google-trends",
       "category": "marketing",
       "api": "Google Trends",
@@ -13632,6 +13744,12 @@
         "Compute descriptive monthly aggregates while excluding unavailable, ambiguous, anomalous, and incomplete rows."
       ],
       "path": "library/marketing/keyword-planner",
+      "release": {
+        "cli_name": "keyword-planner-pp-cli",
+        "version": "2026.9.1",
+        "released_at": "2026-09-08T09:27:09Z",
+        "source_commit": "907c5cb0cc3bdf217dff8b084bbcef4c78db5c7b"
+      },
       "printer": "vieGPT",
       "printer_name": "Max Michel",
       "creator": {
@@ -13874,9 +13992,9 @@
       "path": "library/devices/kvmctl",
       "release": {
         "cli_name": "kvmctl-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-01T09:16:12Z",
-        "source_commit": "fbc990bd1b830fda6d0a06848f88890a5eedfe9b"
+        "version": "2026.9.2",
+        "released_at": "2026-09-09T09:57:45Z",
+        "source_commit": "a1b42a715207549ca40c7855d94fe4dacffe592a"
       },
       "printer": "keithah",
       "printer_name": "Keith Herrington",
@@ -15731,6 +15849,12 @@
         "Dump the stored panel, allocation or coverage tables as JSONL for piping, a single JSON array for agents, or CSV."
       ],
       "path": "library/payments/mufap",
+      "release": {
+        "cli_name": "mufap-pp-cli",
+        "version": "2026.9.1",
+        "released_at": "2026-09-08T09:27:09Z",
+        "source_commit": "aaa5a61c1c7dd234ee8dbf9d935b19ba2a96a802"
+      },
       "printer": "qazmataz",
       "printer_name": "qazmataz",
       "creator": {
@@ -18273,6 +18397,68 @@
         "env_vars": [],
         "mcp_ready": "full",
         "spec_format": "openapi3"
+      }
+    },
+    {
+      "name": "pbs",
+      "category": "other",
+      "api": "Pakistan Bureau of Statistics",
+      "description": "The only machine-readable Pakistani price panel — every urban centre and essential item the Bureau prices weekly, accrued locally because the Bureau itself does not keep the series.",
+      "search_terms": [
+        "pbs",
+        "Pakistan Bureau of Statistics",
+        "pbs-pp-cli",
+        "The only machine-readable Pakistani price panel — every urban centre and essential item the Bureau prices weekly, accrued locally because the Bureau itself does not keep the series.",
+        "Cross-city price spread",
+        "spread",
+        "See the cheapest and dearest city for any essential item in any week, and how that gap has moved over time.",
+        "Single-item multi-city series",
+        "drift",
+        "Follow one item's price across named cities and weeks, with missing weeks shown as gaps rather than filled.",
+        "Custom re-weighted basket",
+        "basket",
+        "Build your own price index over any subset of items using the weight vector PBS republishes every week.",
+        "Weight-vector drift",
+        "weights",
+        "Read the item weight vector for any release, diff two releases, and check the totals sum to 100.",
+        "Extraction verification",
+        "verify",
+        "Audit parsed cell values against the source's own arithmetic invariants, including the weight totals and min-avg-max ordering.",
+        "Coverage and gap map",
+        "coverage",
+        "Show which releases exist upstream, which the local store holds, and every hole named as a hole.",
+        "Upstream revision detector",
+        "revisions",
+        "Detect releases the Bureau has rewritten, re-pointed, or deleted since you captured them.",
+        "Top movers from levels",
+        "movers",
+        "Rank every item in a release by percent change recomputed from price levels, nationally or per city, with outliers flagged."
+      ],
+      "path": "library/other/pbs",
+      "release": {
+        "cli_name": "pbs-pp-cli",
+        "version": "2026.9.1",
+        "released_at": "2026-09-09T09:09:43Z",
+        "source_commit": "8e47f62bf76cc2d691ea6499869e277cd9e210bf"
+      },
+      "printer": "qazmataz",
+      "printer_name": "qazmataz",
+      "creator": {
+        "handle": "qazmataz",
+        "name": "qazmataz"
+      },
+      "mcp": {
+        "binary": "pbs-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 2,
+        "public_tool_count": 2,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
       }
     },
     {
@@ -22339,6 +22525,63 @@
       }
     },
     {
+      "name": "seek",
+      "category": "productivity",
+      "api": "SEEK",
+      "description": "Every SEEK search and job-detail feature, plus a local job history, salary distributions, and hiring trends no other SEEK tool has.",
+      "search_terms": [
+        "seek",
+        "seek-pp-cli",
+        "Every SEEK search and job-detail feature, plus a local job history, salary distributions, and hiring trends no other SEEK tool has.",
+        "Salary distribution over live listings",
+        "salary",
+        "Get salary percentiles, a histogram, and the pay-disclosure rate for a role and location by sampling matching listings (which it also caches locally).",
+        "Hiring-volume trend series",
+        "trends",
+        "See how job-listing volume for a classification, region, or work arrangement changes over time, bucketed from the listing dates of every job the CLI has cached, with period-over-period deltas.",
+        "Company hiring scan",
+        "company",
+        "Profile one advertiser: their company details and review ratings plus every current opening and a local history of how many roles they've posted.",
+        "Live facet breakdown",
+        "listings facets",
+        "Break a live query down by classification, work type, pay band, or region by tallying the sampled result pages — no local store needed.",
+        "Classification taxonomy resolver",
+        "classifications",
+        "Browse or resolve SEEK's numeric classification and subclassification IDs so filtered searches can target them precisely.",
+        "New listings across every saved search",
+        "me new-jobs",
+        "Run every one of your SEEK saved searches and return only the postings that aren't already in your local store, tagged by which search matched."
+      ],
+      "path": "library/productivity/seek",
+      "release": {
+        "cli_name": "seek-pp-cli",
+        "version": "2026.9.1",
+        "released_at": "2026-09-09T09:09:43Z",
+        "source_commit": "994ec74cae28b698aa847f048ad46e026e667ef0"
+      },
+      "printer": "polsiola-dot",
+      "printer_name": "Paul Siola",
+      "creator": {
+        "handle": "polsiola-dot",
+        "name": "Paul Siola"
+      },
+      "mcp": {
+        "binary": "seek-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 4,
+        "public_tool_count": 1,
+        "auth_type": "cookie",
+        "env_vars": [
+          "SEEK_COOKIE"
+        ],
+        "mcp_ready": "partial",
+        "spec_format": "internal"
+      }
+    },
+    {
       "name": "semrush",
       "category": "marketing",
       "api": "Semrush",
@@ -22834,9 +23077,9 @@
       "path": "library/other/shelters",
       "release": {
         "cli_name": "shelters-pp-cli",
-        "version": "2026.8.2",
-        "released_at": "2026-08-17T08:21:18Z",
-        "source_commit": "bc4b586302c2f3040178080f61960f98fff3529d"
+        "version": "2026.9.1",
+        "released_at": "2026-09-08T09:26:18Z",
+        "source_commit": "6d9eba780667dd28b1dcb133c170239190d6cc0d"
       },
       "printer": "abe238",
       "printer_name": "Abe Diaz (@abe238)",
@@ -23826,9 +24069,9 @@
       "path": "library/media-and-entertainment/spotify",
       "release": {
         "cli_name": "spotify-pp-cli",
-        "version": "2026.8.3",
-        "released_at": "2026-08-17T07:57:07Z",
-        "source_commit": "40363ac0936c4f406625f8399d8ad9b57673170e"
+        "version": "2026.9.1",
+        "released_at": "2026-09-09T09:09:43Z",
+        "source_commit": "06b95112898f27289889281b7746d700844a8f64"
       },
       "printer": "rob-coco",
       "printer_name": "Rob Zehner",
