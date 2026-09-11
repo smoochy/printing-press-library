@@ -2,6 +2,10 @@
 
 This file is maintained by printing-press-library release automation. Do not hand-edit release sections in normal PRs.
 
+## 2026.9.5 - 2026-09-10
+
+- clinical-trials: the phase tally counts entries, not trials — say so (#1973).
+
 ## 2026.9.4 - 2026-09-09
 
 - clinical-trials: count phaseless trials in every phase distribution (#1971).
