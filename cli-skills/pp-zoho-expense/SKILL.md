@@ -374,7 +374,7 @@ Full-text search across synced expenses — instant local query, no API call.
 ### GST report for the CA
 
 ```bash
-for id in $(zoho-expense-pp-cli expense list --month=2026-10 --json | jq -r '.[].expense_id'); do zoho-expense-pp-cli gst-split $id --emit-csv; done > october-gst.csv
+for id in $(zoho-expense-pp-cli expense list --month=2026-10 --json | jq -r '.[].expense_id'); do zoho-expense-pp-cli gst-split "$id" --emit-csv; done > october-gst.csv
 ```
 
 Generate a CGST/SGST/IGST breakdown CSV for the month's expenses, ready to hand to a chartered accountant.

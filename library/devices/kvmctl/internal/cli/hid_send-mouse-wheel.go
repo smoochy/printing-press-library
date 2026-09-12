@@ -51,9 +51,8 @@ func newHidSendMouseWheelCmd(flags *rootFlags) *cobra.Command {
 				return err
 			}
 			params := map[string]string{}
-			if true {
-				params["delta"] = formatCLIParamValue(flagDelta)
-			}
+			params["delta"] = formatCLIParamValue(flagDelta)
+
 			var body any
 			if stdinBody {
 				stdinData, err := io.ReadAll(os.Stdin)

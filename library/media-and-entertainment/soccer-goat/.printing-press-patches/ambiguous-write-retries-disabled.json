@@ -1,0 +1,11 @@
+{
+  "schema_version": 2,
+  "id": "ambiguous-write-retries-disabled",
+  "applied_at": "2026-09-10",
+  "base_run_id": "20260712-074136",
+  "base_printing_press_version": "4.27.1",
+  "summary": "Unprotected writes must not retry or fail over to another source after an ambiguous transport or server failure; bounded rate-limit recovery remains available.",
+  "reason": "Mirror sources may share state, so retrying a failed write against another source can duplicate a mutation that already committed. Explicit read-only POST requests retain safe retry and failover behavior.",
+  "files": ["internal/client/client.go", "internal/client/write_retry_test.go"],
+  "validated_outcome": "Synthetic-transport tests distinguish write transport/503 failure, read-only POST failover, and write 429 recovery."
+}

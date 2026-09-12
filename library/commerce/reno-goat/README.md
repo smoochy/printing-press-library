@@ -195,7 +195,7 @@ reno-goat-pp-cli source-probe --candidate all --json
 reno-goat-pp-cli product-search all "faucet" --room kitchen
 
 # Search a single source
-reno-goat-pp-cli product-search ferguson-search --query "rainfall showerhead"
+reno-goat-pp-cli product-search ferguson-search "rainfall showerhead"
 
 # Lowe's autocomplete
 reno-goat-pp-cli suggest lowes-suggest "bathroom vanity"
@@ -204,17 +204,17 @@ reno-goat-pp-cli suggest lowes-suggest "bathroom vanity"
 reno-goat-pp-cli stores lowes-stores 66101
 
 # Get full product details
-reno-goat-pp-cli product ferguson-product --url https://www.fergusonhome.com/product/...
+reno-goat-pp-cli product ferguson-product https://www.fergusonhome.com/product/...
 
 # Compare products across retailers
-reno-goat-pp-cli compare https://www.westelm.com/... https://www.article.com/...
+reno-goat-pp-cli compare "https://www.westelm.com/... https://www.article.com/..."
 
 # Watch a product's price
 reno-goat-pp-cli watch add https://www.westelm.com/... --threshold 15
 
 # Start a renovation project with budget tracking
 reno-goat-pp-cli project create "kitchen reno"
-reno-goat-pp-cli project add "kitchen reno" https://www.fergusonhome.com/... --qty 1
+reno-goat-pp-cli project add "kitchen reno" https://www.fergusonhome.com/... --quantity 1
 reno-goat-pp-cli project budget "kitchen reno"
 ```
 
@@ -276,7 +276,7 @@ Track product prices over time in local SQLite.
 Group products into renovation projects with budget tracking.
 
 - `project create <name>` — create a project
-- `project add <name> <url> [--qty N]` — add a product
+- `project add <name> <url> [--quantity N]`: add a product
 - `project budget <name>` — budget totals
 - `project list` — list projects
 
@@ -290,7 +290,7 @@ Save products and detect staleness.
 
 ### compare
 
-- `compare <url1> <url2> [url3...]` — side-by-side comparison
+- `compare "<url1> <url2> [url3...]"`: side-by-side comparison; pass the space-separated URLs as one argument
 
 ### suggest
 

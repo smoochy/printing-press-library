@@ -2,17 +2,17 @@
   "schema_version": 1,
   "slug": "pbs",
   "cli_name": "pbs-pp-cli",
-  "version": "2026.9.1",
-  "released_at": "2026-09-09T09:09:43Z",
-  "source_commit": "8e47f62bf76cc2d691ea6499869e277cd9e210bf",
+  "version": "2026.9.2",
+  "released_at": "2026-09-11T09:22:21Z",
+  "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e",
   "printing_press_version": "4.31.7",
   "run_id": "20260908-120459-bfe084c8",
   "changes": [
     {
-      "title": "feat(pbs): add pbs",
-      "pr": 1966,
-      "url": "https://github.com/mvanhorn/printing-press-library/pull/1966",
-      "commit": "8e47f62bf76cc2d691ea6499869e277cd9e210bf"
+      "title": "fix: fail closed on ambiguous fleet write retries",
+      "pr": 1978,
+      "url": "https://github.com/mvanhorn/printing-press-library/pull/1978",
+      "commit": "81f5764eda401077520268afe74913c0f21f5b7e"
     }
   ]
 }

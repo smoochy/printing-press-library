@@ -226,7 +226,7 @@ Recipe R5 — pair PCGS APR with eBay completed-sales to spot retail-vs-auction 
 ### Inflation-adjusted realized prices (compose with FRED CPI)
 
 ```bash
-pcgs-pp-cli coin apr-grade --pcgs-no 7356 --grade 65 --plus false --start 2000-01-01 --end 2026-01-01 --json
+pcgs-pp-cli coin apr-grade --pcgs-no 7356 --grade 65 --plus=false --start 2000-01-01 --end 2026-01-01 --json
 ```
 
 Recipe R6 — apply CPI ratio to APR Date+Price pairs to get real-dollar realized prices over time. See article: secrets-of-valuing-us-coins.

@@ -1304,7 +1304,7 @@ func (s *Store) UpsertBatch(resourceType string, items []json.RawMessage) (int, 
 	defer tx.Rollback()
 	stored, extractFailures, err := s.upsertBatchTx(tx, resourceType, items)
 	if err != nil {
-		return stored, extractFailures, err
+		return 0, extractFailures, err
 	}
 	if err := tx.Commit(); err != nil {
 		return 0, extractFailures, err
@@ -1327,13 +1327,13 @@ func (s *Store) UpsertBatchWithSyncState(resourceType string, items []json.RawMe
 
 	stored, extractFailures, err = s.upsertBatchTx(tx, resourceType, items)
 	if err != nil {
-		return stored, extractFailures, 0, err
+		return 0, extractFailures, 0, err
 	}
 	if err := tx.QueryRow(`SELECT COUNT(*) FROM resources WHERE resource_type = ?`, resourceType).Scan(&totalCount); err != nil {
-		return stored, extractFailures, 0, fmt.Errorf("counting checkpointed %s rows: %w", resourceType, err)
+		return 0, extractFailures, 0, fmt.Errorf("counting checkpointed %s rows: %w", resourceType, err)
 	}
 	if err := saveSyncStateTx(tx, resourceType, cursor, totalCount); err != nil {
-		return stored, extractFailures, totalCount, fmt.Errorf("saving checkpointed %s sync state: %w", resourceType, err)
+		return 0, extractFailures, 0, fmt.Errorf("saving checkpointed %s sync state: %w", resourceType, err)
 	}
 	if err := tx.Commit(); err != nil {
 		return 0, extractFailures, 0, fmt.Errorf("committing checkpointed %s batch: %w", resourceType, err)
@@ -1370,10 +1370,9 @@ func (s *Store) upsertBatchTx(tx *sql.Tx, resourceType string, items []json.RawM
 		storageID := resourceStorageID(resourceType, id, obj)
 
 		if err := s.upsertGenericResourceTx(tx, resourceType, storageID, item); err != nil {
-			// Return the running stored count rather than zero so callers
-			// inspecting partial progress on failure see what already
-			// landed in earlier loop iterations.
-			return stored, extractFailures, fmt.Errorf("upserting %s/%s: %w", resourceType, storageID, err)
+			// A non-nil error aborts this transaction through the deferred
+			// rollback, so no earlier in-memory progress was committed.
+			return 0, extractFailures, fmt.Errorf("upserting %s/%s: %w", resourceType, storageID, err)
 		}
 		stored++
 	}

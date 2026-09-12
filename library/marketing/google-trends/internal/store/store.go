@@ -1329,10 +1329,9 @@ func (s *Store) UpsertBatch(resourceType string, items []json.RawMessage) (int, 
 		storageID := resourceStorageID(resourceType, id, obj)
 
 		if err := s.upsertGenericResourceTx(tx, resourceType, storageID, item); err != nil {
-			// Return the running stored count rather than zero so callers
-			// inspecting partial progress on failure see what already
-			// landed in earlier loop iterations.
-			return stored, extractFailures, fmt.Errorf("upserting %s/%s: %w", resourceType, storageID, err)
+			// A non-nil error aborts this transaction through the deferred
+			// rollback, so no earlier in-memory progress was committed.
+			return 0, extractFailures, fmt.Errorf("upserting %s/%s: %w", resourceType, storageID, err)
 		}
 		stored++
 	}

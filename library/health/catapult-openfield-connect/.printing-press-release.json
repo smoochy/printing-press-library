@@ -2,17 +2,17 @@
   "schema_version": 1,
   "slug": "catapult-openfield-connect",
   "cli_name": "catapult-openfield-connect-pp-cli",
-  "version": "2026.8.1",
-  "released_at": "2026-08-26T09:21:43Z",
-  "source_commit": "07504744c5a458574956e25b828b147e06f6e164",
+  "version": "2026.9.1",
+  "released_at": "2026-09-11T09:22:21Z",
+  "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e",
   "printing_press_version": "4.30.1",
   "run_id": "20260805-211628-9cef41ba",
   "changes": [
     {
-      "title": "feat(catapult-openfield-connect): add catapult-openfield-connect",
-      "pr": 1667,
-      "url": "https://github.com/mvanhorn/printing-press-library/pull/1667",
-      "commit": "07504744c5a458574956e25b828b147e06f6e164"
+      "title": "fix: fail closed on ambiguous fleet write retries",
+      "pr": 1978,
+      "url": "https://github.com/mvanhorn/printing-press-library/pull/1978",
+      "commit": "81f5764eda401077520268afe74913c0f21f5b7e"
     }
   ]
 }

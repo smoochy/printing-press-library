@@ -17,7 +17,7 @@ import (
 	"github.com/mvanhorn/printing-press-library/library/ai/openart/internal/config"
 )
 
-var version = "2026.8.3"
+var version = "2026.9.1"
 
 type rootFlags struct {
 	asJSON        bool

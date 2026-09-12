@@ -59,12 +59,9 @@ func newDestinationsPromotedCmd(flags *rootFlags) *cobra.Command {
 			if flagOrigin != "" {
 				params["origin"] = formatCLIParamValue(flagOrigin)
 			}
-			if true {
-				params["cid"] = formatCLIParamValue(flagCid)
-			}
-			if true {
-				params["pageTypeId"] = formatCLIParamValue(flagPageTypeId)
-			}
+			params["cid"] = formatCLIParamValue(flagCid)
+			params["pageTypeId"] = formatCLIParamValue(flagPageTypeId)
+
 			if flagIsHotelLandSearch != false {
 				params["isHotelLandSearch"] = formatCLIParamValue(flagIsHotelLandSearch)
 			}

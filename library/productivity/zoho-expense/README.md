@@ -137,7 +137,7 @@ Zoho Expense uses OAuth 2.0 with a self-client authorization-code flow. Create a
 
 ```bash
 # Exchange the 10-min code for a refresh token
-zoho-expense-pp-cli auth login --client-id $ZOHO_EXPENSE_CLIENT_ID --client-secret $ZOHO_EXPENSE_CLIENT_SECRET
+zoho-expense-pp-cli auth login --client-id "$ZOHO_EXPENSE_CLIENT_ID" --client-secret "$ZOHO_EXPENSE_CLIENT_SECRET"
 
 # Set the active organization (first one in the list)
 zoho-expense-pp-cli org use $(zoho-expense-pp-cli organizations list --json | jq -r '.[0].organization_id')

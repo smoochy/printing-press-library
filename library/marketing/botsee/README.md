@@ -133,10 +133,10 @@ botsee-pp-cli doctor
 botsee-pp-cli ai-visibility-audit example.com --types 2 --personas 2 --questions 5 --watch
 
 # Inspect the customer-types / personas / questions tree for the site (with copy-paste edit commands)
-botsee-pp-cli site-config --site $SITE_UUID --agent
+botsee-pp-cli site-config --site "$SITE_UUID" --agent
 
 # Generate next-step recommendations from the analysis (cached locally)
-botsee-pp-cli recommendations $ANALYSIS_UUID --agent
+botsee-pp-cli recommendations "$ANALYSIS_UUID" --agent
 
 # Cross-site cited-source rollup — useful once you've audited multiple domains
 botsee-pp-cli sites-summary --agent
@@ -160,7 +160,7 @@ These capabilities aren't available in any other tool for this API.
   _Use after an analysis to get LLM-generated action items without re-spending if you already pulled them once._
 
   ```bash
-  botsee-pp-cli recommendations $ANALYSIS_UUID --agent
+  botsee-pp-cli recommendations "$ANALYSIS_UUID" --agent
   ```
 
 ### Workflow plumbing
@@ -169,7 +169,7 @@ These capabilities aren't available in any other tool for this API.
   _Reach for this when a user asks 'what is set up for this site' or 'show me my BotSee config' — it surfaces every UUID needed for follow-up edits._
 
   ```bash
-  botsee-pp-cli site-config --site $SITE_UUID --agent
+  botsee-pp-cli site-config --site "$SITE_UUID" --agent
   ```
 - **`sites-summary`** — Aggregate cited sources across every synced site, grouped by domain, with citation count, distinct sites citing each domain, and first-seen timestamp.
 

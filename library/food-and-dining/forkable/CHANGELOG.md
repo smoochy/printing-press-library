@@ -2,6 +2,10 @@
 
 This file is maintained by printing-press-library release automation. Do not hand-edit release sections in normal PRs.
 
+## 2026.9.1 - 2026-09-11
+
+- fix: fail closed on ambiguous fleet write retries (#1978).
+
 ## 2026.8.5 - 2026-08-28
 
 - feat(forkable): add meal feedback command reporting delivery issues to real Forkable support (#1846).

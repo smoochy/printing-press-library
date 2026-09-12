@@ -26,9 +26,8 @@ func newDiscoverTreatmentsCmd(flags *rootFlags) *cobra.Command {
 				return err
 			}
 			params := map[string]string{}
-			if true {
-				params["limit"] = formatCLIParamValue(flagLimit)
-			}
+			params["limit"] = formatCLIParamValue(flagLimit)
+
 			data, prov, err := resolveReadWithStrategyAndResponsePath(cmd.Context(), c, flags, "auto", "discover", false, path, params, nil, "treatments", cmd.ErrOrStderr())
 			if err != nil {
 				return classifyAPIError(cmd.OutOrStdout(), err, flags)

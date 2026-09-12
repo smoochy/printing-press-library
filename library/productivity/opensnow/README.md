@@ -337,7 +337,7 @@ opensnow-pp-cli diff alta
 opensnow-pp-cli daily-reads content get-daily-snow colorado
 
 # Get a forecast for an exact GPS coordinate
-opensnow-pp-cli forecast get-by-point -111.5838,40.5884 --elev 8530
+opensnow-pp-cli forecast get-by-point --elev 8530 -- -111.5838,40.5884
 
 # Show day + night snowfall detail for Steamboat
 opensnow-pp-cli forecast get-snow-detail steamboat

@@ -91,15 +91,10 @@ func newRatesSearchCmd(flags *rootFlags) *cobra.Command {
 			if flagDateOut != "" {
 				params["dateOut"] = formatCLIParamValue(flagDateOut)
 			}
-			if true {
-				params["adults"] = formatCLIParamValue(flagAdults)
-			}
-			if true {
-				params["infants"] = formatCLIParamValue(flagInfants)
-			}
-			if true {
-				params["rooms"] = formatCLIParamValue(flagRooms)
-			}
+			params["adults"] = formatCLIParamValue(flagAdults)
+			params["infants"] = formatCLIParamValue(flagInfants)
+			params["rooms"] = formatCLIParamValue(flagRooms)
+
 			if flagCurrency != "" {
 				params["currency"] = formatCLIParamValue(flagCurrency)
 			}

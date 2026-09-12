@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "slug": "myanimelist",
+  "cli_name": "myanimelist-pp-cli",
+  "version": "2026.9.1",
+  "released_at": "2026-09-11T09:17:41Z",
+  "source_commit": "d75e5a786495ed980844edc1f2be35687db4e799",
+  "printing_press_version": "4.32.1",
+  "run_id": "20260910-215529-36659c2f",
+  "changes": [
+    {
+      "title": "feat(myanimelist): add myanimelist",
+      "pr": 1976,
+      "url": "https://github.com/mvanhorn/printing-press-library/pull/1976",
+      "commit": "d75e5a786495ed980844edc1f2be35687db4e799"
+    }
+  ]
+}

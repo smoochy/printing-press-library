@@ -128,7 +128,7 @@ Get a free API key at https://www.setlist.fm/settings/api. The CLI looks for `SE
 
 ```bash
 # Persist your API key once; every later command reads it from the config.
-setlist-fm-pp-cli auth set-token $SETLISTFM_API_KEY
+setlist-fm-pp-cli auth set-token "$SETLISTFM_API_KEY"
 
 # Get the MusicBrainz ID without copy-pasting from the website.
 setlist-fm-pp-cli artist resolve 'Radiohead'

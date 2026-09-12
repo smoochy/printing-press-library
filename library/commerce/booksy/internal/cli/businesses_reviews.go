@@ -47,12 +47,9 @@ func newBusinessesReviewsCmd(flags *rootFlags) *cobra.Command {
 				return err
 			}
 			params := map[string]string{}
-			if true {
-				params["reviews_page"] = formatCLIParamValue(flagReviewsPage)
-			}
-			if true {
-				params["reviews_per_page"] = formatCLIParamValue(flagReviewsPerPage)
-			}
+			params["reviews_page"] = formatCLIParamValue(flagReviewsPage)
+			params["reviews_per_page"] = formatCLIParamValue(flagReviewsPerPage)
+
 			if flagOrdering != "" {
 				params["ordering"] = formatCLIParamValue(flagOrdering)
 			}

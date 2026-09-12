@@ -619,7 +619,7 @@ Configure local credentials in `~/.config/amazon-ads-pp-cli/.env`:
 ```bash
 mkdir -p ~/.config/amazon-ads-pp-cli
 chmod 700 ~/.config/amazon-ads-pp-cli
-$EDITOR ~/.config/amazon-ads-pp-cli/.env
+"$EDITOR" ~/.config/amazon-ads-pp-cli/.env
 ```
 
 Use:

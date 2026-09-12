@@ -132,6 +132,48 @@ class PublishPackageVerifierTest(unittest.TestCase):
         self.assertIn("### Publication Path", suggestions[0])
         self.assertIn("| `search` | Example search | Searches example data. |", suggestions[0])
 
+    def test_existing_cli_with_nested_go_module_is_not_new(self) -> None:
+        cli_dir = self.tmp / "library" / "ai" / "example"
+        self.write(
+            "library/ai/example/.printing-press.json",
+            json.dumps({"api_name": "example", "cli_name": "example-pp-cli"}),
+        )
+        self.write(
+            "library/ai/example/runtime/go.mod",
+            "module github.com/example/runtime\n",
+        )
+        self.write(
+            "library/ai/example/runtime/cmd/example-pp-cli/main.go",
+            "package main\n",
+        )
+        self.git("add", ".")
+        self.git("commit", "-m", "add nested-module cli")
+        base = self.git("rev-parse", "HEAD").stdout.strip()
+
+        self.write("library/ai/example/runtime/internal/client/client.go", "package client\n")
+
+        self.assertFalse(verifier.is_new_cli(base, cli_dir))
+
+    def test_existing_placeholder_without_manifest_or_module_is_still_new(self) -> None:
+        cli_dir = self.tmp / "library" / "ai" / "placeholder"
+        self.write("library/ai/placeholder/README.md", "# Research placeholder\n")
+        self.git("add", ".")
+        self.git("commit", "-m", "add placeholder")
+        base = self.git("rev-parse", "HEAD").stdout.strip()
+
+        self.write(
+            "library/ai/placeholder/.printing-press.json",
+            json.dumps({"api_name": "placeholder", "cli_name": "placeholder-pp-cli"}),
+        )
+        self.write(
+            "library/ai/placeholder/cmd/placeholder-pp-cli/main.go",
+            "package main\n",
+        )
+
+        self.assertTrue(verifier.is_new_cli(base, cli_dir))
+        problems = verifier.validate_cli_dir(cli_dir, strict=True, changed_files=None)
+        self.assertTrue(any("go.mod" in problem.message for problem in problems))
+
     def test_new_cli_directory_with_pp_cli_suffix_fails(self) -> None:
         cli_dir = self.tmp / "library" / "cloud" / "example-pp-cli"
         manifest = {

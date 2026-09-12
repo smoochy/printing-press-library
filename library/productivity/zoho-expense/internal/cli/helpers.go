@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zoho-expense/internal/client"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zoho-expense/internal/cliutil"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"io"
@@ -21,8 +23,6 @@ import (
 	"text/tabwriter"
 	"time"
 	"unicode"
-	"github.com/mvanhorn/printing-press-library/library/productivity/zoho-expense/internal/client"
-	"github.com/mvanhorn/printing-press-library/library/productivity/zoho-expense/internal/cliutil"
 )
 
 var As = errors.As
@@ -539,7 +539,11 @@ func newTabWriter(w io.Writer) *tabwriter.Writer {
 // replacePathParam percent-encodes value so path-reserved characters in
 // user input do not collapse into extra path segments.
 func replacePathParam(path, name, value string) string {
-	return strings.ReplaceAll(path, "{"+name+"}", url.PathEscape(value))
+	encoded := url.PathEscape(value)
+	if value == "." || value == ".." {
+		encoded = strings.Repeat("%2E", len(value))
+	}
+	return strings.ReplaceAll(path, "{"+name+"}", encoded)
 }
 
 // paginatedGet fetches pages and concatenates array results. The headers

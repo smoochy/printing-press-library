@@ -2,17 +2,17 @@
   "schema_version": 1,
   "slug": "beehiiv",
   "cli_name": "beehiiv-pp-cli",
-  "version": "2026.9.1",
-  "released_at": "2026-09-06T09:14:25Z",
-  "source_commit": "0babe5d9363597c4f197d6c887c242bcc36696ba",
+  "version": "2026.9.2",
+  "released_at": "2026-09-11T09:22:21Z",
+  "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e",
   "printing_press_version": "4.31.1",
   "run_id": "20260904-103650-02c4577b",
   "changes": [
     {
-      "title": "feat(beehiiv): reprint on printing-press v4.31.1 — 98 typed ops, 8 insights commands, MCP stdio+http",
-      "pr": 1933,
-      "url": "https://github.com/mvanhorn/printing-press-library/pull/1933",
-      "commit": "0babe5d9363597c4f197d6c887c242bcc36696ba"
+      "title": "fix: fail closed on ambiguous fleet write retries",
+      "pr": 1978,
+      "url": "https://github.com/mvanhorn/printing-press-library/pull/1978",
+      "commit": "81f5764eda401077520268afe74913c0f21f5b7e"
     }
   ]
 }

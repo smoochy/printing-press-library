@@ -169,7 +169,7 @@ Cross-experiment pre-check summary for Monday standup — surface experiments ne
 ### LLM cost by flag variant
 
 ```bash
-posthog-pp-cli llm cost-attribution --flag model-tier --days 30 --agent --select variant,total_cost_usd,avg_cost_per_call
+posthog-pp-cli llm cost-attribution --flag model-tier --since 2026-08-01 --agent --select variant,total_cost_usd,avg_cost_per_call
 ```
 
 Compare LLM spend across A/B variants to decide if GPT-4o outperforms GPT-4o-mini in your context
@@ -184,7 +184,7 @@ Surface dashboards with broken filters or stale data before a stakeholder presen
 
 ## Auth Setup
 
-Uses your PostHog personal API key (phx_...). Set POSTHOG_API_KEY or run `posthog-pp-cli auth set-token`. Supports both US (app.posthog.com) and EU (eu.posthog.com) instances via POSTHOG_HOST.
+Uses your PostHog personal API key (phx_...). Set POSTHOG_API_KEY or run `posthog-pp-cli auth set-token <token>`. Supports both US (app.posthog.com) and EU (eu.posthog.com) instances via POSTHOG_HOST.
 
 Run `posthog-pp-cli doctor` to verify setup.
 

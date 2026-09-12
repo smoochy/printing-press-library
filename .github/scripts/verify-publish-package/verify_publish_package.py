@@ -86,6 +86,19 @@ def git_exists(base_ref: str, path: Path) -> bool:
     return result.returncode == 0
 
 
+def git_has_go_module(base_ref: str, cli_dir: Path) -> bool:
+    cli_prefix = rel(cli_dir)
+    result = run_git(["ls-tree", "-r", "--name-only", base_ref, "--", cli_prefix])
+    if result.returncode != 0:
+        return False
+    return any(
+        path == f"{cli_prefix}/go.mod" or (
+            path.startswith(f"{cli_prefix}/") and path.endswith("/go.mod")
+        )
+        for path in result.stdout.splitlines()
+    )
+
+
 def library_cli_dir_for(path: str) -> Path | None:
     parts = PurePosixPath(path).parts
     if len(parts) < 3 or parts[0] != "library":
@@ -136,7 +149,7 @@ def is_new_cli(base_ref: str, cli_dir: Path) -> bool:
     return not (
         git_exists(base_ref, cli_dir)
         and git_exists(base_ref, cli_dir / ".printing-press.json")
-        and git_exists(base_ref, cli_dir / "go.mod")
+        and git_has_go_module(base_ref, cli_dir)
     )
 
 

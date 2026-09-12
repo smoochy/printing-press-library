@@ -138,8 +138,8 @@ myfitnesspal-pp-cli auth login --chrome
 # Verifies the session is valid and api.myfitnesspal.com is reachable
 myfitnesspal-pp-cli doctor
 
-# Pulls four months of diary, exercises, water, measurements, and goals into the local SQLite store
-myfitnesspal-pp-cli sync --from 2026-01-01 --to 2026-05-08
+# Pulls diary entries for a date range into the local SQLite store
+myfitnesspal-pp-cli pull-diary --from 2026-01-01 --to 2026-05-08
 
 # Per-food CSV export — the headline thing premium MFP doesn't deliver
 myfitnesspal-pp-cli export csv --from 2026-01-01 --to 2026-05-08 --out diary.csv
@@ -147,8 +147,8 @@ myfitnesspal-pp-cli export csv --from 2026-01-01 --to 2026-05-08 --out diary.csv
 # One-shot agent context: 14 days of diary totals, weight trend, current goals, recent foods, macro deltas
 myfitnesspal-pp-cli context --days 14 --json
 
-# Joins weight measurements with calorie deficit to compute the implied calories-per-pound ratio
-myfitnesspal-pp-cli analytics weight-trend --weeks 8 --smooth 7d
+# Finds the longest streak within 5% of your daily calorie goal
+myfitnesspal-pp-cli analytics streak --days 56 --tolerance 0.05
 
 ```
 
@@ -205,7 +205,7 @@ Run `myfitnesspal-pp-cli --help` for the full command reference and flag list.
 
 Authenticated user record on the v2 API (preferences, paid subs, profiles).
 
-- **`myfitnesspal-pp-cli api_user get`** - Get the v2 user record (units, goals preferences, paid subs, profiles).
+- **`myfitnesspal-pp-cli api-user`** - Get the v2 user record (units, goals preferences, paid subs, profiles).
 
 ### diary
 
@@ -270,19 +270,19 @@ Daily water intake tracking.
 
 ```bash
 # Human-readable table (default in terminal, JSON when piped)
-myfitnesspal-pp-cli api_user --user-id 550e8400-e29b-41d4-a716-446655440000
+myfitnesspal-pp-cli api-user --user-id 12345678
 
 # JSON for scripting and agents
-myfitnesspal-pp-cli api_user --user-id 550e8400-e29b-41d4-a716-446655440000 --json
+myfitnesspal-pp-cli api-user --user-id 12345678 --json
 
 # Filter to specific fields
-myfitnesspal-pp-cli api_user --user-id 550e8400-e29b-41d4-a716-446655440000 --json --select id,name,status
+myfitnesspal-pp-cli api-user --user-id 12345678 --json --select id,name,status
 
 # Dry run — show the request without sending
-myfitnesspal-pp-cli api_user --user-id 550e8400-e29b-41d4-a716-446655440000 --dry-run
+myfitnesspal-pp-cli api-user --user-id 12345678 --dry-run
 
 # Agent mode — JSON + compact + no prompts in one flag
-myfitnesspal-pp-cli api_user --user-id 550e8400-e29b-41d4-a716-446655440000 --agent
+myfitnesspal-pp-cli api-user --user-id 12345678 --agent
 ```
 
 ## Agent Usage

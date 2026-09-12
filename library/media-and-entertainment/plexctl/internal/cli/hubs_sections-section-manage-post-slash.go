@@ -79,9 +79,8 @@ func newHubsSectionsSectionManagePostSlashCmd(flags *rootFlags) *cobra.Command {
 			}
 
 			params := map[string]string{}
-			if true {
-				params["metadataItemId"] = formatCLIParamValue(flagMetadataItemId)
-			}
+			params["metadataItemId"] = formatCLIParamValue(flagMetadataItemId)
+
 			if cmd.Flags().Changed("promoted-to-recommended") || flagPromotedToRecommended != 0 {
 				params["promotedToRecommended"] = formatCLIParamValue(flagPromotedToRecommended)
 			}

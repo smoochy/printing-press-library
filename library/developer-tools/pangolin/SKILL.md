@@ -67,7 +67,7 @@ These capabilities aren't available in any other tool for this API.
   _When the user asks 'what does $person have access to?' or 'who can hit this resource?', this is the answer._
 
   ```bash
-  pangolin-pp-cli access-graph --user $USER_ID --json
+  pangolin-pp-cli access-graph --user "$USER_ID" --json
   ```
 
 ### Disaster recovery
@@ -227,7 +227,7 @@ Returns a compact JSON array of certs expiring within 30 days. Pair with --selec
 ### Audit access for a specific user
 
 ```bash
-pangolin-pp-cli access-graph --user $USER_ID --json --select resource,org,role
+pangolin-pp-cli access-graph --user "$USER_ID" --json --select resource,org,role
 ```
 
 Joins users x roles x resources x orgs into a single answer for 'what can this person reach?'.

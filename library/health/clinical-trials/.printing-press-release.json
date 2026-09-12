@@ -2,17 +2,17 @@
   "schema_version": 1,
   "slug": "clinical-trials",
   "cli_name": "clinical-trials-pp-cli",
-  "version": "2026.9.5",
-  "released_at": "2026-09-10T09:12:48Z",
-  "source_commit": "58596004e1fd50cacd2ee460b749fba44db9b53d",
+  "version": "2026.9.6",
+  "released_at": "2026-09-11T09:22:21Z",
+  "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e",
   "printing_press_version": "4.25.0",
   "run_id": "20260623-164233-df565e8d",
   "changes": [
     {
-      "title": "clinical-trials: the phase tally counts entries, not trials — say so",
-      "pr": 1973,
-      "url": "https://github.com/mvanhorn/printing-press-library/pull/1973",
-      "commit": "58596004e1fd50cacd2ee460b749fba44db9b53d"
+      "title": "fix: fail closed on ambiguous fleet write retries",
+      "pr": 1978,
+      "url": "https://github.com/mvanhorn/printing-press-library/pull/1978",
+      "commit": "81f5764eda401077520268afe74913c0f21f5b7e"
     }
   ]
 }

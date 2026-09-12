@@ -46,9 +46,8 @@ func newMerchantsPromotedCmd(flags *rootFlags) *cobra.Command {
 			if flagSchedulingTime != 0 {
 				params["scheduling_time"] = formatCLIParamValue(flagSchedulingTime)
 			}
-			if true {
-				params["category_items_size"] = formatCLIParamValue(flagCategoryItemsSize)
-			}
+			params["category_items_size"] = formatCLIParamValue(flagCategoryItemsSize)
+
 			data, prov, err := resolveReadWithStrategyAndResponsePath(cmd.Context(), c, flags, "live", "merchants", false, path, params, nil, "", cmd.ErrOrStderr())
 			if err != nil {
 				return classifyAPIError(cmd.OutOrStdout(), err, flags)

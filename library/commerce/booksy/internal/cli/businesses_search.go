@@ -66,12 +66,9 @@ func newBusinessesSearchCmd(flags *rootFlags) *cobra.Command {
 			if flagSortOrder != "" {
 				params["sort_order"] = formatCLIParamValue(flagSortOrder)
 			}
-			if true {
-				params["businesses_page"] = formatCLIParamValue(flagBusinessesPage)
-			}
-			if true {
-				params["businesses_per_page"] = formatCLIParamValue(flagBusinessesPerPage)
-			}
+			params["businesses_page"] = formatCLIParamValue(flagBusinessesPage)
+			params["businesses_per_page"] = formatCLIParamValue(flagBusinessesPerPage)
+
 			if flagHasOnlineServices != 0 {
 				params["has_online_services"] = formatCLIParamValue(flagHasOnlineServices)
 			}

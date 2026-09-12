@@ -1,0 +1,14 @@
+{
+  "schema_version": 2,
+  "id": "defaulted-numeric-parameters-emitted",
+  "applied_at": "2026-09-10",
+  "base_run_id": "20260831-161927",
+  "base_printing_press_version": "4.31.3",
+  "summary": "Defaulted numeric and boolean parameters are emitted without constant-true guards.",
+  "reason": "Generated constant conditions obscure parameter presence and are rejected by the fleet parameter-construction audit.",
+  "files": [
+    "internal/cli/hid_send-mouse-move.go",
+    "internal/cli/hid_send-mouse-wheel.go"
+  ],
+  "validated_outcome": "The fleet scan finds no constant-true parameter guard."
+}

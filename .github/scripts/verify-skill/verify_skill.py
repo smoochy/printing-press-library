@@ -172,6 +172,11 @@ ROOT_ADDCMD_RE = re.compile(r'rootCmd\.AddCommand\s*\(\s*(new[A-Z]\w*Cmd)\s*\(')
 LOCAL_COMMAND_RE = re.compile(r'(?m)^\s*(\w+)\s*:=\s*&cobra\.Command\s*\{')
 RETURN_VARIABLE_RE = re.compile(r'(?m)^\s*return\s+(\w+)\s*$')
 VARIABLE_ADDCMD_RE = re.compile(r'\b(\w+)\.AddCommand\s*\(([^)]*)\)')
+CONSTRUCTOR_VARIABLE_RE = re.compile(r'\b(\w+)\s*:=\s*(new[A-Z]\w*Cmd)\s*\(')
+FIND_ATTACHMENT_RE = re.compile(
+    r'if\s+(\w+),\s*_,\s*(\w+)\s*:=\s*rootCmd\.Find\(\[\]string\{'
+    r'((?:\s*"[a-z][a-z0-9-]*"\s*,?)+)\}\);\s*\2\s*==\s*nil[^{}]*\{'
+)
 
 
 def _extract_function_body(text: str, start_offset: int) -> str | None:
@@ -294,6 +299,7 @@ class CommandConstructor:
     use: str
     args_info: tuple | None
     children: list[str] = field(default_factory=list)
+    body: str = ""
 
 
 def cli_source_dir(cli_dir: Path) -> Path | None:
@@ -351,6 +357,23 @@ def collect_command_constructors(cli_dir: Path) -> dict[str, CommandConstructor]
             children = list(dict.fromkeys(
                 child.group(1) for child in ADDCMD_CHILD_RE.finditer(body)
             ))
+            returned = RETURN_VARIABLE_RE.findall(body)
+            parent = returned[-1] if returned else None
+            for attachment in VARIABLE_ADDCMD_RE.finditer(body):
+                receiver, arguments = attachment.groups()
+                if receiver != parent:
+                    continue
+                variables = [argument.strip() for argument in arguments.split(",")
+                             if re.fullmatch(r"\w+", argument.strip())]
+                if not variables:
+                    continue
+                # Use the most recent binding before each attachment. Separate
+                # blocks can reuse `sub` for different constructor results.
+                bindings = dict(CONSTRUCTOR_VARIABLE_RE.findall(body[:attachment.start()]))
+                for variable in variables:
+                    child = bindings.get(variable)
+                    if child and child not in children:
+                        children.append(child)
             inline_names, inline_children = _inline_command_children(body, fn_name, go_file)
             children.extend(name for name in inline_names if name not in children)
             constructors[fn_name] = CommandConstructor(
@@ -359,8 +382,27 @@ def collect_command_constructors(cli_dir: Path) -> dict[str, CommandConstructor]
                 use=use_match.group(1),
                 args_info=args_info,
                 children=children,
+                body=body,
             )
             constructors.update(inline_children)
+    # Curated CLIs may attach a child to a literal path in the built root tree.
+    # Require an actual successful Find guard and an AddCommand on its result;
+    # a matching leaf declaration alone must never establish an edge.
+    roots = find_root_children(cli_dir)
+    for go_file in src.glob("*.go"):
+        if go_file.name.endswith("_test.go"):
+            continue
+        text = read_utf8(go_file)
+        for attachment in FIND_ATTACHMENT_RE.finditer(text):
+            receiver, _, path_literal = attachment.groups()
+            parent = _command_constructor(re.findall(r'"([^"]+)"', path_literal), constructors, roots)
+            body = _extract_function_body(text, attachment.end())
+            if parent is None or body is None:
+                continue
+            child_re = re.compile(r'\b' + re.escape(receiver) + r'\.AddCommand\s*\(\s*(new[A-Z]\w*Cmd)\s*\(')
+            for child in child_re.findall(body):
+                if child in constructors and child not in parent.children:
+                    parent.children.append(child)
     return constructors
 
 
@@ -412,6 +454,15 @@ def resolve_command_path(
     if not constructors or not root_children:
         return None, None, None
 
+    current = _command_constructor(cmd_path, constructors, root_children)
+    if current is None:
+        return None, None, None
+    return current.file, current.use, current.args_info
+
+
+def _command_constructor(cmd_path, constructors, root_children):
+    if not cmd_path:
+        return None
     current = None
     for fn_name in root_children:
         info = constructors.get(fn_name)
@@ -422,7 +473,7 @@ def resolve_command_path(
             current = info
             break
     if current is None:
-        return None, None, None
+        return None
 
     for token in cmd_path[1:]:
         next_info = None
@@ -435,10 +486,10 @@ def resolve_command_path(
                 next_info = child
                 break
         if next_info is None:
-            return None, None, None
+            return None
         current = next_info
 
-    return current.file, current.use, current.args_info
+    return current
 
 
 def find_command_source(cli_dir: Path, cmd_path: list[str]):
@@ -597,6 +648,26 @@ def _boolean_flag_names(cli_dir: Path) -> frozenset[str]:
         except Exception:
             continue
         names.update(_iter_bool_flag_names(text))
+    return frozenset(names)
+
+
+@lru_cache(maxsize=None)
+def _command_boolean_flag_names(cli_dir: Path, cmd_path: tuple[str, ...]) -> frozenset[str]:
+    """Honor local flag types over same-named flags on other commands."""
+    constructors = collect_command_constructors(cli_dir)
+    roots = find_root_children(cli_dir)
+    command = _command_constructor(list(cmd_path), constructors, roots)
+    if command is None or not command.body:
+        return _boolean_flag_names(cli_dir)
+    # Retain the legacy discovery of inherited booleans, then override with
+    # the declaring constructor, not every sibling in the same source file.
+    names = set(_boolean_flag_names(cli_dir))
+    for match in FLAG_DECL_RE.finditer(command.body):
+        _, method, name = match.groups()
+        if method == "BoolVar":
+            names.add(name)
+        else:
+            names.discard(name)
     return frozenset(names)
 
 
@@ -822,8 +893,8 @@ def _cli_invocation_from_tokens(
     while i < len(tokens):
         t = tokens[i]
         if t == "--":
-            i += 1
-            continue
+            positional.extend(tokens[i + 1:])
+            break
         if t.startswith("--"):
             flag_name = t.split("=", 1)[0].rstrip(TOKEN_TRAILING_PUNCT)
             flags.append(flag_name)
@@ -835,7 +906,7 @@ def _cli_invocation_from_tokens(
             #    recipe's positional args).
             is_bool = (
                 cli_dir is not None
-                and flag_name.lstrip("-") in _boolean_flag_names(cli_dir)
+                and flag_name.lstrip("-") in _command_boolean_flag_names(cli_dir, tuple(cmd_path))
             )
             if (
                 "=" not in t

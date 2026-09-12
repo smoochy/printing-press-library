@@ -66,9 +66,8 @@ func newVideosContentListVideosCmd(flags *rootFlags) *cobra.Command {
 			}
 
 			params := map[string]string{}
-			if true {
-				params["index"] = formatCLIParamValue(flagIndex)
-			}
+			params["index"] = formatCLIParamValue(flagIndex)
+
 			data, prov, err := resolveReadWithStrategyResponsePathAndJSONGuard(cmd.Context(), c, flags, "live", "content", false, path, params, headerOverrides, "", false, cmd.ErrOrStderr())
 			if err != nil {
 				return classifyAPIError(cmd.OutOrStdout(), err, flags)

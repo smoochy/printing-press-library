@@ -60,9 +60,8 @@ func newLinkedinSearchCmd(flags *rootFlags) *cobra.Command {
 			if cmd.Flags().Changed("cursor") || flagCursor != "" {
 				params["cursor"] = formatCLIParamValue(flagCursor)
 			}
-			if true {
-				params["limit"] = formatCLIParamValue(flagLimit)
-			}
+			params["limit"] = formatCLIParamValue(flagLimit)
+
 			if cmd.Flags().Changed("account-id") || flagAccountId != "" {
 				params["account_id"] = formatCLIParamValue(flagAccountId)
 			}

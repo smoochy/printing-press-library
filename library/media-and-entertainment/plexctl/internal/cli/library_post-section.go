@@ -82,9 +82,8 @@ func newLibraryPostSectionCmd(flags *rootFlags) *cobra.Command {
 			if cmd.Flags().Changed("name") || flagName != "" {
 				params["name"] = formatCLIParamValue(flagName)
 			}
-			if true {
-				params["type"] = formatCLIParamValue(flagType)
-			}
+			params["type"] = formatCLIParamValue(flagType)
+
 			if cmd.Flags().Changed("scanner") || flagScanner != "" {
 				params["scanner"] = formatCLIParamValue(flagScanner)
 			}

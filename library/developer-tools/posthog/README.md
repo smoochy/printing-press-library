@@ -121,25 +121,25 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
 
 ## Authentication
 
-Uses your PostHog personal API key (phx_...). Set POSTHOG_API_KEY or run `posthog-pp-cli auth set-token`. Supports both US (app.posthog.com) and EU (eu.posthog.com) instances via POSTHOG_HOST.
+Uses your PostHog personal API key (phx_...). Set POSTHOG_API_KEY or run `posthog-pp-cli auth set-token <token>`. Supports both US (app.posthog.com) and EU (eu.posthog.com) instances via POSTHOG_HOST.
 
 ## Quick Start
 
 ```bash
 # Connect to your PostHog instance with your personal API key
-posthog-pp-cli auth set-token
+posthog-pp-cli auth set-token "$POSTHOG_API_KEY"
 
 # Sync flags, insights, experiments, persons, and errors to local store
 posthog-pp-cli sync --full
 
 # List all feature flags with rollout rules
-posthog-pp-cli flags list --json
+posthog-pp-cli projects feature-flags list 12345 --json
 
-# Run HogQL to see your top events
-posthog-pp-cli query run --sql "SELECT event, count() FROM events WHERE timestamp > now() - INTERVAL 7 DAY GROUP BY event ORDER BY count() DESC LIMIT 20"
+# List recent events in your project (replace 12345 with your project ID)
+posthog-pp-cli projects events list 12345 --limit 20 --json
 
 # Find everything that references a flag before archiving
-posthog-pp-cli flags blast-radius my-checkout-v2
+posthog-pp-cli flags blast-radius --key my-checkout-v2
 
 ```
 
@@ -192,7 +192,7 @@ These capabilities aren't available in any other tool for this API.
   _Use after a deploy to catch silent schema changes that corrupt ongoing experiments and dashboards._
 
   ```bash
-  posthog-pp-cli events property-drift --event checkout_completed --agent
+  posthog-pp-cli events property-drift checkout_completed --agent
   ```
 - **`experiments pre-check`** — Know today whether an experiment will reach significance this sprint, or needs traffic adjustment now.
 
@@ -221,10 +221,10 @@ These compound commands exist nowhere else. Each wraps multiple API calls into a
 
 ```bash
 # Find every insight, dashboard, experiment, and survey referencing a flag
-posthog-pp-cli flags blast-radius my-flag --project 12345
+posthog-pp-cli flags blast-radius --key my-flag --project 12345
 
 # Go/no-go signal before ramping to 100%
-posthog-pp-cli flags rollout-health my-flag --project 12345
+posthog-pp-cli flags rollout-health --key my-flag --project 12345
 ```
 
 ### Quarterly flag cleanup
@@ -278,20 +278,12 @@ Manage code
 
 Manage environments
 
-### organizations
-
-Manage organizations
-
-- **`posthog-pp-cli organizations create`** - Create
-- **`posthog-pp-cli organizations destroy`** - Destroy
-- **`posthog-pp-cli organizations list`** - List
-- **`posthog-pp-cli organizations partial-update`** - Partial update
-- **`posthog-pp-cli organizations retrieve`** - Retrieve
-- **`posthog-pp-cli organizations update`** - Update
-
 ### projects
 
 Manage projects
+
+- **`posthog-pp-cli projects feature-flags list <project_id>`** - List project feature flags
+- **`posthog-pp-cli projects events list <project_id>`** - List project events
 
 ### public-hog-function-templates
 
@@ -323,19 +315,19 @@ Manage users
 
 ```bash
 # Human-readable table (default in terminal, JSON when piped)
-posthog-pp-cli organizations list
+posthog-pp-cli projects feature-flags list 12345
 
 # JSON for scripting and agents
-posthog-pp-cli organizations list --json
+posthog-pp-cli projects feature-flags list 12345 --json
 
 # Filter to specific fields
-posthog-pp-cli organizations list --json --select id,name,status
+posthog-pp-cli projects feature-flags list 12345 --json --select id,name,key
 
 # Dry run — show the request without sending
-posthog-pp-cli organizations list --dry-run
+posthog-pp-cli projects feature-flags list 12345 --dry-run
 
 # Agent mode — JSON + compact + no prompts in one flag
-posthog-pp-cli organizations list --agent
+posthog-pp-cli projects feature-flags list 12345 --agent
 ```
 
 ## Agent Usage
@@ -384,7 +376,7 @@ Environment variables:
 
 ### API-specific
 
-- **401 Unauthorized** — Run `posthog-pp-cli auth set-token` and paste your phx_ personal API key (not the project token)
+- **401 Unauthorized**: Run `posthog-pp-cli auth set-token <token>` with your phx_ personal API key (not the project token)
 - **Empty results after sync** — Check your project ID: `posthog-pp-cli projects list` — then set POSTHOG_PROJECT_ID
 - **EU instance not connecting** — Set POSTHOG_HOST=https://eu.posthog.com and re-run sync
 - **Query rate limit (429)** — PostHog limits analytics queries to 240/min. Add --delay 500 flag or reduce query frequency

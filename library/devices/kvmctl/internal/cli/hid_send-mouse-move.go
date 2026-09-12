@@ -55,12 +55,9 @@ func newHidSendMouseMoveCmd(flags *rootFlags) *cobra.Command {
 				return err
 			}
 			params := map[string]string{}
-			if true {
-				params["x"] = formatCLIParamValue(flagX)
-			}
-			if true {
-				params["y"] = formatCLIParamValue(flagY)
-			}
+			params["x"] = formatCLIParamValue(flagX)
+			params["y"] = formatCLIParamValue(flagY)
+
 			var body any
 			if stdinBody {
 				stdinData, err := io.ReadAll(os.Stdin)

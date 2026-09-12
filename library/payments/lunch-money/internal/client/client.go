@@ -269,6 +269,10 @@ func encodeMultipartBody(body multipartRequestBody) ([]byte, string, error) {
 // do executes an HTTP request. headerOverrides, when non-nil, override global
 // RequiredHeaders for this specific request (used for per-endpoint API versioning).
 func (c *Client) do(method, path string, params map[string]string, body any, headerOverrides map[string]string) (json.RawMessage, int, error) {
+	// Keep authentication and rate-limit recovery available; only ambiguous
+	// transport/server failures must not replay an unprotected write.
+	canRetryAmbiguousFailure := method == http.MethodGet || method == http.MethodHead || method == http.MethodOptions
+
 	targetURL := c.BaseURL + path
 
 	var bodyBytes []byte
@@ -367,6 +371,9 @@ func (c *Client) do(method, path string, params map[string]string, body any, hea
 		resp, err := c.HTTPClient.Do(req)
 		if err != nil {
 			lastErr = fmt.Errorf("%s %s: %w", method, path, err)
+			if !canRetryAmbiguousFailure {
+				return nil, 0, lastErr
+			}
 			continue
 		}
 
@@ -410,7 +417,7 @@ func (c *Client) do(method, path string, params map[string]string, body any, hea
 		// and a retry would create a duplicate. createRetagTag POSTs /tags;
 		// without this guard a transient 5xx after a successful commit
 		// would leave a duplicate tag in Lunch Money. PATCH(retry-non-idempotent).
-		if resp.StatusCode >= 500 && attempt < maxRetries && isIdempotentMethod(method) {
+		if resp.StatusCode >= 500 && attempt < maxRetries && isIdempotentMethod(method) && canRetryAmbiguousFailure {
 			wait := time.Duration(math.Pow(2, float64(attempt))) * time.Second
 			fmt.Fprintf(os.Stderr, "server error %d, retrying in %s (attempt %d/%d)\n", resp.StatusCode, wait, attempt+1, maxRetries)
 			time.Sleep(wait)

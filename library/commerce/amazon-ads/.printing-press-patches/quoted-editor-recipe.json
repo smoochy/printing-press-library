@@ -1,0 +1,11 @@
+{
+  "schema_version": 2,
+  "id": "quoted-editor-recipe",
+  "applied_at": "2026-09-10",
+  "base_run_id": "20260527-233111",
+  "base_printing_press_version": "4.18.1",
+  "summary": "Configuration editing recipes quote the editor executable variable.",
+  "reason": "The touched-CLI skill verification gate rejects unquoted shell variable expansion, including the pre-existing editor recipe.",
+  "files": ["SKILL.md", "README.md"],
+  "validated_outcome": "The source-of-truth recipes use a quoted editor variable; generated cli-skills mirrors remain untouched."
+}

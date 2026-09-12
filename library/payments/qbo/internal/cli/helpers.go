@@ -75,7 +75,6 @@ func yellow(s string) string {
 	return "\033[33m" + s + "\033[0m"
 }
 
-
 // parentNoSubcommandRunE returns a RunE that handles parents invoked without a
 // subcommand.
 func parentNoSubcommandRunE(flags *rootFlags) func(*cobra.Command, []string) error {
@@ -128,5 +127,9 @@ func newTabWriter(w io.Writer) *tabwriter.Writer {
 // replacePathParam percent-encodes value so path-reserved characters in
 // user input do not collapse into extra path segments.
 func replacePathParam(path, name, value string) string {
-	return strings.ReplaceAll(path, "{"+name+"}", url.PathEscape(value))
+	encoded := url.PathEscape(value)
+	if value == "." || value == ".." {
+		encoded = strings.Repeat("%2E", len(value))
+	}
+	return strings.ReplaceAll(path, "{"+name+"}", encoded)
 }

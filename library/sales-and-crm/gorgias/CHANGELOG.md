@@ -5,6 +5,10 @@ follows [Keep a Changelog](https://keepachangelog.com/) with one section
 per released tag. Each entry summarizes what a user would notice on
 upgrade.
 
+## 2026.9.1 - 2026-09-11
+
+- fix: fail closed on ambiguous fleet write retries (#1978).
+
 ## 2026.8.1 - 2026-08-17
 
 - fix(catalog): align Go fallback docs with toolchain floor (#1735).

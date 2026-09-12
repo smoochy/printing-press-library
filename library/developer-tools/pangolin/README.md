@@ -159,7 +159,7 @@ These capabilities aren't available in any other tool for this API.
   _When the user asks 'what does $person have access to?' or 'who can hit this resource?', this is the answer._
 
   ```bash
-  pangolin-pp-cli access-graph --user $USER_ID --json
+  pangolin-pp-cli access-graph --user "$USER_ID" --json
   ```
 
 ### Disaster recovery

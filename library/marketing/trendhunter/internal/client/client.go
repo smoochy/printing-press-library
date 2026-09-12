@@ -181,6 +181,10 @@ func (c *Client) PatchWithHeaders(ctx context.Context, path string, body any, he
 // override global RequiredHeaders for this specific request (used for
 // per-endpoint API versioning).
 func (c *Client) do(ctx context.Context, method, path string, params map[string]string, body any, headerOverrides map[string]string) (json.RawMessage, int, error) {
+	// Keep authentication and rate-limit recovery available; only ambiguous
+	// transport/server failures must not replay an unprotected write.
+	canRetryAmbiguousFailure := method == http.MethodGet || method == http.MethodHead || method == http.MethodOptions
+
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -271,6 +275,9 @@ func (c *Client) do(ctx context.Context, method, path string, params map[string]
 		resp, err := c.HTTPClient.Do(req)
 		if err != nil {
 			lastErr = fmt.Errorf("%s %s: %w", method, path, err)
+			if !canRetryAmbiguousFailure {
+				return nil, 0, lastErr
+			}
 			continue
 		}
 
@@ -308,7 +315,7 @@ func (c *Client) do(ctx context.Context, method, path string, params map[string]
 		}
 
 		// Server error - retry with backoff
-		if resp.StatusCode >= 500 && attempt < maxRetries {
+		if resp.StatusCode >= 500 && attempt < maxRetries && canRetryAmbiguousFailure {
 			wait := time.Duration(math.Pow(2, float64(attempt))) * time.Second
 			fmt.Fprintf(os.Stderr, "server error %d, retrying in %s (attempt %d/%d)\n", resp.StatusCode, wait, attempt+1, maxRetries)
 			time.Sleep(wait)

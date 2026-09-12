@@ -12,6 +12,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zoho-expense/internal/cliutil"
+	"github.com/mvanhorn/printing-press-library/library/productivity/zoho-expense/internal/config"
 	"io"
 	"math"
 	"net/http"
@@ -21,8 +23,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"github.com/mvanhorn/printing-press-library/library/productivity/zoho-expense/internal/cliutil"
-	"github.com/mvanhorn/printing-press-library/library/productivity/zoho-expense/internal/config"
 )
 
 const BinaryResponseHeader = "X-Printing-Press-Binary-Response"
@@ -374,6 +374,10 @@ func (c *Client) doRead(ctx context.Context, method, path string, params map[str
 // operations like GraphQL queries) to skip the mutating-verb verify-mode
 // gate. Plain do() callers leave it false and get the usual short-circuit.
 func (c *Client) doInternal(ctx context.Context, method, path string, params map[string]string, body any, headerOverrides map[string]string, readOnlyIntent bool) (json.RawMessage, int, error) {
+	// Keep authentication and rate-limit recovery available; only ambiguous
+	// transport/server failures must not replay an unprotected write.
+	canRetryAmbiguousFailure := readOnlyIntent || method == http.MethodGet || method == http.MethodHead || method == http.MethodOptions
+
 	// Verify-mode transport-layer gate. When the verifier (or any consumer
 	// that sets PRINTING_PRESS_VERIFY=1) drives a mutating verb without
 	// the LIVE_HTTP=1 opt-in, return a synthetic envelope without dialing,
@@ -491,6 +495,9 @@ func (c *Client) doInternal(ctx context.Context, method, path string, params map
 				return nil, 0, ctxErr
 			}
 			lastErr = fmt.Errorf("%s %s: %w", method, path, err)
+			if !canRetryAmbiguousFailure {
+				return nil, 0, lastErr
+			}
 			continue
 		}
 
@@ -544,7 +551,7 @@ func (c *Client) doInternal(ctx context.Context, method, path string, params map
 		}
 
 		// Server error - retry with backoff
-		if resp.StatusCode >= 500 && attempt < maxRetries {
+		if resp.StatusCode >= 500 && attempt < maxRetries && canRetryAmbiguousFailure {
 			wait := time.Duration(math.Pow(2, float64(attempt))) * time.Second
 			fmt.Fprintf(os.Stderr, "server error %d, retrying in %s (attempt %d/%d)\n", resp.StatusCode, wait, attempt+1, maxRetries)
 			if err := sleepContext(ctx, wait); err != nil {

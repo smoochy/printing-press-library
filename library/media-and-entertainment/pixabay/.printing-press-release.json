@@ -2,17 +2,17 @@
   "schema_version": 1,
   "slug": "pixabay",
   "cli_name": "pixabay-pp-cli",
-  "version": "2026.9.1",
-  "released_at": "2026-09-03T15:25:21Z",
-  "source_commit": "8720142dad4c0444fe59ae1843d244fa07074687",
+  "version": "2026.9.2",
+  "released_at": "2026-09-11T09:22:21Z",
+  "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e",
   "printing_press_version": "4.25.0",
   "run_id": "20260623-122808-afd957b7",
   "changes": [
     {
-      "title": "feat(pixabay): add pixabay",
-      "pr": 1919,
-      "url": "https://github.com/mvanhorn/printing-press-library/pull/1919",
-      "commit": "8720142dad4c0444fe59ae1843d244fa07074687"
+      "title": "fix: fail closed on ambiguous fleet write retries",
+      "pr": 1978,
+      "url": "https://github.com/mvanhorn/printing-press-library/pull/1978",
+      "commit": "81f5764eda401077520268afe74913c0f21f5b7e"
     }
   ]
 }

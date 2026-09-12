@@ -59,7 +59,7 @@ These capabilities aren't available in any other tool for this API.
   _Use after an analysis to get LLM-generated action items without re-spending if you already pulled them once._
 
   ```bash
-  botsee-pp-cli recommendations $ANALYSIS_UUID --agent
+  botsee-pp-cli recommendations "$ANALYSIS_UUID" --agent
   ```
 
 ### Workflow plumbing
@@ -68,7 +68,7 @@ These capabilities aren't available in any other tool for this API.
   _Reach for this when a user asks 'what is set up for this site' or 'show me my BotSee config' — it surfaces every UUID needed for follow-up edits._
 
   ```bash
-  botsee-pp-cli site-config --site $SITE_UUID --agent
+  botsee-pp-cli site-config --site "$SITE_UUID" --agent
   ```
 - **`sites-summary`** — Aggregate cited sources across every synced site, grouped by domain, with citation count, distinct sites citing each domain, and first-seen timestamp.
 
@@ -188,7 +188,7 @@ Returns predicted credit + USD cost without spending — reads the live `/pricin
 ### Inspect what's configured for a site
 
 ```bash
-botsee-pp-cli site-config --site $SITE_UUID --agent --select customer_types,personas,questions
+botsee-pp-cli site-config --site "$SITE_UUID" --agent --select customer_types,personas,questions
 ```
 
 Returns the nested tree as JSON — agents can walk it to find UUIDs for follow-up `personas update / questions delete` calls.

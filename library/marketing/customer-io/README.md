@@ -128,7 +128,7 @@ Customer.io uses Service Account tokens (`sa_live_*` prefix). The CLI exchanges 
 
 ```bash
 # One-time SA token exchange; the JWT is cached and refreshed automatically.
-customer-io auth login --sa-token $CIO_TOKEN --region us
+customer-io auth login --sa-token "$CIO_TOKEN" --region us
 
 # Confirms token, region, account_id, and which workspaces are reachable.
 customer-io doctor

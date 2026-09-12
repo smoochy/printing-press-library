@@ -2,17 +2,17 @@
   "schema_version": 1,
   "slug": "creativefabrica",
   "cli_name": "creativefabrica-pp-cli",
-  "version": "2026.9.1",
-  "released_at": "2026-09-04T09:53:44Z",
-  "source_commit": "b86db4175f728ce97cab7c4888d360772fcd9e46",
+  "version": "2026.9.2",
+  "released_at": "2026-09-11T09:22:21Z",
+  "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e",
   "printing_press_version": "4.24.0",
   "run_id": "20260615-140715-4672841b",
   "changes": [
     {
-      "title": "feat(creativefabrica): add creativefabrica (leftover from #1225)",
-      "pr": 1928,
-      "url": "https://github.com/mvanhorn/printing-press-library/pull/1928",
-      "commit": "b86db4175f728ce97cab7c4888d360772fcd9e46"
+      "title": "fix: fail closed on ambiguous fleet write retries",
+      "pr": 1978,
+      "url": "https://github.com/mvanhorn/printing-press-library/pull/1978",
+      "commit": "81f5764eda401077520268afe74913c0f21f5b7e"
     }
   ]
 }

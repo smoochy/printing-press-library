@@ -2,17 +2,17 @@
   "schema_version": 1,
   "slug": "axs",
   "cli_name": "axs-pp-cli",
-  "version": "2026.8.1",
-  "released_at": "2026-08-18T16:37:30Z",
-  "source_commit": "1d8a252d545c4bf7cba8a64746c9513f24dd0e48",
+  "version": "2026.9.1",
+  "released_at": "2026-09-11T09:22:21Z",
+  "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e",
   "printing_press_version": "4.24.0",
   "run_id": "20260614-174950-dcc2e342",
   "changes": [
     {
-      "title": "feat(axs): add sram axs",
-      "pr": 1180,
-      "url": "https://github.com/mvanhorn/printing-press-library/pull/1180",
-      "commit": "1d8a252d545c4bf7cba8a64746c9513f24dd0e48"
+      "title": "fix: fail closed on ambiguous fleet write retries",
+      "pr": 1978,
+      "url": "https://github.com/mvanhorn/printing-press-library/pull/1978",
+      "commit": "81f5764eda401077520268afe74913c0f21f5b7e"
     }
   ]
 }

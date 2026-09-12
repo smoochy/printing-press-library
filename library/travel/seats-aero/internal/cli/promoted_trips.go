@@ -47,9 +47,8 @@ func newTripsPromotedCmd(flags *rootFlags) *cobra.Command {
 			if flagIncludeFiltered != false {
 				params["include_filtered"] = formatCLIParamValue(flagIncludeFiltered)
 			}
-			if true {
-				params["min_cabin_pct"] = formatCLIParamValue(flagMinCabinPct)
-			}
+			params["min_cabin_pct"] = formatCLIParamValue(flagMinCabinPct)
+
 			data, prov, err := resolveReadWithStrategyAndResponsePath(cmd.Context(), c, flags, "auto", "trips", false, path, params, nil, "data", cmd.ErrOrStderr())
 			if err != nil {
 				return classifyAPIError(cmd.OutOrStdout(), err, flags)

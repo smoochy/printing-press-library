@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -136,7 +137,11 @@ func newTabWriter(w io.Writer) *tabwriter.Writer {
 	return tabwriter.NewWriter(w, 2, 4, 2, ' ', 0)
 }
 func replacePathParam(path, name, value string) string {
-	return strings.ReplaceAll(path, "{"+name+"}", value)
+	encoded := url.PathEscape(value)
+	if value == "." || value == ".." {
+		encoded = strings.Repeat("%2E", len(value))
+	}
+	return strings.ReplaceAll(path, "{"+name+"}", encoded)
 }
 
 // paginatedGet fetches pages and concatenates array results.

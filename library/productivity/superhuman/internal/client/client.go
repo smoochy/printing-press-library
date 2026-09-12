@@ -353,6 +353,10 @@ func (c *Client) do(method, path string, params map[string]string, body any, hea
 // backoff, 5xx backoff) is owned by `do` or this function's inner loop —
 // callers must not invoke doOnce directly except through `do`.
 func (c *Client) doOnce(method, path string, params map[string]string, body any, headerOverrides map[string]string) (json.RawMessage, int, error) {
+	// Keep authentication and rate-limit recovery available; only ambiguous
+	// transport/server failures must not replay an unprotected write.
+	canRetryAmbiguousFailure := method == http.MethodGet || method == http.MethodHead || method == http.MethodOptions
+
 	targetURL := c.BaseURL + path
 
 	var bodyBytes []byte
@@ -450,6 +454,9 @@ func (c *Client) doOnce(method, path string, params map[string]string, body any,
 		resp, err := c.HTTPClient.Do(req)
 		if err != nil {
 			lastErr = fmt.Errorf("%s %s: %w", method, path, err)
+			if !canRetryAmbiguousFailure {
+				return nil, 0, lastErr
+			}
 			continue
 		}
 
@@ -488,7 +495,7 @@ func (c *Client) doOnce(method, path string, params map[string]string, body any,
 		}
 
 		// Server error - retry with backoff
-		if resp.StatusCode >= 500 && attempt < maxRetries {
+		if resp.StatusCode >= 500 && attempt < maxRetries && canRetryAmbiguousFailure {
 			wait := time.Duration(math.Pow(2, float64(attempt))) * time.Second
 			fmt.Fprintf(os.Stderr, "server error %d, retrying in %s (attempt %d/%d)\n", resp.StatusCode, wait, attempt+1, maxRetries)
 			time.Sleep(wait)

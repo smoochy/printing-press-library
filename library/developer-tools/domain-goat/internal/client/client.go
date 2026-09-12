@@ -177,6 +177,10 @@ func (c *Client) PatchWithHeaders(path string, body any, headers map[string]stri
 // do executes an HTTP request. headerOverrides, when non-nil, override global
 // RequiredHeaders for this specific request (used for per-endpoint API versioning).
 func (c *Client) do(method, path string, params map[string]string, body any, headerOverrides map[string]string) (json.RawMessage, int, error) {
+	// Keep authentication and rate-limit recovery available; only ambiguous
+	// transport/server failures must not replay an unprotected write.
+	canRetryAmbiguousFailure := method == http.MethodGet || method == http.MethodHead || method == http.MethodOptions
+
 	// Resource and endpoint BaseURL overrides flow through as absolute paths
 	// (https:// or http://); the resource template emits the full URL
 	// in `path` and we skip the c.BaseURL concat for those.
@@ -266,6 +270,9 @@ func (c *Client) do(method, path string, params map[string]string, body any, hea
 		resp, err := c.HTTPClient.Do(req)
 		if err != nil {
 			lastErr = fmt.Errorf("%s %s: %w", method, path, err)
+			if !canRetryAmbiguousFailure {
+				return nil, 0, lastErr
+			}
 			continue
 		}
 
@@ -303,7 +310,7 @@ func (c *Client) do(method, path string, params map[string]string, body any, hea
 		}
 
 		// Server error - retry with backoff
-		if resp.StatusCode >= 500 && attempt < maxRetries {
+		if resp.StatusCode >= 500 && attempt < maxRetries && canRetryAmbiguousFailure {
 			wait := time.Duration(math.Pow(2, float64(attempt))) * time.Second
 			fmt.Fprintf(os.Stderr, "server error %d, retrying in %s (attempt %d/%d)\n", resp.StatusCode, wait, attempt+1, maxRetries)
 			time.Sleep(wait)

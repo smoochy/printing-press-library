@@ -89,7 +89,7 @@ The bundle reuses your local OAuth2 refresh-token credentials. Configure the CLI
 ```bash
 mkdir -p ~/.config/amazon-ads-pp-cli
 chmod 700 ~/.config/amazon-ads-pp-cli
-$EDITOR ~/.config/amazon-ads-pp-cli/.env
+"$EDITOR" ~/.config/amazon-ads-pp-cli/.env
 ```
 
 Set `AMAZON_ADS_CLIENT_ID` and `AMAZON_ADS_CLIENT_SECRET` in that file, then run `amazon-ads-pp-cli auth login --port 8085` with `http://localhost:8085/callback` registered as the Amazon redirect URL. The login flow saves `AMAZON_ADS_REFRESH_TOKEN` and `AMAZON_ADS_PROFILE_ID`. Process environment variables with the same names still override `.env` values.

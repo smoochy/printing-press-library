@@ -57,12 +57,9 @@ func newArticlesSearchCmd(flags *rootFlags) *cobra.Command {
 			if flagLabelNames != "" {
 				params["label_names"] = formatCLIParamValue(flagLabelNames)
 			}
-			if true {
-				params["per_page"] = formatCLIParamValue(flagPerPage)
-			}
-			if true {
-				params["page"] = formatCLIParamValue(flagPage)
-			}
+			params["per_page"] = formatCLIParamValue(flagPerPage)
+			params["page"] = formatCLIParamValue(flagPage)
+
 			data, prov, err := resolveReadWithStrategyAndResponsePath(cmd.Context(), c, flags, "auto", "articles", true, path, params, nil, "", cmd.ErrOrStderr())
 			if err != nil {
 				return classifyAPIError(cmd.OutOrStdout(), err, flags)

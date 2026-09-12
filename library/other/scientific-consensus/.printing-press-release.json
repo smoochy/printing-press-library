@@ -2,17 +2,17 @@
   "schema_version": 1,
   "slug": "scientific-consensus",
   "cli_name": "scientific-consensus-pp-cli",
-  "version": "2026.9.1",
-  "released_at": "2026-09-08T09:24:30Z",
-  "source_commit": "2d5f11856e8864c0165d9cf603b6df5788c48dc9",
+  "version": "2026.9.2",
+  "released_at": "2026-09-11T09:22:21Z",
+  "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e",
   "printing_press_version": "4.24.0",
   "run_id": "20260620-165352-e55cec69",
   "changes": [
     {
-      "title": "scientific-consensus: guard five untested edges of the controversies command",
-      "pr": 1964,
-      "url": "https://github.com/mvanhorn/printing-press-library/pull/1964",
-      "commit": "2d5f11856e8864c0165d9cf603b6df5788c48dc9"
+      "title": "fix: fail closed on ambiguous fleet write retries",
+      "pr": 1978,
+      "url": "https://github.com/mvanhorn/printing-press-library/pull/1978",
+      "commit": "81f5764eda401077520268afe74913c0f21f5b7e"
     }
   ]
 }

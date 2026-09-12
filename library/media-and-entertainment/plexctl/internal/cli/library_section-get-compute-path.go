@@ -72,12 +72,9 @@ func newLibrarySectionGetComputePathCmd(flags *rootFlags) *cobra.Command {
 				return err
 			}
 			params := map[string]string{}
-			if true {
-				params["startID"] = formatCLIParamValue(flagStartID)
-			}
-			if true {
-				params["endID"] = formatCLIParamValue(flagEndID)
-			}
+			params["startID"] = formatCLIParamValue(flagStartID)
+			params["endID"] = formatCLIParamValue(flagEndID)
+
 			if flagCount != 0 {
 				params["count"] = formatCLIParamValue(flagCount)
 			}

@@ -49,9 +49,8 @@ func newGetCommentsPromotedCmd(flags *rootFlags) *cobra.Command {
 
 			path := "/get_comments"
 			params := map[string]string{}
-			if true {
-				params["expense_id"] = formatCLIParamValue(flagExpenseId)
-			}
+			params["expense_id"] = formatCLIParamValue(flagExpenseId)
+
 			data, prov, err := resolveReadWithStrategyAndResponsePath(cmd.Context(), c, flags, "auto", "get-comments", true, path, params, nil, "comments", cmd.ErrOrStderr())
 			if err != nil {
 				return classifyAPIError(cmd.OutOrStdout(), err, flags)

@@ -41,9 +41,8 @@ func newStoresPromotedCmd(flags *rootFlags) *cobra.Command {
 			if flagLongitude != 0.0 {
 				params["Longitude"] = formatCLIParamValue(flagLongitude)
 			}
-			if true {
-				params["Max"] = formatCLIParamValue(flagMax)
-			}
+			params["Max"] = formatCLIParamValue(flagMax)
+
 			if flagDivision != "" {
 				params["Division"] = formatCLIParamValue(flagDivision)
 			}

@@ -33,12 +33,9 @@ func newSectionsPromotedCmd(flags *rootFlags) *cobra.Command {
 			if flagCategoryId != "" {
 				params["category_id"] = formatCLIParamValue(flagCategoryId)
 			}
-			if true {
-				params["per_page"] = formatCLIParamValue(flagPerPage)
-			}
-			if true {
-				params["page"] = formatCLIParamValue(flagPage)
-			}
+			params["per_page"] = formatCLIParamValue(flagPerPage)
+			params["page"] = formatCLIParamValue(flagPage)
+
 			data, prov, err := resolveReadWithStrategyAndResponsePath(cmd.Context(), c, flags, "auto", "sections", true, path, params, nil, "", cmd.ErrOrStderr())
 			if err != nil {
 				return classifyAPIError(cmd.OutOrStdout(), err, flags)

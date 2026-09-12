@@ -1,0 +1,13 @@
+{
+  "schema_version": 2,
+  "id": "ambiguous-write-retries-disabled",
+  "applied_at": "2026-09-10",
+  "base_run_id": "pp-pp-local-2026-07-11",
+  "base_printing_press_version": "4.28.0",
+  "summary": "Ambiguous transport and server failures are retried only for read-only requests.",
+  "reason": "A failed write may have committed remotely before the client observed the failure; automatically replaying it can duplicate an external mutation.",
+  "files": [
+    "internal/client/client.go"
+  ],
+  "validated_outcome": "Current upstream source already gates transport and 5xx replay through requestCanRetry; that bespoke policy was preserved."
+}

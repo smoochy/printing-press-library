@@ -13,7 +13,7 @@ require (
 	github.com/GehirnInc/crypt v0.0.0-20230320061759-8cc1b52080c5
 	github.com/mark3labs/mcp-go v0.47.0
 	github.com/spf13/pflag v1.0.6
-	golang.org/x/crypto v0.53.0
+	golang.org/x/crypto v0.56.0
 )
 
 require (
@@ -35,4 +35,4 @@ require (
 // Floor x/sys above the vulnerable v0.31.0. It is pulled only transitively
 // (modernc.org/sqlite, golang.org/x/net, ...), so MVS needs this explicit
 // floor; tidy drops it for CLIs that pull no x/sys at all.
-require golang.org/x/sys v0.46.0 // indirect
+require golang.org/x/sys v0.47.0 // indirect

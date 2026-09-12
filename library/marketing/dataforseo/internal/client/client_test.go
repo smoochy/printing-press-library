@@ -125,7 +125,7 @@ func TestDoAcceptsSuccessfulAndNonEnvelopeJSON(t *testing.T) {
 	}
 }
 
-func TestDoRetriesOnlySafeOrIdempotencyKeyRequests(t *testing.T) {
+func TestDoRetriesOnlySafeRequests(t *testing.T) {
 	tests := []struct {
 		name      string
 		method    string
@@ -136,7 +136,10 @@ func TestDoRetriesOnlySafeOrIdempotencyKeyRequests(t *testing.T) {
 		{name: "GET retries", method: http.MethodGet, wantCalls: 2},
 		{name: "HEAD retries", method: http.MethodHead, wantCalls: 2},
 		{name: "POST does not retry", method: http.MethodPost, wantCalls: 1, wantErr: true},
-		{name: "idempotency-key POST retries", method: http.MethodPost, headers: map[string]string{"Idempotency-Key": "task-123"}, wantCalls: 2},
+		{name: "unproven idempotency-key POST does not retry", method: http.MethodPost, headers: map[string]string{"Idempotency-Key": "task-123"}, wantCalls: 1, wantErr: true},
+		{name: "unproven idempotency-key PUT does not retry", method: http.MethodPut, headers: map[string]string{"Idempotency-Key": "task-123"}, wantCalls: 1, wantErr: true},
+		{name: "unproven idempotency-key PATCH does not retry", method: http.MethodPatch, headers: map[string]string{"Idempotency-Key": "task-123"}, wantCalls: 1, wantErr: true},
+		{name: "unproven idempotency-key DELETE does not retry", method: http.MethodDelete, headers: map[string]string{"Idempotency-Key": "task-123"}, wantCalls: 1, wantErr: true},
 	}
 
 	for _, tt := range tests {
@@ -371,6 +374,9 @@ func TestHTTPStatusRetriesExactRequestCounts(t *testing.T) {
 			{name: "Idempotency-Key POST", method: http.MethodPost, headers: map[string]string{"Idempotency-Key": "task-123"}, wantCalls: 4},
 		} {
 			t.Run(strconv.Itoa(status)+"/"+tc.name, func(t *testing.T) {
+				if status >= 500 && tc.method == http.MethodPost {
+					tc.wantCalls = 1
+				}
 				calls := 0
 				c := testClient("https://example.invalid")
 				c.HTTPClient.Transport = roundTripFunc(func(req *http.Request) (*http.Response, error) {

@@ -99,7 +99,7 @@ These capabilities aren't available in any other tool for this API.
   _Reach for this when an agent is writing a shell loop over many runs and wants to branch on success/failure without parsing JSON._
 
   ```bash
-  trigger-dev-pp-cli runs get run_abc123 --json && echo COMPLETED || echo $?
+  trigger-dev-pp-cli runs get run_abc123 --json && echo COMPLETED || echo "$?"
   ```
 
 ## Command Reference

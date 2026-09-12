@@ -402,13 +402,20 @@ func replacePathParam(path, name, value string) string {
 // escaped individually and the commas are preserved verbatim.
 func escapePathSegment(value string) string {
 	if !strings.Contains(value, ",") {
-		return url.PathEscape(value)
+		return escapeSinglePathSegment(value)
 	}
 	parts := strings.Split(value, ",")
 	for i, p := range parts {
-		parts[i] = url.PathEscape(p)
+		parts[i] = escapeSinglePathSegment(p)
 	}
 	return strings.Join(parts, ",")
+}
+
+func escapeSinglePathSegment(value string) string {
+	if value == "." || value == ".." {
+		return strings.Repeat("%2E", len(value))
+	}
+	return url.PathEscape(value)
 }
 
 // paginatedGet fetches pages and concatenates array results. The headers

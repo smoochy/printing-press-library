@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/enetx/surf"
 	"io"
 	"math"
 	"net/http"
@@ -18,7 +19,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"github.com/enetx/surf"
 
 	"github.com/mvanhorn/printing-press-library/library/developer-tools/npm/internal/cliutil"
 	"github.com/mvanhorn/printing-press-library/library/developer-tools/npm/internal/config"
@@ -33,8 +33,6 @@ type Client struct {
 	cacheDir   string
 	limiter    *cliutil.AdaptiveLimiter
 }
-
-
 
 // APIError carries HTTP status information for structured exit codes.
 type APIError struct {
@@ -197,6 +195,10 @@ func (c *Client) PatchWithHeaders(path string, body any, headers map[string]stri
 // do executes an HTTP request. headerOverrides, when non-nil, override global
 // RequiredHeaders for this specific request (used for per-endpoint API versioning).
 func (c *Client) do(method, path string, params map[string]string, body any, headerOverrides map[string]string) (json.RawMessage, int, error) {
+	// Keep authentication and rate-limit recovery available; only ambiguous
+	// transport/server failures must not replay an unprotected write.
+	canRetryAmbiguousFailure := method == http.MethodGet || method == http.MethodHead || method == http.MethodOptions
+
 	targetURL := c.BaseURL + path
 
 	var bodyBytes []byte
@@ -267,6 +269,9 @@ func (c *Client) do(method, path string, params map[string]string, body any, hea
 		resp, err := c.HTTPClient.Do(req)
 		if err != nil {
 			lastErr = fmt.Errorf("%s %s: %w", method, path, err)
+			if !canRetryAmbiguousFailure {
+				return nil, 0, lastErr
+			}
 			continue
 		}
 
@@ -304,7 +309,7 @@ func (c *Client) do(method, path string, params map[string]string, body any, hea
 		}
 
 		// Server error - retry with backoff
-		if resp.StatusCode >= 500 && attempt < maxRetries {
+		if resp.StatusCode >= 500 && attempt < maxRetries && canRetryAmbiguousFailure {
 			wait := time.Duration(math.Pow(2, float64(attempt))) * time.Second
 			fmt.Fprintf(os.Stderr, "server error %d, retrying in %s (attempt %d/%d)\n", resp.StatusCode, wait, attempt+1, maxRetries)
 			time.Sleep(wait)
@@ -464,7 +469,6 @@ func sanitizeJSONResponse(body []byte) []byte {
 	}
 	return body
 }
-
 
 // maskToken redacts all but the last 4 characters of a token for safe display.
 func maskToken(token string) string {

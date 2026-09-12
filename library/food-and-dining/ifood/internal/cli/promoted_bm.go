@@ -80,9 +80,8 @@ func newBmPromotedCmd(flags *rootFlags) *cobra.Command {
 			if cmd.Flags().Changed("channel") || flagChannel != "" {
 				params["channel"] = formatCLIParamValue(flagChannel)
 			}
-			if true {
-				params["size"] = formatCLIParamValue(flagSize)
-			}
+			params["size"] = formatCLIParamValue(flagSize)
+
 			if cmd.Flags().Changed("alias") || flagAlias != "" {
 				params["alias"] = formatCLIParamValue(flagAlias)
 			}

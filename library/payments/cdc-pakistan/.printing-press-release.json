@@ -2,17 +2,17 @@
   "schema_version": 1,
   "slug": "cdc-pakistan",
   "cli_name": "cdc-pakistan-pp-cli",
-  "version": "2026.9.1",
-  "released_at": "2026-09-08T09:27:09Z",
-  "source_commit": "6278bfd7bc4eb70febb716a89b8fc2bed65c6f59",
+  "version": "2026.9.2",
+  "released_at": "2026-09-11T09:22:21Z",
+  "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e",
   "printing_press_version": "4.31.7",
   "run_id": "20260907-191511-60d154e7",
   "changes": [
     {
-      "title": "feat(cdc-pakistan): add cdc-pakistan",
-      "pr": 1959,
-      "url": "https://github.com/mvanhorn/printing-press-library/pull/1959",
-      "commit": "6278bfd7bc4eb70febb716a89b8fc2bed65c6f59"
+      "title": "fix: fail closed on ambiguous fleet write retries",
+      "pr": 1978,
+      "url": "https://github.com/mvanhorn/printing-press-library/pull/1978",
+      "commit": "81f5764eda401077520268afe74913c0f21f5b7e"
     }
   ]
 }

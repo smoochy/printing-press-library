@@ -2,17 +2,17 @@
   "schema_version": 1,
   "slug": "spotify",
   "cli_name": "spotify-pp-cli",
-  "version": "2026.9.1",
-  "released_at": "2026-09-09T09:09:43Z",
-  "source_commit": "06b95112898f27289889281b7746d700844a8f64",
+  "version": "2026.9.2",
+  "released_at": "2026-09-11T09:22:21Z",
+  "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e",
   "printing_press_version": "4.27.1",
   "run_id": "20260707-145126",
   "changes": [
     {
-      "title": "fix(spotify): route playlist diff/dedupe/merge through /playlists/{id}/items",
-      "pr": 1967,
-      "url": "https://github.com/mvanhorn/printing-press-library/pull/1967",
-      "commit": "06b95112898f27289889281b7746d700844a8f64"
+      "title": "fix: fail closed on ambiguous fleet write retries",
+      "pr": 1978,
+      "url": "https://github.com/mvanhorn/printing-press-library/pull/1978",
+      "commit": "81f5764eda401077520268afe74913c0f21f5b7e"
     }
   ]
 }

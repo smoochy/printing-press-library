@@ -83,12 +83,9 @@ func newLibraryMetadataPostMarkerCmd(flags *rootFlags) *cobra.Command {
 				}
 			}
 			params := map[string]string{}
-			if true {
-				params["type"] = formatCLIParamValue(flagType)
-			}
-			if true {
-				params["startTimeOffset"] = formatCLIParamValue(flagStartTimeOffset)
-			}
+			params["type"] = formatCLIParamValue(flagType)
+			params["startTimeOffset"] = formatCLIParamValue(flagStartTimeOffset)
+
 			if cmd.Flags().Changed("end-time-offset") || flagEndTimeOffset != 0 {
 				params["endTimeOffset"] = formatCLIParamValue(flagEndTimeOffset)
 			}

@@ -2,17 +2,17 @@
   "schema_version": 1,
   "slug": "amc-theatres",
   "cli_name": "amc-theatres-pp-cli",
-  "version": "2026.9.1",
-  "released_at": "2026-09-09T15:12:36Z",
-  "source_commit": "77614d0f11b436a84620cb69b70d3be628243bf4",
+  "version": "2026.9.2",
+  "released_at": "2026-09-11T09:22:21Z",
+  "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e",
   "printing_press_version": "4.29.0",
   "run_id": "20260724-145901",
   "changes": [
     {
-      "title": "feat(amc-theatres): add amc-theatres",
-      "pr": 1585,
-      "url": "https://github.com/mvanhorn/printing-press-library/pull/1585",
-      "commit": "77614d0f11b436a84620cb69b70d3be628243bf4"
+      "title": "fix: fail closed on ambiguous fleet write retries",
+      "pr": 1978,
+      "url": "https://github.com/mvanhorn/printing-press-library/pull/1978",
+      "commit": "81f5764eda401077520268afe74913c0f21f5b7e"
     }
   ]
 }

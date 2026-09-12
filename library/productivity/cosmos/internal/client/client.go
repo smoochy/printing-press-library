@@ -887,7 +887,9 @@ func (c *Client) doInternal(ctx context.Context, method, path string, params map
 	maxRetries := clientMaxRetries()
 	// Retry only methods that are safe to replay after an ambiguous transport
 	// failure or server error; a write may already have committed remotely.
-	canRetryAmbiguousFailure := readOnlyIntent || platform.CanRetryRequest(method, requestIdempotencyKey(c.Config, headerOverrides))
+	canRetryAmbiguousFailure := readOnlyIntent || method == http.MethodGet || method == http.MethodHead || method == http.MethodOptions
+	// Preserve bounded recovery from explicit rate-limit rejection separately.
+	canRetryRejectedRequest := readOnlyIntent || platform.CanRetryRequest(method, requestIdempotencyKey(c.Config, headerOverrides))
 	endpointClass := safeEndpointClass(method, path)
 	retryPolicy, err := c.platformRetryPolicy(endpointClass)
 	if err != nil {
@@ -1053,7 +1055,7 @@ func (c *Client) doInternal(ctx context.Context, method, path string, params map
 		if resp.StatusCode == http.StatusTooManyRequests {
 			c.limiter.OnRateLimit()
 			wait := platform.RetryAfterDelay(resp.Header.Get("Retry-After"), attempt, time.Now().UTC(), nil)
-			if attempt < maxRetries && canRetryAmbiguousFailure && retryWithinBudget(wait) {
+			if attempt < maxRetries && canRetryRejectedRequest && retryWithinBudget(wait) {
 				if c.platformSession != nil {
 					c.platformSession.RecordRateLimitRetry(wait)
 				}

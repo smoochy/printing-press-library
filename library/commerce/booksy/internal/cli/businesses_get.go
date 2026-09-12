@@ -46,12 +46,9 @@ func newBusinessesGetCmd(flags *rootFlags) *cobra.Command {
 				return err
 			}
 			params := map[string]string{}
-			if true {
-				params["with_combos"] = formatCLIParamValue(flagWithCombos)
-			}
-			if true {
-				params["with_markdown"] = formatCLIParamValue(flagWithMarkdown)
-			}
+			params["with_combos"] = formatCLIParamValue(flagWithCombos)
+			params["with_markdown"] = formatCLIParamValue(flagWithMarkdown)
+
 			data, prov, err := resolveReadWithStrategyAndResponsePath(cmd.Context(), c, flags, "auto", "businesses", false, path, params, nil, "business", cmd.ErrOrStderr())
 			if err != nil {
 				return classifyAPIError(cmd.OutOrStdout(), err, flags)

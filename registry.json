@@ -1374,6 +1374,12 @@
         "Find, filter, and rank AMC showtimes by theatre or current location without purchasing tickets."
       ],
       "path": "library/media-and-entertainment/amc-theatres",
+      "release": {
+        "cli_name": "amc-theatres-pp-cli",
+        "version": "2026.9.1",
+        "released_at": "2026-09-09T15:12:36Z",
+        "source_commit": "77614d0f11b436a84620cb69b70d3be628243bf4"
+      },
       "printer": "Avanderheyde",
       "printer_name": "Alderik",
       "creator": {
@@ -4681,9 +4687,9 @@
       "path": "library/health/clinical-trials",
       "release": {
         "cli_name": "clinical-trials-pp-cli",
-        "version": "2026.9.4",
-        "released_at": "2026-09-09T09:08:52Z",
-        "source_commit": "f1228807178270f46fe8c314ef12315b93f4a1a6"
+        "version": "2026.9.5",
+        "released_at": "2026-09-10T09:12:48Z",
+        "source_commit": "58596004e1fd50cacd2ee460b749fba44db9b53d"
       },
       "printer": "laci141",
       "printer_name": "laci141",
@@ -10916,6 +10922,12 @@
         "Emit a deterministic flattened representation of the container for clean version-control diffs, or container-export-compatible JSON."
       ],
       "path": "library/marketing/google-tag-manager",
+      "release": {
+        "cli_name": "google-tag-manager-pp-cli",
+        "version": "2026.9.1",
+        "released_at": "2026-09-09T15:13:47Z",
+        "source_commit": "62169104e9a1f37fec7cd2668a89253005f2b855"
+      },
       "printer": "stellato",
       "printer_name": "Greg Stellato",
       "creator": {
@@ -15940,6 +15952,58 @@
         ],
         "mcp_ready": "full",
         "spec_format": "openapi3"
+      }
+    },
+    {
+      "name": "myanimelist",
+      "category": "media-and-entertainment",
+      "api": "MyAnimeList",
+      "description": "Every public MyAnimeList surface in one binary, plus offline analytics the site itself cannot answer",
+      "search_terms": [
+        "myanimelist",
+        "myanimelist-pp-cli",
+        "Every public MyAnimeList surface in one binary, plus offline analytics the site itself cannot answer",
+        "Divisiveness index",
+        "anime divisive",
+        "See whether a title is universally loved or bitterly split, instead of reading one average score.",
+        "Reception drift and movers",
+        "drift",
+        "See how a title's score, member count, favorites, and rank have moved since you last looked.",
+        "Weekly viewing grid",
+        "week",
+        "Get a timezone-correct seven-day grid of just the shows you track, with same-hour collisions flagged.",
+        "Drop-risk score",
+        "anime drop-risk",
+        "Judge how likely a title is to be abandoned before you commit dozens of episodes to it.",
+        "Episode reception curve",
+        "anime consistency",
+        "See whether a show improves, holds, or falls apart across its episodes using per-episode poll data.",
+        "Anime-to-manga source coverage",
+        "adaptation",
+        "Learn whether an anime covered its source manga and how much source material is left.",
+        "Franchise gap finder",
+        "franchise gap",
+        "Find the sequel, movie, or side story you skipped in every franchise you have already started."
+      ],
+      "path": "library/media-and-entertainment/myanimelist",
+      "printer": "SomSamantray",
+      "printer_name": "Som Samantray",
+      "creator": {
+        "handle": "SomSamantray",
+        "name": "Som Samantray"
+      },
+      "mcp": {
+        "binary": "myanimelist-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 48,
+        "public_tool_count": 48,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
       }
     },
     {
@@ -24708,6 +24772,10 @@
         "name": "Maxime Delavergne"
       },
       "contributors": [
+        {
+          "handle": "lagiosv",
+          "name": "Vasileios Lagios"
+        },
         {
           "handle": "giuseppebisemi",
           "name": "Giuseppe Bisemi"

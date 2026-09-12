@@ -2,17 +2,17 @@
   "schema_version": 1,
   "slug": "costco",
   "cli_name": "costco-pp-cli",
-  "version": "2026.9.1",
-  "released_at": "2026-09-08T09:26:18Z",
-  "source_commit": "4865f26ebc6aed787295bc183269a40f1817b25c",
+  "version": "2026.9.2",
+  "released_at": "2026-09-11T09:22:21Z",
+  "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e",
   "printing_press_version": "4.25.0",
   "run_id": "20260624-120327-512a630c",
   "changes": [
     {
-      "title": "fix(costco): fetch gas receipts via receiptsWithCounts(documentType: all)",
-      "pr": 1960,
-      "url": "https://github.com/mvanhorn/printing-press-library/pull/1960",
-      "commit": "4865f26ebc6aed787295bc183269a40f1817b25c"
+      "title": "fix: fail closed on ambiguous fleet write retries",
+      "pr": 1978,
+      "url": "https://github.com/mvanhorn/printing-press-library/pull/1978",
+      "commit": "81f5764eda401077520268afe74913c0f21f5b7e"
     }
   ]
 }

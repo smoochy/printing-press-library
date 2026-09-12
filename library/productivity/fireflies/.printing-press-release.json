@@ -2,17 +2,17 @@
   "schema_version": 1,
   "slug": "fireflies",
   "cli_name": "fireflies-pp-cli",
-  "version": "2026.8.2",
-  "released_at": "2026-08-21T09:27:03Z",
-  "source_commit": "d8146269cb69e0041e5a8765943fdf6b663ca02e",
+  "version": "2026.9.1",
+  "released_at": "2026-09-11T09:22:21Z",
+  "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e",
   "printing_press_version": "4.0.6",
   "run_id": "20260509-005754",
   "changes": [
     {
-      "title": "fix(fireflies): rebase updateMeetingTitle/updateMeetingPrivacy input-object shape",
-      "pr": 1777,
-      "url": "https://github.com/mvanhorn/printing-press-library/pull/1777",
-      "commit": "d8146269cb69e0041e5a8765943fdf6b663ca02e"
+      "title": "fix: fail closed on ambiguous fleet write retries",
+      "pr": 1978,
+      "url": "https://github.com/mvanhorn/printing-press-library/pull/1978",
+      "commit": "81f5764eda401077520268afe74913c0f21f5b7e"
     }
   ]
 }

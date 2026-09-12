@@ -584,6 +584,7 @@ func (c *Client) doInternal(ctx context.Context, method, path string, params map
 	// 4xx/429 the server actually returned) returns immediately — a working
 	// source that says "not found" must never trigger failover onto a mirror.
 	bases := c.requestBaseURLs()
+	canRetryAmbiguousFailure := readOnlyIntent || method == http.MethodGet || method == http.MethodHead || method == http.MethodOptions
 	var lastErr error
 	var lastStatus int
 	for i, base := range bases {
@@ -602,7 +603,7 @@ func (c *Client) doInternal(ctx context.Context, method, path string, params map
 			// exponential backoff on a source that is already down.
 			maxRetries = failoverRetriesPerSource
 		}
-		result, status, aerr, sourceFailed := c.attempt(ctx, method, targetURL, path, params, bodyBytes, headerOverrides, authHeader, maxRetries)
+		result, status, aerr, sourceFailed := c.attempt(ctx, method, targetURL, path, params, bodyBytes, headerOverrides, authHeader, maxRetries, canRetryAmbiguousFailure)
 		if !sourceFailed {
 			return result, status, aerr
 		}
@@ -644,10 +645,11 @@ func displayBaseHost(base string) string {
 
 // attempt runs one candidate source through the send/retry cycle. It returns
 // sourceFailed=true only for outcomes that justify trying the next candidate: a
-// transport error after retries, or a 5xx after retries. A success, a 4xx, a
+// transport error after retries, or a 5xx after retries, for a read-only request.
+// An unprotected write failure, a success, a 4xx, a
 // retry-exhausted 429, a context cancellation, or a local build error all
 // return sourceFailed=false so the caller stops.
-func (c *Client) attempt(ctx context.Context, method, targetURL, path string, params map[string]string, bodyBytes []byte, headerOverrides map[string]string, authHeader string, maxRetries int) (json.RawMessage, int, error, bool) {
+func (c *Client) attempt(ctx context.Context, method, targetURL, path string, params map[string]string, bodyBytes []byte, headerOverrides map[string]string, authHeader string, maxRetries int, canRetryAmbiguousFailure bool) (json.RawMessage, int, error, bool) {
 	var lastErr error
 
 	for attempt := 0; attempt <= maxRetries; attempt++ {
@@ -720,6 +722,9 @@ func (c *Client) attempt(ctx context.Context, method, targetURL, path string, pa
 				return nil, 0, ctxErr, false
 			}
 			lastErr = fmt.Errorf("%s %s: %w", method, c.displayURL(path, authHeader), c.maskError(err, authHeader))
+			if !canRetryAmbiguousFailure {
+				return nil, 0, lastErr, false
+			}
 			continue
 		}
 
@@ -773,7 +778,7 @@ func (c *Client) attempt(ctx context.Context, method, targetURL, path string, pa
 		}
 
 		// Server error - retry with backoff
-		if resp.StatusCode >= 500 && attempt < maxRetries {
+		if resp.StatusCode >= 500 && attempt < maxRetries && canRetryAmbiguousFailure {
 			wait := time.Duration(math.Pow(2, float64(attempt))) * time.Second
 			fmt.Fprintf(os.Stderr, "server error %d, retrying in %s (attempt %d/%d)\n", resp.StatusCode, wait, attempt+1, maxRetries)
 			if err := sleepContext(ctx, wait); err != nil {
@@ -787,7 +792,7 @@ func (c *Client) attempt(ctx context.Context, method, targetURL, path string, pa
 		// is a source failure -> fail over; any 4xx (including a retry-exhausted
 		// 429) is the source answering -> return it, no failover.
 		if resp.StatusCode >= 500 {
-			return nil, resp.StatusCode, apiErr, true
+			return nil, resp.StatusCode, apiErr, canRetryAmbiguousFailure
 		}
 		return nil, resp.StatusCode, apiErr, false
 	}

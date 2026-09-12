@@ -60,9 +60,8 @@ func newLibraryGetMatchesCmd(flags *rootFlags) *cobra.Command {
 				return err
 			}
 			params := map[string]string{}
-			if true {
-				params["type"] = formatCLIParamValue(flagType)
-			}
+			params["type"] = formatCLIParamValue(flagType)
+
 			if flagIncludeFullMetadata != 0 {
 				params["includeFullMetadata"] = formatCLIParamValue(flagIncludeFullMetadata)
 			}

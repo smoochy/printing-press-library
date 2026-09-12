@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026.9.1 - 2026-09-11
+
+- fix: fail closed on ambiguous fleet write retries (#1978).
+
 ## 2026.8.2 - 2026-08-30
 
 - fix: bump github.com/enetx/http to v1.0.29 across 68 modules (#1865).

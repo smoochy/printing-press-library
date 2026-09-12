@@ -43,9 +43,8 @@ func newMarketLatestCmd(flags *rootFlags) *cobra.Command {
 			if flagGraphType != "" {
 				params["graph_type"] = formatCLIParamValue(flagGraphType)
 			}
-			if true {
-				params["limit"] = formatCLIParamValue(flagLimit)
-			}
+			params["limit"] = formatCLIParamValue(flagLimit)
+
 			data, err := c.Get(cmd.Context(), path, params)
 			if err != nil {
 				return classifyAPIError(cmd.OutOrStdout(), err, flags)

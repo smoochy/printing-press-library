@@ -354,8 +354,8 @@ func (c *Client) do(method, path string, params map[string]string, body any, hea
 		// Rate limited - adjust adaptive limiter and retry
 		if resp.StatusCode == 429 {
 			c.limiter.OnRateLimit()
-			// PATCH: Mutations retry rate limits only when an idempotency key makes replay explicit.
-			if attempt < maxRetries && requestCanRetry(req) {
+			// PATCH: Preserve the existing keyed-write recovery budget for explicit rate-limit rejection.
+			if attempt < maxRetries && (requestCanRetry(req) || req.Header.Get("Idempotency-Key") != "") {
 				wait := retryWait(resp, cliutil.RetryAfter(resp))
 				fmt.Fprintf(os.Stderr, "rate limited, waiting %s (attempt %d/%d, rate adjusted to %.1f req/s)\n", wait, attempt+1, maxRetries, c.limiter.Rate())
 				time.Sleep(wait)
@@ -477,7 +477,8 @@ func requestCanRetry(req *http.Request) bool {
 	if req.Method == http.MethodGet || req.Method == http.MethodHead {
 		return true
 	}
-	return req.Header.Get("Idempotency-Key") != ""
+	// A supplied header alone does not establish provider-side deduplication.
+	return false
 }
 
 func (c *Client) warningOutput() io.Writer {

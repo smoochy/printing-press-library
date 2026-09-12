@@ -12,10 +12,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"github.com/mvanhorn/printing-press-library/library/ai/kie/internal/cliutil"
 	"github.com/mvanhorn/printing-press-library/library/ai/kie/internal/config"
 	"github.com/mvanhorn/printing-press-library/library/ai/kie/internal/platform"
+	"io"
 	"math"
 	"mime/multipart"
 	"net"
@@ -1000,7 +1000,9 @@ func (c *Client) doInternal(ctx context.Context, method, path string, params map
 	// Retry only operations that are safe to replay after an ambiguous
 	// transport failure or server error; a write may already have committed
 	// remotely even when its wire method is GET.
-	canRetryAmbiguousFailure := readOnlyIntent || (!mutationIntent && platform.CanRetryRequest(method, requestIdempotencyKey(c.Config, headerOverrides)))
+	canRetryAmbiguousFailure := readOnlyIntent || (!mutationIntent && (method == http.MethodGet || method == http.MethodHead || method == http.MethodOptions))
+	// Preserve bounded recovery from explicit rate-limit rejection separately.
+	canRetryRejectedRequest := readOnlyIntent || (!mutationIntent && platform.CanRetryRequest(method, requestIdempotencyKey(c.Config, headerOverrides)))
 	endpointClass := safeEndpointClass(method, path)
 	retryPolicy, err := c.platformRetryPolicy(endpointClass)
 	if err != nil {
@@ -1181,7 +1183,7 @@ func (c *Client) doInternal(ctx context.Context, method, path string, params map
 		if resp.StatusCode == http.StatusTooManyRequests {
 			c.limiter.OnRateLimit()
 			wait := platform.RetryAfterDelay(resp.Header.Get("Retry-After"), attempt, time.Now().UTC(), nil)
-			if attempt < maxRetries && canRetryAmbiguousFailure && retryWithinBudget(wait) {
+			if attempt < maxRetries && canRetryRejectedRequest && retryWithinBudget(wait) {
 				if c.platformSession != nil {
 					c.platformSession.RecordRateLimitRetry(wait)
 				}

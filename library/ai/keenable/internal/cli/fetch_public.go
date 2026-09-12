@@ -63,9 +63,8 @@ func newFetchPublicCmd(flags *rootFlags) *cobra.Command {
 			if flagUrl != "" {
 				params["url"] = formatCLIParamValue(flagUrl)
 			}
-			if true {
-				params["max_chars"] = formatCLIParamValue(flagMaxChars)
-			}
+			params["max_chars"] = formatCLIParamValue(flagMaxChars)
+
 			if flagLive != false {
 				params["live"] = formatCLIParamValue(flagLive)
 			}
