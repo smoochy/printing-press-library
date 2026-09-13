@@ -11,6 +11,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"math"
@@ -248,7 +249,17 @@ func (s *Store) SchemaVersion() (int, error) {
 // connection so it sees the writes performed by the in-flight BEGIN
 // IMMEDIATE transaction; using s.db here would route through the pool
 // and BUSY against the holding writer under concurrent migrators.
-func (s *Store) ensureColumn(ctx context.Context, conn *sql.Conn, table, column, decl string) error {
+//
+// backfillSQL, when non-empty, runs exactly once: immediately after this
+// call is the one that actually performs the ALTER TABLE, never on the
+// "column already exists" or "table doesn't exist" short-circuits, and
+// never on the concurrent-Open() "duplicate column name" race (the caller
+// that won that race already ran it). Use this for a new column whose
+// zero-value (NULL/false/0) would misrepresent pre-existing rows that
+// predate the column's meaning -- e.g. completed_at, where every row that
+// existed before this column was introduced represents a sync this
+// codebase already trusted as done under the old, coarser semantics.
+func (s *Store) ensureColumn(ctx context.Context, conn *sql.Conn, table, column, decl, backfillSQL string) error {
 	var name string
 	err := conn.QueryRowContext(ctx,
 		`SELECT name FROM sqlite_master WHERE type='table' AND name=?`, table,
@@ -285,11 +296,18 @@ func (s *Store) ensureColumn(ctx context.Context, conn *sql.Conn, table, column,
 		// A concurrent Open() may have added the column between our
 		// PRAGMA check and this ALTER. SQLite returns SQLITE_ERROR with
 		// "duplicate column name", which busy_timeout does not retry.
-		// The DB is now in the desired state regardless of who won.
+		// The DB is now in the desired state regardless of who won -- and
+		// whichever caller's ALTER actually succeeded already ran the
+		// backfill below, so this caller must not run it again.
 		if strings.Contains(err.Error(), "duplicate column name") {
 			return nil
 		}
 		return fmt.Errorf("add column %s.%s: %w", table, column, err)
+	}
+	if backfillSQL != "" {
+		if _, err := conn.ExecContext(ctx, backfillSQL); err != nil {
+			return fmt.Errorf("backfilling %s.%s: %w", table, column, err)
+		}
 	}
 	return nil
 }
@@ -309,7 +327,7 @@ func (s *Store) ensureColumn(ctx context.Context, conn *sql.Conn, table, column,
 // any spec whose dependent-resource snake_cased name is a SQL reserved
 // word.
 func (s *Store) backfillColumns(ctx context.Context, conn *sql.Conn) error {
-	for _, c := range []struct{ table, column, decl string }{
+	for _, c := range []struct{ table, column, decl, backfill string }{
 		{table: "classes", column: "title", decl: "TEXT"},
 		{table: "classes", column: "duration", decl: "INTEGER"},
 		{table: "workouts", column: "start_time", decl: "TEXT"},
@@ -318,8 +336,18 @@ func (s *Store) backfillColumns(ctx context.Context, conn *sql.Conn) error {
 		{table: "sync_state", column: "last_cursor", decl: "TEXT"},
 		{table: "sync_state", column: "last_synced_at", decl: "DATETIME"},
 		{table: "sync_state", column: "total_count", decl: "INTEGER DEFAULT 0"},
+		// completed_at is new: every sync_state row that already existed
+		// when this column was introduced was written under the old,
+		// coarser semantics this codebase already trusted as "synced" --
+		// leaving them NULL would make HasSyncHistory() misreport an
+		// upgraded store with real completed history as empty. Backfill
+		// runs exactly once, only for rows that predate the column (see
+		// ensureColumn's backfillSQL doc comment); every row written after
+		// this version ships goes through SaveSyncState/SaveSyncStateCompleted,
+		// which set completed_at deliberately and are not affected by this.
+		{table: "sync_state", column: "completed_at", decl: "DATETIME", backfill: `UPDATE sync_state SET completed_at = last_synced_at WHERE last_synced_at IS NOT NULL`},
 	} {
-		if err := s.ensureColumn(ctx, conn, c.table, c.column, c.decl); err != nil {
+		if err := s.ensureColumn(ctx, conn, c.table, c.column, c.decl, c.backfill); err != nil {
 			return err
 		}
 	}
@@ -376,7 +404,8 @@ func (s *Store) migrate(ctx context.Context) error {
 			resource_type TEXT PRIMARY KEY,
 			last_cursor TEXT,
 			last_synced_at DATETIME,
-			total_count INTEGER DEFAULT 0
+			total_count INTEGER DEFAULT 0,
+			completed_at DATETIME
 		)`,
 		resourcesFTSCreateSQL,
 		`CREATE TABLE IF NOT EXISTS "classes" (
@@ -1548,15 +1577,49 @@ func unwrapIDBearingEnvelopeItem(resourceType string, item json.RawMessage, obj 
 	return candidate, data, true
 }
 
+// SaveSyncState records in-progress sync state: a --full reset (cursor="",
+// count=0, before any fetch), a mid-pagination resumability checkpoint
+// (after each page, well before the resource is done), or a dependent
+// resource's continuation bookkeeping. completed_at is explicitly cleared
+// on both insert and update -- a --full reset followed by a crash before
+// the first page completes must not read as "this resource finished
+// syncing" (see SaveSyncStateCompleted, which is the only writer that ever
+// sets completed_at, and HasSyncHistory, which depends on that
+// distinction). Re-syncing a resource that previously completed clears its
+// completed_at until that run reaches its own SaveSyncStateCompleted call --
+// harmless in practice, since a resource with prior completed rows already
+// has rows in the resources table, which Status() reflects independently
+// of this flag.
 func (s *Store) SaveSyncState(resourceType, cursor string, count int) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	_, err := s.db.Exec(
-		`INSERT INTO sync_state (resource_type, last_cursor, last_synced_at, total_count)
-		 VALUES (?, ?, ?, ?)
+		`INSERT INTO sync_state (resource_type, last_cursor, last_synced_at, total_count, completed_at)
+		 VALUES (?, ?, ?, ?, NULL)
 		 ON CONFLICT(resource_type) DO UPDATE SET last_cursor = excluded.last_cursor,
-		 last_synced_at = excluded.last_synced_at, total_count = excluded.total_count`,
+		 last_synced_at = excluded.last_synced_at, total_count = excluded.total_count, completed_at = NULL`,
 		resourceType, cursor, time.Now().UTC().Format(time.RFC3339), count,
+	)
+	return err
+}
+
+// SaveSyncStateCompleted is SaveSyncState plus stamping completed_at to the
+// same timestamp as last_synced_at. Call this only from a code path that is
+// actually about to return after a resource's flat sync loop exits by
+// normal control flow (natural completion or an intentional --max-pages
+// cap) -- never from a mid-loop checkpoint or a --full reset, both of which
+// must leave completed_at cleared so an interrupted run in between doesn't
+// read as done. See HasSyncHistory's doc comment for what depends on this.
+func (s *Store) SaveSyncStateCompleted(resourceType, cursor string, count int) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err := s.db.Exec(
+		`INSERT INTO sync_state (resource_type, last_cursor, last_synced_at, total_count, completed_at)
+		 VALUES (?, ?, ?, ?, ?)
+		 ON CONFLICT(resource_type) DO UPDATE SET last_cursor = excluded.last_cursor,
+		 last_synced_at = excluded.last_synced_at, total_count = excluded.total_count, completed_at = excluded.completed_at`,
+		resourceType, cursor, now, count, now,
 	)
 	return err
 }
@@ -1933,6 +1996,129 @@ func (s *Store) Status() (map[string]int, error) {
 		status[rt] = count
 	}
 	return status, rows.Err()
+}
+
+// LastSyncedTimes returns the most recent last_synced_at per resource_type
+// from sync_state, keyed the same as Status()'s resource_type keys. A
+// resource with a NULL last_synced_at (recorded but never completed a sync)
+// or with no sync_state row at all is simply absent from the returned map --
+// callers should treat a missing key as "never synced" rather than an error.
+// LastSyncedTimes unions two sources, taking the later timestamp per
+// resource_type where both exist:
+//
+//   - sync_state.last_synced_at: written for flat resources (classes,
+//     workouts) on every completed sync, including a zero-item completion,
+//     but performance/workout_details (parent-keyed dependents fetched one
+//     request per already-synced workout) only get a sync_state row here
+//     under --full mode's turn-based backfill tracking, and even then under
+//     a compound "<resource>:full_progress" key this deliberately does not
+//     parse back to a plain resource name.
+//   - resources.synced_at, aggregated by MAX per resource_type: refreshed by
+//     every upsert (ON CONFLICT ... synced_at = excluded.synced_at, see
+//     Upsert/upsertGenericResourceTx), so it reflects the true last-write
+//     time for any resource with at least one stored row, dependents
+//     included, independent of which sync mode wrote it.
+//
+// A resource with zero rows in `resources` (dependent or flat) and no
+// sync_state row either is absent from the returned map -- callers should
+// treat a missing key as "never synced" rather than an error.
+func (s *Store) LastSyncedTimes() (map[string]time.Time, error) {
+	times := make(map[string]time.Time)
+
+	rows, err := s.db.Query(
+		`SELECT resource_type, last_synced_at FROM sync_state WHERE last_synced_at IS NOT NULL`,
+	)
+	switch {
+	case err == nil:
+		defer rows.Close()
+		for rows.Next() {
+			var rt string
+			var syncedAt time.Time
+			if err := rows.Scan(&rt, &syncedAt); err != nil {
+				return nil, err
+			}
+			times[rt] = syncedAt
+		}
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+	case syncStateMissingTable(err):
+		// A store opened before sync_state existed -- fall through to the
+		// resources-table pass below rather than failing outright.
+	default:
+		return nil, err
+	}
+
+	resourceRows, err := s.db.Query(`SELECT resource_type, MAX(synced_at) FROM resources GROUP BY resource_type`)
+	if err != nil {
+		return nil, err
+	}
+	defer resourceRows.Close()
+	for resourceRows.Next() {
+		var rt string
+		var syncedAtText string
+		// Scanning straight into time.Time works for a plain column
+		// reference (the sync_state pass above), where the driver applies
+		// DATETIME column-type-affinity conversion, but MAX(...) erases that
+		// affinity and returns a bare string -- scan as text and parse the
+		// same RFC3339 format every write path in this file uses.
+		if err := resourceRows.Scan(&rt, &syncedAtText); err != nil {
+			return nil, err
+		}
+		syncedAt, err := time.Parse(time.RFC3339, syncedAtText)
+		if err != nil {
+			continue
+		}
+		if existing, ok := times[rt]; !ok || syncedAt.After(existing) {
+			times[rt] = syncedAt
+		}
+	}
+	return times, resourceRows.Err()
+}
+
+// HasSyncHistory reports whether any sync has ever completed against this
+// store, even one that produced zero rows -- distinct from Status()'s
+// row-count-based view, which cannot tell "never synced" apart from
+// "synced successfully with nothing to store" (e.g. a dependent resource
+// with no pending parents, or a flat resource whose account genuinely has
+// no items). Consulted by workflow status so a store that completed a real
+// sync isn't reported as empty just because Status() found no rows.
+//
+// Checks completed_at specifically, not just "any sync_state row exists":
+// --full writes a reset row (cursor="", count=0) for every named resource
+// BEFORE fetching starts, and the flat sync loop writes a resumability
+// checkpoint after every page, well before a resource is actually done --
+// both would look identical to a genuine zero-item completion if any row
+// were enough. Only SaveSyncStateCompleted (called once a resource's flat
+// sync loop actually returns, by natural completion or an intentional
+// --max-pages cap -- never from a crash or an in-progress checkpoint)
+// stamps completed_at, so an interrupted initial sync correctly still
+// reads as "never completed" here even though sync_state already has a row
+// for it.
+func (s *Store) HasSyncHistory() (bool, error) {
+	var count int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM sync_state WHERE completed_at IS NOT NULL`).Scan(&count)
+	if err != nil {
+		if syncStateMissingTable(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return count > 0, nil
+}
+
+// syncStateMissingTable reports whether err is sqlite's "no such table"
+// error for a store opened before sync_state existed. Matches the same
+// pattern internal/cli's syncHintMissingTable uses for the identical
+// backward-compatibility concern.
+func syncStateMissingTable(err error) bool {
+	for err != nil {
+		if strings.Contains(err.Error(), "no such table") {
+			return true
+		}
+		err = errors.Unwrap(err)
+	}
+	return false
 }
 
 // CascadeJunction names a junction table + the FK column referencing the

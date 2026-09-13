@@ -1,0 +1,15 @@
+{
+  "schema_version": 2,
+  "id": "sync-complete-store-total-and-resume-cursor",
+  "applied_at": "2026-09-11",
+  "base_run_id": "20260714-231159",
+  "base_printing_press_version": "4.28.0",
+  "summary": "The flat-resource sync loop's sync_complete event (syncResource in internal/cli/sync.go, rendered by the new syncCompleteEventJSON helper in internal/cli/helpers.go) keeps its existing \"total\" field (this call's fetched count, unchanged meaning) and adds two new fields: store_total (the resource's true row count in the local store after this call, via db.Count) and resume_cursor (omitted when empty; non-empty when a --max-pages cap left a resumable position, taken from the same finalCursor already computed for SaveSyncState). Any future regen of syncResource's completion path must keep emitting through syncCompleteEventJSON rather than reverting to a raw fmt.Sprintf line, or these two fields silently disappear again. Only the flat-resource completion path was touched -- the dependent-resource (performance/workout_details) and already-up-to-date completion paths keep their existing shape, since a parent-id backlog already has its own resume signal (the max_parents_cap_hit sync_warning's \"remaining\" count) with different semantics than a pagination cursor. store_total is a *int (omitempty): a failed db.Count is left nil rather than publishing a false 0, since a caller comparing store_total across calls would otherwise read a count failure as the store losing all its data.",
+  "reason": "Live-tested: two consecutive workflow_archive(max_pages=5, max_parents=200) calls against a large account both logged identical sync_progress/sync_complete output for \"classes\" ({\"total\":500} both times), which reads as a stuck cursor. Resumption was in fact working correctly -- confirmed by 1,000 distinct class IDs in the store after the two calls, i.e. each call fetched a genuinely different 500-item slice -- but nothing in the event stream said so. A caller should be able to tell \"resumed and advanced\" from \"restarted\" without running SQL against the store.",
+  "files": [
+    "internal/cli/helpers.go",
+    "internal/cli/sync.go",
+    "internal/cli/sync_complete_event_test.go"
+  ],
+  "validated_outcome": "go build/vet/test/govulncheck and verify_skill.py all green. New tests: TestSyncCompleteEventJSONFieldsAndOmitEmpty is a pure unit test of the event-shape contract (total unchanged, store_total always present, resume_cursor omitted when empty); TestSyncCompleteReportsStoreTotalOnNaturalCompletion drives a real `sync --resources classes` call against a 1-item fixture and asserts store_total=1 with resume_cursor omitted; TestSyncCompleteReportsResumeCursorWhenCapped reuses the existing never-terminating classes-list fixture with --max-pages 1 and asserts store_total=100 with a non-empty resume_cursor. TestSyncCompleteEventJSONOmitsStoreTotalWhenNil confirms a nil storeTotal omits the field entirely."
+}

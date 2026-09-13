@@ -561,3 +561,70 @@ func TestOfflineOutputAvoidsCoachingSemantics(t *testing.T) {
 		}
 	}
 }
+
+// TestOfflineClassesSearchLimitBoundsResults guards a live-tested gap: the
+// MCP schema (and, before this fix, the underlying CLI command) had no
+// --limit for "offline classes search" at all, so a broad query (no
+// --category, which searches every stored discipline) returned every
+// locally stored class fact in one unbounded response -- reported live at
+// ~145 rows for a single duration+category query with no way to cap it.
+// This seeds five class facts (more than a low --limit) and asserts
+// truncation, the caveat naming the true total, and that --limit 0 still
+// means "no cap" so existing full-result callers are unaffected.
+func TestOfflineClassesSearchLimitBoundsResults(t *testing.T) {
+	home := t.TempDir()
+	db, err := store.Open(filepath.Join(home, "data", "data.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 5; i++ {
+		id := fmt.Sprintf("ride-limit-%d", i)
+		body := fmt.Sprintf(`{"id":%q,"title":"Limit Test Ride","duration":1800,"fitness_discipline":"cycling"}`, id)
+		if _, err := db.RecordProviderFact("classes", id, json.RawMessage(body)); err != nil {
+			t.Fatalf("seed classes/%s: %v", id, err)
+		}
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := executeOffline(t, home, "offline", "classes", "search", "--duration", "1800", "--limit", "2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	items := offlineItems(t, got)
+	if len(items) != 2 {
+		t.Fatalf("items = %d, want 2 (--limit 2 should truncate 5 matches)", len(items))
+	}
+	encoded, _ := json.Marshal(got)
+	if !strings.Contains(string(encoded), "truncated to 2 of 5 matches") {
+		t.Fatalf("caveats missing truncation detail naming the true total: %s", encoded)
+	}
+
+	got, err = executeOffline(t, home, "offline", "classes", "search", "--duration", "1800", "--limit", "0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if items := offlineItems(t, got); len(items) != 5 {
+		t.Fatalf("items = %d, want 5 (--limit 0 must mean unbounded)", len(items))
+	}
+}
+
+// TestOfflineClassesSearchRejectsNegativeLimit guards a review finding: a
+// negative --limit (e.g. -1) satisfied neither branch of `if limit > 0 &&
+// len(matches) > limit` (limit>0 is false), so truncation silently never
+// ran and every match was returned uncapped -- defeating the response-size
+// protection --limit exists to provide, with no error and no caveat
+// explaining why the cap didn't apply.
+func TestOfflineClassesSearchRejectsNegativeLimit(t *testing.T) {
+	home := t.TempDir()
+	seedOfflineFacts(t, home)
+
+	_, err := executeOffline(t, home, "offline", "classes", "search", "--limit", "-1")
+	if err == nil {
+		t.Fatal("offline classes search --limit -1 succeeded, want a rejected negative limit")
+	}
+	if !strings.Contains(err.Error(), "--limit") {
+		t.Fatalf("error = %q, want it to name --limit as the problem", err.Error())
+	}
+}

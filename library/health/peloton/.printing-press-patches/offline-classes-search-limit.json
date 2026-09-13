@@ -1,0 +1,14 @@
+{
+  "schema_version": 2,
+  "id": "offline-classes-search-limit",
+  "applied_at": "2026-09-11",
+  "base_run_id": "20260714-231159",
+  "base_printing_press_version": "4.28.0",
+  "summary": "newOfflineClassSearchCmd (internal/cli/offline.go, backing \"offline classes search\" / the offline_classes_search MCP tool mirror) now takes a --limit flag (default 50, 0 = unbounded), applied AFTER classMatches filtering, not before fetching -- the store has no index for duration/structural predicates, so they can only be evaluated in memory over every stored class fact; capping the fetch itself would silently miss real matches sorted after the cutoff. A truncation caveat names the true match total. Any future regen of this command must keep --limit as a local flag (the cobratree MCP mirror derives the tool schema from local cobra flags automatically, so no separate MCP-side wiring exists to keep in sync) and keep it applied post-filter. --limit rejects a negative value outright (a negative limit satisfied neither the truncate-nor-skip branch, so it silently returned every match uncapped).",
+  "reason": "Live-tested: offline_classes_search(limit=5) failed with `unknown MCP parameter \"limit\"; use the tool schema's named parameters`, and offline_classes_search with no --category (which searches every stored discipline) returned every locally stored class fact matching the query in one response -- ~145 rows for a single duration+category query, no way to cap it. Unlike offline_history, which already had --limit, newOfflineClassSearchCmd had no limit flag of any kind on the underlying CLI command, so the gap was in the CLI, not just the MCP schema.",
+  "files": [
+    "internal/cli/offline.go",
+    "internal/cli/offline_test.go"
+  ],
+  "validated_outcome": "go build/vet/test/govulncheck and verify_skill.py all green. New test TestOfflineClassesSearchLimitBoundsResults seeds five matching class facts and asserts --limit 2 truncates to 2 items with a caveat naming the true total (5), while --limit 0 still returns all five (existing full-result callers are unaffected). Existing TestOfflineQueriesUseOnlyU3FactsAndCaveatGaps and TestOfflineOutputAvoidsCoachingSemantics (which call \"offline classes search\" with 3 or fewer seeded facts, under the new default of 50) still pass unmodified. TestOfflineClassesSearchRejectsNegativeLimit confirms --limit -1 is rejected with an error naming --limit."
+}

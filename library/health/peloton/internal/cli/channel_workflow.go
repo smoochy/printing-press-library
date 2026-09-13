@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/mvanhorn/printing-press-library/library/health/peloton/internal/cliutil"
 	"github.com/mvanhorn/printing-press-library/library/health/peloton/internal/store"
@@ -179,9 +180,17 @@ func newWorkflowStatusCmd(flags *rootFlags) *cobra.Command {
 			}
 
 			if flags.asJSON {
+				lastSynced, err := s.LastSyncedTimes()
+				if err != nil {
+					return err
+				}
+				hasSyncHistory, err := s.HasSyncHistory()
+				if err != nil {
+					return err
+				}
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
-				return enc.Encode(status)
+				return enc.Encode(workflowStatusEnvelope(status, lastSynced, hasSyncHistory, dbPath))
 			}
 
 			if len(status) == 0 {
@@ -204,6 +213,58 @@ func newWorkflowStatusCmd(flags *rootFlags) *cobra.Command {
 	cmd.Flags().StringVar(&dbPath, "db", "", "SQLite database file path (default: resolved data directory data.db)")
 
 	return cmd
+}
+
+// workflowStatusResourceEntry is one resource's row in workflowStatusEnvelope's
+// "resources" map. last_synced_at is a pointer so a resource that has never
+// completed a sync (or predates the sync_state table) omits the field
+// entirely instead of serializing a zero time.Time as an empty-looking
+// "0001-01-01T00:00:00Z" string.
+type workflowStatusResourceEntry struct {
+	Count        int        `json:"count"`
+	LastSyncedAt *time.Time `json:"last_synced_at,omitempty"`
+}
+
+// workflowStatusEnvelope builds workflow status's structured (--json/--agent)
+// response. Before this, the empty-store case serialized to a bare "{}" --
+// search already returns {"count":0,"store_status":"empty",...} for the same
+// situation, so this matches that shape instead of leaving the JSON/agent
+// caller (the one who most needs a machine-readable answer) with nothing
+// actionable.
+//
+// hasSyncHistory (Store.HasSyncHistory) distinguishes "never synced" from
+// "a sync completed but stored nothing" -- Status()'s row-count view alone
+// can't tell those apart (e.g. a dependent resource with no pending
+// parents, or a flat resource whose account genuinely has zero items), so
+// len(status)==0 by itself would misreport a genuinely-synced, empty-result
+// store as needing an initial archive.
+func workflowStatusEnvelope(status map[string]int, lastSynced map[string]time.Time, hasSyncHistory bool, dbPath string) map[string]any {
+	resources := make(map[string]workflowStatusResourceEntry, len(status))
+	total := 0
+	for resource, count := range status {
+		entry := workflowStatusResourceEntry{Count: count}
+		if t, ok := lastSynced[resource]; ok {
+			entry.LastSyncedAt = &t
+		}
+		resources[resource] = entry
+		total += count
+	}
+
+	storeStatus := "ready"
+	if len(status) == 0 && !hasSyncHistory {
+		storeStatus = "empty"
+	}
+
+	envelope := map[string]any{
+		"store_status": storeStatus,
+		"resources":    resources,
+		"total":        total,
+		"store_path":   dbPath,
+	}
+	if storeStatus == "empty" {
+		envelope["next_step"] = "No archived data. Run 'workflow archive' to sync."
+	}
+	return envelope
 }
 
 // defaultDBPath is defined in helpers.go

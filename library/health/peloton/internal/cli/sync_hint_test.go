@@ -6,11 +6,14 @@ package cli
 import (
 	"bytes"
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/mvanhorn/printing-press-library/library/health/peloton/internal/cliutil"
 	"github.com/mvanhorn/printing-press-library/library/health/peloton/internal/store"
 	"github.com/spf13/cobra"
 )
@@ -171,5 +174,80 @@ func TestHintIfStale_ResourceFilterUsesRequestedResource(t *testing.T) {
 	}
 	if got := stderr.String(); !strings.Contains(got, "has not been synced yet") {
 		t.Fatalf("stderr = %q, want unsynced comments hint", got)
+	}
+}
+
+// TestWorkoutsIsMarkedCriticalForSyncExitCode guards a live-tested bug: an
+// archive run where the flat "workouts" resource failed outright still
+// exited 0 by default, because criticalResources classified no resource as
+// critical -- masking a completely empty workout sync (and therefore empty
+// performance/workout_details/classes_detail, all of which fan out from
+// workouts via planDependentSync/planClassDetailSync) behind a green
+// sync_summary. "workouts" must stay marked critical so a failed flat sync
+// of it exits non-zero even without --strict.
+func TestWorkoutsIsMarkedCriticalForSyncExitCode(t *testing.T) {
+	if !criticalResources["workouts"] {
+		t.Fatal(`criticalResources["workouts"] = false, want true -- a failed workouts sync must exit non-zero by default, since performance/workout_details/classes_detail all depend on it`)
+	}
+}
+
+// TestSyncFailedWorkoutsExitsNonZero is the behavioral counterpart to
+// TestWorkoutsIsMarkedCriticalForSyncExitCode: it drives the real `sync`
+// command end-to-end against a fake server where the flat workouts request
+// fails, with classes succeeding normally, and asserts the command actually
+// returns a non-zero exit naming workouts as the critical failure --
+// guarding the wiring between criticalResources and sync's exit-code
+// decision, not just the map's contents. Without workouts marked critical,
+// this exact scenario used to exit 0 (live-tested: a 5-resource archive
+// with workouts errored completely still exited 0).
+func TestSyncFailedWorkoutsExitsNonZero(t *testing.T) {
+	home := t.TempDir()
+	restore, err := cliutil.SetHomeOverride(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer restore()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/workouts") {
+			// A plain 404 (not 403/429/5xx, and not a 400 with an
+			// access-policy body) fails the resource immediately without
+			// triggering the client's retry-with-backoff path, keeping this
+			// test fast.
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"error":"not found"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`[{"id":"class-1","title":"Test Ride","duration":1800}]`))
+	}))
+	defer server.Close()
+	t.Setenv("PELOTON_BASE_URL", server.URL)
+	t.Setenv("PELOTON_USER_ID", "u1")
+	seedValidOAuthBundleForLiveFetchTests(t)
+
+	dbPath := filepath.Join(home, "data", "data.db")
+	root := newRootCmd(&rootFlags{})
+	var out, stderr bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&stderr)
+	root.SetArgs([]string{"sync", "--resources", "workouts,classes", "--db", dbPath, "--home", home, "--json"})
+
+	execErr := root.Execute()
+	if execErr == nil {
+		t.Fatalf("sync with a failed critical resource (workouts) exited 0, want non-zero\nstdout: %s\nstderr: %s", out.String(), stderr.String())
+	}
+	if !strings.Contains(execErr.Error(), "workouts") || !strings.Contains(execErr.Error(), "critical") {
+		t.Fatalf("sync error = %q, want it to name workouts as the critical failure", execErr.Error())
+	}
+
+	// classes should still have synced successfully -- a critical failure
+	// in one resource must not be reported as if nothing happened at all.
+	db, err := store.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if count, err := db.Count("classes"); err != nil || count == 0 {
+		t.Fatalf("classes count = %d, err = %v; classes should have synced despite workouts failing", count, err)
 	}
 }

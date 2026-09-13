@@ -6,12 +6,16 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	mcplib "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/mvanhorn/printing-press-library/library/health/peloton/internal/cli"
 	"github.com/mvanhorn/printing-press-library/library/health/peloton/internal/cliutil"
 	"github.com/mvanhorn/printing-press-library/library/health/peloton/internal/mcp/bound"
 	"github.com/mvanhorn/printing-press-library/library/health/peloton/internal/store"
@@ -91,6 +95,32 @@ func resetMCPPathEnv(t *testing.T) string {
 	}
 	t.Cleanup(restore)
 	return home
+}
+
+// stubMCPCLIAvailable deterministically simulates companion-CLI resolution
+// succeeding or failing, overriding mcpCLIPathResolver for the test's
+// duration. Without this, tests asserting on the store-missing/store-empty
+// message would depend on whether a real "peloton-pp-cli" binary happens to
+// resolve on whatever machine or CI runner executes `go test` -- it won't,
+// during a normal `go test` run, since the test binary has no
+// "peloton-pp-cli" sibling and PATH/PELOTON_CLI_PATH aren't set, but relying
+// on that absence as if it were a deliberate test fixture would be fragile.
+func stubMCPCLIAvailable(t *testing.T, available bool) {
+	t.Helper()
+	original := mcpCLIPathResolver
+	if available {
+		// mcpCompanionCLIAvailable now verifies the resolved path is
+		// actually executable (exec.LookPath), not just present, so a
+		// fabricated path like "/fake/peloton-pp-cli" would fail that
+		// check and defeat this stub. os.Args[0] -- the running test
+		// binary itself -- is a real, executable file guaranteed to exist
+		// in every test environment.
+		exe := os.Args[0]
+		mcpCLIPathResolver = func() (string, error) { return exe, nil }
+	} else {
+		mcpCLIPathResolver = func() (string, error) { return "", fmt.Errorf("simulated: companion CLI not found") }
+	}
+	t.Cleanup(func() { mcpCLIPathResolver = original })
 }
 
 func TestMCPRegisterToolsPreservesTypedSpecialTools(t *testing.T) {
@@ -215,6 +245,7 @@ func TestHandleContextDocumentsUnvalidatedArgumentPassthrough(t *testing.T) {
 
 func TestMCPSearchMissingStoreIsActionable(t *testing.T) {
 	resetMCPPathEnv(t)
+	stubMCPCLIAvailable(t, true)
 
 	result, err := handleSearch(context.Background(), mcplib.CallToolRequest{Params: mcplib.CallToolParams{
 		Arguments: map[string]any{"query": "alpha"},
@@ -235,6 +266,7 @@ func TestMCPSearchMissingStoreIsActionable(t *testing.T) {
 
 func TestMCPSearchEmptyStoreReturnsActionableEnvelope(t *testing.T) {
 	resetMCPPathEnv(t)
+	stubMCPCLIAvailable(t, true)
 	path, err := mcpDBPath()
 	if err != nil {
 		t.Fatalf("mcpDBPath() error = %v", err)
@@ -342,6 +374,7 @@ func TestMCPSearchSelectProjectsTheResultsArray(t *testing.T) {
 
 func TestMCPSQLMissingStoreIsActionable(t *testing.T) {
 	resetMCPPathEnv(t)
+	stubMCPCLIAvailable(t, true)
 
 	result, err := handleSQL(context.Background(), mcplib.CallToolRequest{Params: mcplib.CallToolParams{
 		Arguments: map[string]any{"query": "SELECT 1"},
@@ -362,6 +395,7 @@ func TestMCPSQLMissingStoreIsActionable(t *testing.T) {
 
 func TestMCPSQLEmptyStoreReturnsActionableEnvelope(t *testing.T) {
 	resetMCPPathEnv(t)
+	stubMCPCLIAvailable(t, true)
 	path, err := mcpDBPath()
 	if err != nil {
 		t.Fatalf("mcpDBPath() error = %v", err)
@@ -937,5 +971,538 @@ func TestNewMCPClientAppliesManagedAuth(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "bootstrap credentials are unavailable") {
 		t.Fatalf("newMCPClient error = %q, want it to come from the managed-auth bootstrap check specifically", err.Error())
+	}
+}
+
+// TestClassesSearchAndCatalogDeclareFilterVocabularyParams guards a live-tested
+// fix: classes_filters(browse_category="cycling") advertises duration,
+// super_genre_id, has_workout, and is_favorite_ride as real, working provider
+// filters (confirmed against the live API with control queries -- e.g.
+// duration=1800+has_workout=false and duration=1800+has_workout=true partition
+// exactly, 6,950 + 94 = 7,044 = all 30-minute cycling video classes), but
+// classes_search/classes_catalog's tool schemas previously declared none of
+// them, so a caller reading the schema would conclude the filter didn't exist.
+// Passing them anyway already worked via makeAPIHandlerStripFields's raw
+// argument passthrough; this test guards that they are now declared with the
+// right JSON Schema types so an MCP client's tool introspection surfaces them.
+func TestClassesSearchAndCatalogDeclareFilterVocabularyParams(t *testing.T) {
+	s := server.NewMCPServer("peloton", "test")
+	RegisterTools(s)
+	tools := s.ListTools()
+
+	wantTypes := map[string]string{
+		"duration":         "number",
+		"super_genre_id":   "string",
+		"has_workout":      "boolean",
+		"is_favorite_ride": "boolean",
+	}
+
+	for _, toolName := range []string{"classes_search", "classes_catalog"} {
+		tool, ok := tools[toolName]
+		if !ok {
+			t.Fatalf("%s tool missing from registered tools", toolName)
+		}
+		for param, wantType := range wantTypes {
+			schema, ok := tool.Tool.InputSchema.Properties[param].(map[string]any)
+			if !ok {
+				t.Fatalf("%s tool schema does not declare %q: %#v", toolName, param, tool.Tool.InputSchema.Properties)
+			}
+			if gotType, _ := schema["type"].(string); gotType != wantType {
+				t.Fatalf("%s tool schema declares %q as type %q, want %q", toolName, param, gotType, wantType)
+			}
+		}
+	}
+}
+
+// TestUndeclaredArgNamesExcludesPathAndDeclaredParams guards the pure
+// classification logic makeAPIHandlerStripFields uses to decide which
+// arguments count as "undeclared" (forwarded raw to the live API, and logged
+// to stderr): path params and declared bindings must never be reported as
+// undeclared, only genuinely unrecognized argument names -- and the result
+// must be sorted, since it feeds directly into a human-readable log line.
+func TestUndeclaredArgNamesExcludesPathAndDeclaredParams(t *testing.T) {
+	args := map[string]any{
+		"ride_id":  "abc123",
+		"limit":    float64(10),
+		"duratoin": float64(1800), // deliberate typo, the case this exists to catch
+		"another":  "value",
+	}
+	pathParams := map[string]bool{"ride_id": true}
+	knownArgs := map[string]bool{"ride_id": true, "limit": true}
+
+	got := undeclaredArgNames(args, pathParams, knownArgs)
+	want := []string{"another", "duratoin"}
+	if len(got) != len(want) {
+		t.Fatalf("undeclaredArgNames = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("undeclaredArgNames = %v, want %v", got, want)
+		}
+	}
+}
+
+// TestUndeclaredArgNamesEmptyWhenEverythingIsRecognized guards against a
+// false-positive log line firing on ordinary, fully-declared tool calls.
+func TestUndeclaredArgNamesEmptyWhenEverythingIsRecognized(t *testing.T) {
+	args := map[string]any{"browse_category": "cycling", "duration": float64(1800)}
+	knownArgs := map[string]bool{"browse_category": true, "duration": true}
+	if got := undeclaredArgNames(args, map[string]bool{}, knownArgs); len(got) != 0 {
+		t.Fatalf("undeclaredArgNames = %v, want empty", got)
+	}
+}
+
+// TestLogUndeclaredArgsWritesToStderrNotStdout guards the transport-safety
+// requirement: the stdio MCP transport uses stdout for protocol frames, so a
+// diagnostic log line must go to stderr only, or it would corrupt the
+// protocol stream from the caller's perspective.
+func TestLogUndeclaredArgsWritesToStderrNotStdout(t *testing.T) {
+	origStderr := os.Stderr
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stderr = w
+	defer func() { os.Stderr = origStderr }()
+
+	logUndeclaredArgs("/api/v2/ride/archived", map[string]any{"duratoin": float64(1800)}, map[string]bool{}, map[string]bool{})
+
+	_ = w.Close()
+	os.Stderr = origStderr
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	text := string(out)
+	for _, want := range []string{"/api/v2/ride/archived", "duratoin"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("stderr log %q missing %q", text, want)
+		}
+	}
+}
+
+// TestLogUndeclaredArgsIsSilentWhenNothingIsUndeclared guards against noisy
+// logging on the common case: every declared/typed tool call should produce
+// no stderr output at all.
+func TestLogUndeclaredArgsIsSilentWhenNothingIsUndeclared(t *testing.T) {
+	origStderr := os.Stderr
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stderr = w
+	defer func() { os.Stderr = origStderr }()
+
+	logUndeclaredArgs("/api/v2/ride/archived", map[string]any{"duration": float64(1800)}, map[string]bool{}, map[string]bool{"duration": true})
+
+	_ = w.Close()
+	os.Stderr = origStderr
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out) != 0 {
+		t.Fatalf("expected no stderr output for a fully-declared call, got %q", out)
+	}
+}
+
+// TestDeepStripFieldsRemovesNamedKeysAtAnyDepth guards the field-name-based
+// (not container-path-based) deletion contract deepStripFields exists to
+// provide: it must reach into nested objects and arrays alike, since the
+// verbose fields it's used for (stream URLs, instructor bios) live inside a
+// mix of per-class list items and a shared instructor array whose exact
+// shape this generated code otherwise never inspects.
+func TestDeepStripFieldsRemovesNamedKeysAtAnyDepth(t *testing.T) {
+	data := json.RawMessage(`{
+		"data": [
+			{"id": "1", "title": "Class One", "vod_stream_url": "https://example.test/1.m3u8"},
+			{"id": "2", "title": "Class Two", "vod_stream_url": "https://example.test/2.m3u8"}
+		],
+		"instructors": [
+			{"id": "i1", "name": "Instructor One", "bio": "a very long bio", "workout_share_images": ["a", "b"]}
+		]
+	}`)
+
+	stripped := deepStripFields(data, []string{"vod_stream_url", "bio", "workout_share_images"})
+
+	var obj map[string]any
+	if err := json.Unmarshal(stripped, &obj); err != nil {
+		t.Fatalf("stripped payload must remain valid JSON: %v", err)
+	}
+	classes := obj["data"].([]any)
+	for _, c := range classes {
+		class := c.(map[string]any)
+		if _, ok := class["vod_stream_url"]; ok {
+			t.Fatalf("vod_stream_url survived stripping in a nested class item: %#v", class)
+		}
+		if _, ok := class["id"]; !ok {
+			t.Fatalf("stripping removed unrelated fields too: %#v", class)
+		}
+	}
+	instructors := obj["instructors"].([]any)
+	instructor := instructors[0].(map[string]any)
+	if _, ok := instructor["bio"]; ok {
+		t.Fatalf("bio survived stripping in a nested instructor record: %#v", instructor)
+	}
+	if _, ok := instructor["workout_share_images"]; ok {
+		t.Fatalf("workout_share_images survived stripping in a nested instructor record: %#v", instructor)
+	}
+	if _, ok := instructor["name"]; !ok {
+		t.Fatalf("stripping removed unrelated instructor fields too: %#v", instructor)
+	}
+}
+
+// TestDeepStripFieldsIsNoOpOnInvalidJSONOrEmptyFieldList guards the helper's
+// safety contract, matching stripTopLevelFields elsewhere in this file: it
+// must never panic or corrupt a payload it can't parse, and must never
+// allocate/rebuild a payload when there's nothing to strip.
+func TestDeepStripFieldsIsNoOpOnInvalidJSONOrEmptyFieldList(t *testing.T) {
+	notJSON := json.RawMessage(`not json`)
+	if got := deepStripFields(notJSON, []string{"bio"}); string(got) != string(notJSON) {
+		t.Fatalf("deepStripFields altered invalid JSON: got %s, want unchanged %s", got, notJSON)
+	}
+
+	valid := json.RawMessage(`{"bio":"x"}`)
+	if got := deepStripFields(valid, nil); string(got) != string(valid) {
+		t.Fatalf("deepStripFields with no fields altered the payload: got %s, want unchanged %s", got, valid)
+	}
+}
+
+// classesVerboseTogglesFixture is shared by the applyVerboseFieldToggles
+// tests below: one class carrying both a stream-and-media field
+// (vod_stream_url) and a join token, plus one instructor carrying a bio
+// field, so each toggle's fields can be asserted independently of the other.
+func classesVerboseTogglesFixture() json.RawMessage {
+	return json.RawMessage(`{
+		"data": [
+			{"id": "1", "title": "Class One", "vod_stream_url": "https://example.test/1.m3u8", "join_tokens": "abc123=="}
+		],
+		"instructors": [
+			{"id": "i1", "name": "Instructor One", "bio": "a very long bio"}
+		]
+	}`)
+}
+
+// TestApplyVerboseFieldTogglesDefaultsStripBothCategories guards the live
+// bug this exists to fix: a 100-item classes_search result measured 454,819
+// bytes against a 60,000-byte MCP tool budget (~4.5 KB/class), most of it
+// stream URLs and per-instructor bio/Q&A/share-image blocks carrying no
+// information relevant to choosing a class. Calls the exact function
+// makeAPIHandlerVerbose uses (not a re-implementation of its loop), with no
+// include_* args set, matching an ordinary classes_search call.
+func TestApplyVerboseFieldTogglesDefaultsStripBothCategories(t *testing.T) {
+	stripped := applyVerboseFieldToggles(classesVerboseTogglesFixture(), map[string]any{}, classesVerboseToggles)
+	strippedText := string(stripped)
+	for _, wantAbsent := range []string{"vod_stream_url", "join_tokens", "\"bio\""} {
+		if strings.Contains(strippedText, wantAbsent) {
+			t.Fatalf("default (unincluded) response still contains %q: %s", wantAbsent, strippedText)
+		}
+	}
+	for _, wantPresent := range []string{"\"id\":\"1\"", "\"title\":\"Class One\"", "\"name\":\"Instructor One\""} {
+		if !strings.Contains(strippedText, wantPresent) {
+			t.Fatalf("stripping removed a field it shouldn't have (missing %q): %s", wantPresent, strippedText)
+		}
+	}
+}
+
+// TestApplyVerboseFieldTogglesEachOptInIsIndependent guards against the
+// weaker version of the prior test, which called deepStripFields directly
+// with both toggles' fields unconditionally and so would still pass even if
+// the real handler ignored both include_* arguments (or conflated them into
+// one). Driving the real applyVerboseFieldToggles function with
+// include_stream_urls and include_instructor_bios set independently proves
+// each opt-in controls only its own field category.
+func TestApplyVerboseFieldTogglesEachOptInIsIndependent(t *testing.T) {
+	streamURLsOnly := applyVerboseFieldToggles(classesVerboseTogglesFixture(), map[string]any{"include_stream_urls": true}, classesVerboseToggles)
+	if !strings.Contains(string(streamURLsOnly), "vod_stream_url") {
+		t.Fatalf("include_stream_urls=true did not restore vod_stream_url: %s", streamURLsOnly)
+	}
+	if strings.Contains(string(streamURLsOnly), "\"bio\"") {
+		t.Fatalf("include_stream_urls=true unexpectedly also restored bio: %s", streamURLsOnly)
+	}
+
+	instructorBiosOnly := applyVerboseFieldToggles(classesVerboseTogglesFixture(), map[string]any{"include_instructor_bios": true}, classesVerboseToggles)
+	if !strings.Contains(string(instructorBiosOnly), "\"bio\"") {
+		t.Fatalf("include_instructor_bios=true did not restore bio: %s", instructorBiosOnly)
+	}
+	if strings.Contains(string(instructorBiosOnly), "vod_stream_url") {
+		t.Fatalf("include_instructor_bios=true unexpectedly also restored vod_stream_url: %s", instructorBiosOnly)
+	}
+
+	both := applyVerboseFieldToggles(classesVerboseTogglesFixture(), map[string]any{"include_stream_urls": true, "include_instructor_bios": true}, classesVerboseToggles)
+	for _, want := range []string{"vod_stream_url", "\"bio\""} {
+		if !strings.Contains(string(both), want) {
+			t.Fatalf("both toggles true should restore %q: %s", want, both)
+		}
+	}
+}
+
+// TestReservedMCPMetaArgsIncludesEveryVerboseToggle guards the other half of
+// the same review finding: include_stream_urls/include_instructor_bios are
+// MCP-only response-shaping arguments, not real Peloton API parameters, so
+// makeAPIHandlerVerbose's knownArgs must reserve them (via
+// reservedMCPMetaArgs, the exact function the handler calls) the same way it
+// reserves "select" and declared bindings -- otherwise they'd be forwarded
+// raw to the live API as unrecognized query params instead of being
+// consumed here.
+func TestReservedMCPMetaArgsIncludesEveryVerboseToggle(t *testing.T) {
+	reserved := reservedMCPMetaArgs(classesVerboseToggles)
+	if !reserved["select"] {
+		t.Fatal(`reservedMCPMetaArgs does not reserve "select"`)
+	}
+	for _, toggle := range classesVerboseToggles {
+		if !reserved[toggle.ArgName] {
+			t.Fatalf("reservedMCPMetaArgs does not reserve %q", toggle.ArgName)
+		}
+	}
+	if len(reserved) != len(classesVerboseToggles)+1 {
+		t.Fatalf("reservedMCPMetaArgs = %v, want exactly select + %d toggle names", reserved, len(classesVerboseToggles))
+	}
+}
+
+// TestClassesCatalogAndSearchDeclareSelectAndVerboseToggles guards tool
+// schema discoverability: an agent reading the tool schema, not this file's
+// source, is how it learns select/include_stream_urls/include_instructor_bios
+// exist at all.
+func TestClassesCatalogAndSearchDeclareSelectAndVerboseToggles(t *testing.T) {
+	s := server.NewMCPServer("peloton", "test")
+	RegisterTools(s)
+	tools := s.ListTools()
+
+	wantTypes := map[string]string{
+		"select":                  "string",
+		"include_stream_urls":     "boolean",
+		"include_instructor_bios": "boolean",
+	}
+	for _, toolName := range []string{"classes_catalog", "classes_search", "classes_show", "classes_structure"} {
+		tool, ok := tools[toolName]
+		if !ok {
+			t.Fatalf("%s tool missing from registered tools", toolName)
+		}
+		for param, wantType := range wantTypes {
+			schema, ok := tool.Tool.InputSchema.Properties[param].(map[string]any)
+			if !ok {
+				t.Fatalf("%s tool schema does not declare %q: %#v", toolName, param, tool.Tool.InputSchema.Properties)
+			}
+			if gotType, _ := schema["type"].(string); gotType != wantType {
+				t.Fatalf("%s tool schema declares %q as type %q, want %q", toolName, param, gotType, wantType)
+			}
+		}
+	}
+}
+
+// TestAllTypedEndpointToolsDeclareSelect guards ask #2 from the live-tested
+// handoff this fixes: "select" -- proven to work well on offline/search
+// tools already -- must be available on every typed endpoint tool, not just
+// the classes_* ones, since the response-bloat problem it addresses isn't
+// unique to classes_search/classes_catalog.
+func TestAllTypedEndpointToolsDeclareSelect(t *testing.T) {
+	s := server.NewMCPServer("peloton", "test")
+	RegisterTools(s)
+	tools := s.ListTools()
+
+	for _, toolName := range []string{
+		"account_show", "classes_catalog", "classes_filters", "classes_search",
+		"classes_show", "classes_structure", "strength_movements",
+		"workouts_list", "workouts_performance", "workouts_show",
+	} {
+		tool, ok := tools[toolName]
+		if !ok {
+			t.Fatalf("%s tool missing from registered tools", toolName)
+		}
+		schema, ok := tool.Tool.InputSchema.Properties["select"].(map[string]any)
+		if !ok {
+			t.Fatalf("%s tool schema does not declare select: %#v", toolName, tool.Tool.InputSchema.Properties)
+		}
+		if gotType, _ := schema["type"].(string); gotType != "string" {
+			t.Fatalf("%s tool schema declares select as type %q, want \"string\"", toolName, gotType)
+		}
+	}
+}
+
+// classesSearchRealisticFixture reproduces the live-observed top-level shape
+// of a classes_catalog/classes_search response (data, count, page,
+// browse_categories, fitness_disciplines, instructors -- ride_types/
+// class_types omitted here since makeAPIHandlerVerbose strips them before
+// select ever runs) -- six top-level keys, one more than
+// maxEnvelopeFallbackKeys, which is exactly the shape that made a bare
+// select field name silently project to "{}".
+func classesSearchRealisticFixture() []byte {
+	return []byte(`{
+		"data": [{"id": "class-1", "title": "Power Zone Endurance", "duration": 1800, "instructor_id": "instructor-1"}],
+		"count": 1,
+		"page": 0,
+		"browse_categories": [{"id": "cycling", "name": "Cycling"}],
+		"fitness_disciplines": [{"id": "cycling", "name": "Cycling"}],
+		"instructors": [{"id": "instructor-1", "name": "Some Instructor"}]
+	}`)
+}
+
+// TestSelectDataPrefixReachesCatalogItemsWhereBareFieldNamesCannot guards a
+// P1 review finding: classes_catalog/classes_search wrap their items under
+// a top-level "data" key alongside enough sibling metadata fields
+// (browse_categories, fitness_disciplines, instructors, count, page) that
+// filterFields' envelope-fallback heuristic (which only auto-descends into
+// a lone sibling array on objects with a handful of top-level keys) never
+// fires. A caller following the tool's own advertised example (a bare field
+// name like "id") got an empty object back, silently discarding every
+// result -- the documented fix is to always prefix with "data.".
+func TestSelectDataPrefixReachesCatalogItemsWhereBareFieldNamesCannot(t *testing.T) {
+	fixture := classesSearchRealisticFixture()
+
+	prefixed := cli.FilterFieldsJSON(fixture, "data.id,data.title,data.duration,data.instructor_id")
+	var prefixedResult struct {
+		Data []map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(prefixed, &prefixedResult); err != nil {
+		t.Fatalf("data.-prefixed select result is not valid JSON: %v\n%s", err, prefixed)
+	}
+	if len(prefixedResult.Data) != 1 {
+		t.Fatalf("data.-prefixed select returned %d items, want 1: %s", len(prefixedResult.Data), prefixed)
+	}
+	for _, want := range []string{"id", "title", "duration", "instructor_id"} {
+		if _, ok := prefixedResult.Data[0][want]; !ok {
+			t.Fatalf("data.-prefixed select is missing field %q: %s", want, prefixed)
+		}
+	}
+
+	// The bare-field-name form the tool used to advertise: documented here
+	// as a locked-in regression guard, not a desired behavior. If
+	// filterFields' envelope-fallback threshold ever changes so this starts
+	// returning real data, that's fine -- update this assertion, don't
+	// silently leave selectParamDescriptionDataWrapped's warning stale.
+	bare := cli.FilterFieldsJSON(fixture, "id,title,duration,instructor_id")
+	var bareResult map[string]any
+	if err := json.Unmarshal(bare, &bareResult); err != nil {
+		t.Fatalf("bare select result is not valid JSON: %v\n%s", err, bare)
+	}
+	if len(bareResult) != 0 {
+		t.Fatalf("bare field-name select unexpectedly returned data (%s) -- if the envelope-fallback heuristic changed, update selectParamDescriptionDataWrapped's warning and this test together", bare)
+	}
+}
+
+// TestMCPSearchMissingStoreAndBinaryGivesConsistentDiagnosis guards a
+// live-tested dead-end loop: search checked for the local data store before
+// checking companion-binary resolution, so on a deployment missing the
+// peloton-pp-cli binary it reported "No local data store found... Run
+// peloton-pp-cli sync" -- but every path to running sync execs the same
+// missing binary, so an agent following that instruction literally loops
+// until it gives up. Every other CLI-backed (command-mirror) tool already
+// reported "companion CLI binary not found" correctly in this situation;
+// search/sql must give the same honest diagnosis instead of misdiagnosing a
+// missing binary as an un-synced store.
+func TestMCPSearchMissingStoreAndBinaryGivesConsistentDiagnosis(t *testing.T) {
+	resetMCPPathEnv(t)
+	stubMCPCLIAvailable(t, false)
+
+	result, err := handleSearch(context.Background(), mcplib.CallToolRequest{Params: mcplib.CallToolParams{
+		Arguments: map[string]any{"query": "alpha"},
+	}})
+	if err != nil {
+		t.Fatalf("handleSearch returned transport error: %v", err)
+	}
+	if result == nil || !result.IsError {
+		t.Fatalf("handleSearch missing store+binary IsError = %v, want true", result != nil && result.IsError)
+	}
+	text := mcpTextContent(t, result)
+	if !strings.Contains(text, "companion CLI unavailable") {
+		t.Fatalf("missing-binary diagnosis %q does not name the actual root cause", text)
+	}
+	if strings.Contains(text, "Run peloton-pp-cli sync") {
+		t.Fatalf("missing-binary diagnosis %q still tells the caller to run a command that execs the same missing binary", text)
+	}
+}
+
+// TestMCPSQLMissingStoreAndBinaryGivesConsistentDiagnosis is the "sql" tool
+// half of the same fix -- see TestMCPSearchMissingStoreAndBinaryGivesConsistentDiagnosis.
+func TestMCPSQLMissingStoreAndBinaryGivesConsistentDiagnosis(t *testing.T) {
+	resetMCPPathEnv(t)
+	stubMCPCLIAvailable(t, false)
+
+	result, err := handleSQL(context.Background(), mcplib.CallToolRequest{Params: mcplib.CallToolParams{
+		Arguments: map[string]any{"query": "SELECT 1"},
+	}})
+	if err != nil {
+		t.Fatalf("handleSQL returned transport error: %v", err)
+	}
+	if result == nil || !result.IsError {
+		t.Fatalf("handleSQL missing store+binary IsError = %v, want true", result != nil && result.IsError)
+	}
+	text := mcpTextContent(t, result)
+	if !strings.Contains(text, "companion CLI unavailable") {
+		t.Fatalf("missing-binary diagnosis %q does not name the actual root cause", text)
+	}
+	if strings.Contains(text, "Run peloton-pp-cli sync") {
+		t.Fatalf("missing-binary diagnosis %q still tells the caller to run a command that execs the same missing binary", text)
+	}
+}
+
+// TestMCPSearchEmptyStoreAndMissingBinaryNamesRootCause covers the
+// empty-but-present-store variant of the same fix: next_step must not
+// suggest "run sync" when the binary that command would exec is missing.
+func TestMCPSearchEmptyStoreAndMissingBinaryNamesRootCause(t *testing.T) {
+	resetMCPPathEnv(t)
+	stubMCPCLIAvailable(t, false)
+	path, err := mcpDBPath()
+	if err != nil {
+		t.Fatalf("mcpDBPath() error = %v", err)
+	}
+	db, err := store.Open(path)
+	if err != nil {
+		t.Fatalf("creating empty store: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("closing empty store: %v", err)
+	}
+
+	result, err := handleSearch(context.Background(), mcplib.CallToolRequest{Params: mcplib.CallToolParams{
+		Arguments: map[string]any{"query": "alpha"},
+	}})
+	if err != nil {
+		t.Fatalf("handleSearch returned transport error: %v", err)
+	}
+	text := mcpTextContent(t, result)
+	var envelope struct {
+		NextStep string `json:"next_step"`
+	}
+	if err := json.Unmarshal([]byte(text), &envelope); err != nil {
+		t.Fatalf("empty-store result must be valid JSON: %v\n%s", err, text)
+	}
+	if !strings.Contains(envelope.NextStep, "companion CLI unavailable") {
+		t.Fatalf("next_step = %q, want it to name the missing binary instead of suggesting sync", envelope.NextStep)
+	}
+}
+
+// TestMCPCompanionCLIAvailableRejectsUnexecutablePath guards the P1 review
+// finding: SiblingCLIPath can return a sibling-of-executable candidate or
+// the PELOTON_CLI_PATH env var value without checking either exists or is
+// executable -- only its PATH-search fallback is pre-validated. Without a
+// second check, a stale/wrong PELOTON_CLI_PATH or a non-executable sibling
+// file would report "available" and still recommend "run peloton-pp-cli
+// sync", a remedy that fails the moment it's tried -- the exact dead end
+// this diagnosis exists to avoid.
+func TestMCPCompanionCLIAvailableRejectsUnexecutablePath(t *testing.T) {
+	original := mcpCLIPathResolver
+	defer func() { mcpCLIPathResolver = original }()
+
+	nonExistent := filepath.Join(t.TempDir(), "peloton-pp-cli")
+	mcpCLIPathResolver = func() (string, error) { return nonExistent, nil }
+	if mcpCompanionCLIAvailable() {
+		t.Fatal("mcpCompanionCLIAvailable() = true for a path that does not exist, want false")
+	}
+
+	notExecutable := filepath.Join(t.TempDir(), "peloton-pp-cli")
+	if err := os.WriteFile(notExecutable, []byte("#!/bin/sh\necho hi\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mcpCLIPathResolver = func() (string, error) { return notExecutable, nil }
+	if mcpCompanionCLIAvailable() {
+		t.Fatal("mcpCompanionCLIAvailable() = true for a file without the executable bit set, want false")
+	}
+
+	mcpCLIPathResolver = func() (string, error) { return os.Args[0], nil }
+	if !mcpCompanionCLIAvailable() {
+		t.Fatal("mcpCompanionCLIAvailable() = false for the running test binary itself, want true")
 	}
 }

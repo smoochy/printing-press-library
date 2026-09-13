@@ -1,0 +1,17 @@
+{
+  "schema_version": 2,
+  "id": "workflow-status-structured-envelope",
+  "applied_at": "2026-09-11",
+  "base_run_id": "20260714-231159",
+  "base_printing_press_version": "4.28.0",
+  "summary": "workflow status's --json/--agent output builds a structured envelope ({store_status, resources: {<name>: {count, last_synced_at?}}, total, store_path, next_step when empty}) instead of json-encoding a bare Status() map. store.LastSyncedTimes() unions sync_state with resources.synced_at MAX per type, since parent-keyed dependents only get a sync_state row under --full's compound-key backfill tracking. sync_state gains a completed_at column, set only by the new SaveSyncStateCompleted (called once a flat resource's sync loop actually returns, naturally or via an intentional --max-pages cap) -- never by the plain SaveSyncState a --full reset or a mid-pagination checkpoint uses, both of which explicitly clear it. store.HasSyncHistory() checks completed_at IS NOT NULL, not just row presence, so an interrupted sync (reset or checkpoint written, then crashed before finishing) still reads as \"empty,\" not \"ready.\" A regen must keep completed_at set only from SaveSyncStateCompleted's one call site. ensureColumn takes an optional backfillSQL, run exactly once when it performs the ALTER TABLE (never on the column-exists or table-missing short-circuits, never on the concurrent-Open duplicate-column race): completed_at's backfill sets completed_at = last_synced_at for every pre-existing sync_state row, so upgrading a store with real historical completions doesn't make HasSyncHistory() report it as empty.",
+  "reason": "workflow_status(json=true)/workflow_status(agent=true) returned a bare {} on an empty store while plain-text mode gave a real message. Review then found two more gaps: dependent-resource timestamps were omitted entirely, and any sync_state row (including a --full reset or mid-pagination checkpoint written before a resource is actually done) was enough to mark the store \"ready,\" so an interrupted initial sync could report ready with zero archived resources.",
+  "files": [
+    "internal/cli/channel_workflow.go",
+    "internal/cli/channel_workflow_test.go",
+    "internal/cli/sync.go",
+    "internal/store/store.go",
+    "internal/store/schema_version_test.go"
+  ],
+  "validated_outcome": "go build/vet/test/govulncheck and verify_skill.py all green. Tests cover the empty-store envelope shape, a real archive's flat and dependent resource timestamps, that a completed zero-result sync reports \"ready,\" and that an in-progress/reset sync_state row (SaveSyncState, not SaveSyncStateCompleted) with no archived resources still reports \"empty.\" TestMigrate_BackfillsCompletedAtForPreExistingSyncStateRows creates a pre-completed_at-era sync_state row directly, opens it with the current binary, and asserts completed_at was backfilled and HasSyncHistory() returns true."
+}

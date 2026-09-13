@@ -1,0 +1,15 @@
+{
+  "schema_version": 2,
+  "id": "classes-search-catalog-declare-filter-vocab",
+  "applied_at": "2026-09-11",
+  "base_run_id": "20260714-231159",
+  "base_printing_press_version": "4.28.0",
+  "summary": "classes_search/classes_catalog declare duration, super_genre_id, has_workout, and is_favorite_ride (the last two tri-state: omitted/true/false are distinct queries) alongside classes_filters' vocabulary, and makeAPIHandlerStripFields logs any still-undeclared forwarded argument name to stderr. A future regen of this endpoint pair must keep these four bindings declared and keep the stderr logging wired into the forwarding loop, and must keep tools-manifest.json's param list for both tools in sync with the runtime schema.",
+  "reason": "These filters already worked via the existing raw-argument passthrough, but were undiscoverable from the tool schema, and a misspelled raw filter name silently returned unfiltered results instead of erroring.",
+  "files": [
+    "internal/mcp/tools.go",
+    "internal/mcp/tools_test.go",
+    "tools-manifest.json"
+  ],
+  "validated_outcome": "go build/vet/test/govulncheck and verify_skill.py all green. New tests cover the declared schema types, the undeclared-argument classification helper, and that stderr logging fires only for genuinely undeclared args."
+}

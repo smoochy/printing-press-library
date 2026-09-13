@@ -2,6 +2,34 @@
 
 This file is maintained by printing-press-library release automation. Do not hand-edit release sections in normal PRs.
 
+## 2026.9.8 - 2026-09-12
+
+- fix(peloton): leftover from #1986 — companion binary diagnostic (#1989).
+
+## 2026.9.7 - 2026-09-12
+
+- fix(peloton): leftover from #1981 — live endpoint select/verbose strip (#1988).
+
+## 2026.9.6 - 2026-09-12
+
+- fix(peloton): workflow status --json/--agent returns a structured envelope (#1983).
+
+## 2026.9.5 - 2026-09-12
+
+- fix(peloton): declare classes_search/classes_catalog filter params (#1980).
+
+## 2026.9.4 - 2026-09-12
+
+- fix(peloton): add store_total and resume_cursor to sync_complete (#1985).
+
+## 2026.9.3 - 2026-09-12
+
+- fix(peloton): mark workouts as a critical sync resource (#1982).
+
+## 2026.9.2 - 2026-09-12
+
+- fix(peloton): add --limit to offline classes search (#1984).
+
 ## 2026.9.1 - 2026-09-11
 
 - fix: fail closed on ambiguous fleet write retries (#1978).

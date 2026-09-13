@@ -161,7 +161,11 @@ func newOfflineClassesCmd(flags *rootFlags) *cobra.Command {
 
 func newOfflineClassSearchCmd(flags *rootFlags) *cobra.Command {
 	var f offlineClassFilters
+	var limit int
 	cmd := &cobra.Command{Use: "search", Short: "Search local class facts by factual stored fields and structural intersections.", RunE: func(cmd *cobra.Command, _ []string) error {
+		if limit < 0 {
+			return fmt.Errorf("--limit must be zero or positive (got %d); 0 means unbounded", limit)
+		}
 		facts, err := offlineClasses(cmd)
 		if err != nil {
 			return err
@@ -179,6 +183,17 @@ func newOfflineClassSearchCmd(flags *rootFlags) *cobra.Command {
 		if f.segmentRole != "" || f.segmentCount != 0 || f.metric != "" || f.targetMin != 0 || f.targetMax != 0 {
 			caveats = append(caveats, "structural predicates only compare fields retained in each stored class fact")
 		}
+		// Truncate after filtering, not before fetching: predicates like
+		// --duration or the structural ones compare fields the local store
+		// doesn't index, so they can only be evaluated in memory over every
+		// stored class fact -- capping the fetch itself would silently miss
+		// real matches sorted after the cutoff. limit=0 keeps every match, so
+		// existing callers relying on the full result set are unaffected.
+		totalMatches := len(matches)
+		if limit > 0 && len(matches) > limit {
+			matches = matches[:limit]
+			caveats = append(caveats, fmt.Sprintf("results truncated to %d of %d matches; increase --limit or narrow filters to see more", limit, totalMatches))
+		}
 		return printOffline(cmd, flags, map[string]any{"items": payloads(matches), "caveats": caveats})
 	}}
 	cmd.Flags().StringVar(&f.instructor, "instructor", "", "Stored instructor name or identifier.")
@@ -192,6 +207,7 @@ func newOfflineClassSearchCmd(flags *rootFlags) *cobra.Command {
 	cmd.Flags().StringVar(&f.metric, "metric", "", "Stored metric or target metric.")
 	cmd.Flags().Float64Var(&f.targetMin, "target-min", 0, "Inclusive minimum provider target value.")
 	cmd.Flags().Float64Var(&f.targetMax, "target-max", 0, "Inclusive maximum provider target value.")
+	cmd.Flags().IntVar(&limit, "limit", 50, "Maximum matches to return after filtering; 0 returns all. Without a cap, a broad query (e.g. no --category) can return every locally stored class fact in one response.")
 	return cmd
 }
 

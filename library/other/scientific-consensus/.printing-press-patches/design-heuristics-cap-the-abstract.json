@@ -1,0 +1,14 @@
+{
+  "schema_version": 2,
+  "id": "design-heuristics-cap-the-abstract",
+  "applied_at": "2026-09-12",
+  "base_run_id": "20260620-165352-e55cec69",
+  "base_printing_press_version": "4.24.0",
+  "summary": "The title/abstract heuristic tier reads at most the first 5000 bytes of the abstract. The title is never truncated, and the cap sits after the authoritative-pubtype branch, so a work whose source names its design returns before the abstract is consulted at any length.",
+  "reason": "OpenAlex's abstract_inverted_index does not reliably stop where the abstract stops: on some works it runs on into the paper's own reference list, and the heuristics then read a cited paper's design as if it were this work's. A 1961 cohort study classified as meta-analysis, tier 9 instead of 5, on a phrase 8,727 characters into its 23,238-character abstract. This is not the generic-review pubtype case and not source data to defer to -- the publication type, the OpenAlex type and the title all agree the work is unclassified; only the reference list disagrees. The failure recurs whenever a source concatenates references into the abstract field, so the cap must survive regeneration rather than being reapplied per corpus.",
+  "files": [
+    "internal/scengine/evidence.go",
+    "internal/scengine/evidence_abstract_length_test.go"
+  ],
+  "validated_outcome": "5000 was chosen by sweeping eleven cutoffs over the 290 works in testdata/corpora with live abstracts, since the stored ones are truncated and hide the pattern. At 5000 exactly two classifications change, both of them the measured-bad works, both to cohort-study, which PubMed's MeSH terms confirm for each; nothing is promoted at any cutoff, and every tighter cut takes correct works with it. Four tests pin it, each verified by mutation: disabling the cap fails the cited-title case, and a cap of 50 fails the two that prove it is not too narrow. The full scengine suite passes unchanged. Not addressed here: qualityScore in internal/cli/quality.go receives the same untruncated abstract and awards sample-size points on patterns a reference list can supply."
+}

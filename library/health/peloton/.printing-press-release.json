@@ -2,17 +2,17 @@
   "schema_version": 1,
   "slug": "peloton",
   "cli_name": "peloton-pp-cli",
-  "version": "2026.9.1",
-  "released_at": "2026-09-11T09:22:21Z",
-  "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e",
+  "version": "2026.9.8",
+  "released_at": "2026-09-12T09:34:09Z",
+  "source_commit": "d3d730d86c50f33a1ecda15890e7bccd172feb14",
   "printing_press_version": "4.28.0",
   "run_id": "20260714-231159",
   "changes": [
     {
-      "title": "fix: fail closed on ambiguous fleet write retries",
-      "pr": 1978,
-      "url": "https://github.com/mvanhorn/printing-press-library/pull/1978",
-      "commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+      "title": "fix(peloton): leftover from #1986 — companion binary diagnostic",
+      "pr": 1989,
+      "url": "https://github.com/mvanhorn/printing-press-library/pull/1989",
+      "commit": "d3d730d86c50f33a1ecda15890e7bccd172feb14"
     }
   ]
 }

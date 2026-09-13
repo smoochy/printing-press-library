@@ -960,3 +960,68 @@ func TestMigrate_AddsColumnsOnUpgrade_SyncState(t *testing.T) {
 		}
 	}
 }
+
+// TestMigrate_BackfillsCompletedAtForPreExistingSyncStateRows guards a
+// review finding on the completed_at column HasSyncHistory depends on: a
+// store created before completed_at existed has real historical sync_state
+// rows (including, potentially, a genuine zero-item completion) with no
+// way to know they finished. Adding the column with every existing row
+// left at completed_at=NULL would make HasSyncHistory() report an upgraded
+// store with real completed history as "empty," sending an agent back to
+// re-archive data that was already there. The migration must backfill
+// completed_at = last_synced_at for rows that predate the column, exactly
+// once, without touching rows written by the new code afterward.
+func TestMigrate_BackfillsCompletedAtForPreExistingSyncStateRows(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "data.db")
+
+	// Pre-create the DB with the shape sync_state had immediately before
+	// completed_at was introduced: resource_type/last_cursor/
+	// last_synced_at/total_count, no completed_at column at all. Seed one
+	// row representing a genuine historical completion under the old,
+	// coarser semantics (indistinguishable, in that schema, from an
+	// in-progress reset -- which is exactly the ambiguity completed_at
+	// exists to resolve going forward, not to retroactively re-litigate).
+	raw, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("open raw: %v", err)
+	}
+	if _, err := raw.Exec(`CREATE TABLE "sync_state" (
+		resource_type TEXT PRIMARY KEY,
+		last_cursor TEXT,
+		last_synced_at DATETIME,
+		total_count INTEGER DEFAULT 0
+	)`); err != nil {
+		raw.Close()
+		t.Fatalf("create old table: %v", err)
+	}
+	if _, err := raw.Exec(
+		`INSERT INTO sync_state (resource_type, last_cursor, last_synced_at, total_count) VALUES (?, ?, ?, ?)`,
+		"workouts", "", "2026-01-01T00:00:00Z", 0,
+	); err != nil {
+		raw.Close()
+		t.Fatalf("seed pre-existing row: %v", err)
+	}
+	raw.Close()
+
+	s, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("open upgraded db: %v", err)
+	}
+	defer s.Close()
+
+	var completedAt sql.NullString
+	if err := s.DB().QueryRow(`SELECT completed_at FROM sync_state WHERE resource_type = 'workouts'`).Scan(&completedAt); err != nil {
+		t.Fatalf("query completed_at: %v", err)
+	}
+	if !completedAt.Valid || completedAt.String == "" {
+		t.Fatal("completed_at was not backfilled for a pre-existing sync_state row")
+	}
+
+	hasHistory, err := s.HasSyncHistory()
+	if err != nil {
+		t.Fatalf("HasSyncHistory: %v", err)
+	}
+	if !hasHistory {
+		t.Fatal("HasSyncHistory() = false after upgrading a store with real historical sync_state rows, want true")
+	}
+}
