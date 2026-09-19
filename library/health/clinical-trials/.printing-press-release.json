@@ -2,17 +2,17 @@
   "schema_version": 1,
   "slug": "clinical-trials",
   "cli_name": "clinical-trials-pp-cli",
-  "version": "2026.9.10",
-  "released_at": "2026-09-16T09:11:56Z",
-  "source_commit": "3660be2583c5ea671b8549c70abac6dc01a476f2",
+  "version": "2026.9.12",
+  "released_at": "2026-09-18T09:07:42Z",
+  "source_commit": "1c085105faf876463567053451051305cf40cf56",
   "printing_press_version": "4.25.0",
   "run_id": "20260623-164233-df565e8d",
   "changes": [
     {
-      "title": "clinical-trials: extract compare's trial summary into a callable helper",
-      "pr": 2001,
-      "url": "https://github.com/mvanhorn/printing-press-library/pull/2001",
-      "commit": "3660be2583c5ea671b8549c70abac6dc01a476f2"
+      "title": "fix(clinical-trials): round negative emerging growth half away from zero",
+      "pr": 2011,
+      "url": "https://github.com/mvanhorn/printing-press-library/pull/2011",
+      "commit": "1c085105faf876463567053451051305cf40cf56"
     }
   ]
 }
