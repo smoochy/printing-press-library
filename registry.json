@@ -1544,9 +1544,9 @@
       "path": "library/other/anac-pl",
       "release": {
         "cli_name": "anac-pl-pp-cli",
-        "version": "2026.9.5",
-        "released_at": "2026-09-17T09:10:25Z",
-        "source_commit": "916e5f8ed29a3af74a7c4378cd2e380536b01d53"
+        "version": "2026.9.6",
+        "released_at": "2026-09-19T09:16:02Z",
+        "source_commit": "179d1d5125d9d77b0f419ca315fb31a62457bf4d"
       },
       "printer": "aborruso",
       "printer_name": "aborruso",
@@ -2094,9 +2094,9 @@
       "path": "library/other/ars-sicilia",
       "release": {
         "cli_name": "ars-sicilia-pp-cli",
-        "version": "2026.9.6",
-        "released_at": "2026-09-14T10:28:55Z",
-        "source_commit": "634d6c57c3cfed78e810be7ac58a9702f6314f16"
+        "version": "2026.9.7",
+        "released_at": "2026-09-19T09:16:02Z",
+        "source_commit": "96f12fde5451d1d14a3d6cd378c775b81e7afb4d"
       },
       "printer": "aborruso",
       "printer_name": "aborruso",
@@ -4693,9 +4693,9 @@
       "path": "library/health/clinical-trials",
       "release": {
         "cli_name": "clinical-trials-pp-cli",
-        "version": "2026.9.12",
-        "released_at": "2026-09-18T09:07:42Z",
-        "source_commit": "1c085105faf876463567053451051305cf40cf56"
+        "version": "2026.9.13",
+        "released_at": "2026-09-19T09:14:37Z",
+        "source_commit": "28227338a2aaf91e6b7b51929ea0f9e1b6928da0"
       },
       "printer": "laci141",
       "printer_name": "laci141",
@@ -5223,9 +5223,9 @@
       "path": "library/sales-and-crm/conduyt-crm",
       "release": {
         "cli_name": "conduyt-crm-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.9.2",
+        "released_at": "2026-09-18T09:17:01Z",
+        "source_commit": "ef1ebf708ec74d2d75e9fd6bc0c376040bef2a3b"
       },
       "printer": "ptaramona",
       "printer_name": "Conduyt",
@@ -9766,6 +9766,62 @@
       }
     },
     {
+      "name": "garmin",
+      "category": "health",
+      "api": "Garmin Connect",
+      "description": "Your whole Garmin history in a local database, not one 28-day page at a time.",
+      "search_terms": [
+        "garmin",
+        "Garmin Connect",
+        "garmin-pp-cli",
+        "Your whole Garmin history in a local database, not one 28-day page at a time.",
+        "Sleep over a window, joined and compared",
+        "insights sleep",
+        "Duration, score, stage split and resting heart rate for a window of nights, with the equally long window before it beside them.",
+        "Training load, zone split and fitness trend in one read",
+        "insights training",
+        "Archived activities grouped by type with their time and distance, time summed per heart-rate zone, weekly load buckets, and the VO2-max and readiness trends beside them.",
+        "Oldest-first archive fill of the 28-day-capped series",
+        "history",
+        "Fills a local SQLite archive of every Garmin daily series from the oldest day forward, keeping one bookmark per series so an interrupted run resumes instead of restarting.",
+        "SQL over the whole archive, read-only by construction",
+        "sql",
+        "Ask the archive anything in SQL: one read-only SELECT across every series `history` has filled.",
+        "Loopback browser login with identity assertion",
+        "auth login",
+        "Refuses to store a token whose account is not the address you named, so a shared browser cannot sign the wrong household member in."
+      ],
+      "path": "library/health/garmin",
+      "release": {
+        "cli_name": "garmin-pp-cli",
+        "version": "2026.9.1",
+        "released_at": "2026-09-19T09:16:02Z",
+        "source_commit": "faed13504c83e44479dc8c73d885fa8e5d6d1c4c"
+      },
+      "printer": "prashantkamani",
+      "printer_name": "Prashant Kamani",
+      "creator": {
+        "handle": "prashantkamani",
+        "name": "Prashant Kamani"
+      },
+      "mcp": {
+        "binary": "garmin-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 27,
+        "public_tool_count": 0,
+        "auth_type": "bearer_token",
+        "env_vars": [
+          "GARMIN_ACCESS_TOKEN",
+          "GARMIN_TOKEN"
+        ],
+        "mcp_ready": "full",
+        "spec_format": "openapi3"
+      }
+    },
+    {
       "name": "gfonts",
       "category": "developer-tools",
       "api": "Google Fonts Metadata",
@@ -11735,6 +11791,58 @@
         "env_vars": [],
         "mcp_ready": "partial",
         "spec_format": "internal"
+      }
+    },
+    {
+      "name": "haven-hot-chicken",
+      "category": "food-and-dining",
+      "api": "Haven Hot Chicken",
+      "description": "Browse Haven menus, compare locations, and plan a meal from saved prices.",
+      "search_terms": [
+        "haven-hot-chicken",
+        "Haven Hot Chicken",
+        "haven-hot-chicken-pp-cli",
+        "Browse Haven menus, compare locations, and plan a meal from saved prices.",
+        "Location price comparison",
+        "haven compare",
+        "Compare the same named menu item across saved location menus.",
+        "Base-price meal subtotal",
+        "haven subtotal",
+        "Estimate a meal base-price subtotal from explicit item IDs and quantities.",
+        "Saved menu changes",
+        "haven changes",
+        "Show additions, removals, price and availability changes between two complete saved menus.",
+        "Shared availability",
+        "haven common",
+        "Find items marked available in every selected saved location menu.",
+        "Nearby locations",
+        "haven nearby",
+        "Rank saved shops by straight-line distance from supplied coordinates."
+      ],
+      "path": "library/food-and-dining/haven-hot-chicken",
+      "release": {
+        "cli_name": "haven-hot-chicken-pp-cli",
+        "version": "2026.9.1",
+        "released_at": "2026-09-19T09:16:02Z",
+        "source_commit": "53895d634fb53ca90ad345684fc34a4d60441386"
+      },
+      "printer": "wirelesstkd",
+      "printer_name": "matthew.martin",
+      "creator": {
+        "handle": "wirelesstkd",
+        "name": "matthew.martin"
+      },
+      "mcp": {
+        "binary": "haven-hot-chicken-pp-mcp",
+        "transports": [
+          "stdio"
+        ],
+        "tool_count": 6,
+        "public_tool_count": 6,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "openapi3"
       }
     },
     {
