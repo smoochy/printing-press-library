@@ -740,6 +740,21 @@ func makeAPIHandlerVerbose(method, pathTemplate string, readOnly bool, binaryRes
 		}
 		logUndeclaredArgs(pathTemplate, args, pathParams, knownArgs)
 
+		// A cursor's offset only addresses the right records relative to
+		// the page size (limit) in effect when it was minted -- resuming
+		// with a different limit re-fetches a differently-sized upstream
+		// page and silently skips or duplicates records (confirmed live:
+		// resuming a limit=100-minted cursor at limit=2 returned an empty
+		// page and advanced past the skipped records with no error). Catch
+		// this before spending an API call on a request we're going to
+		// reject anyway.
+		if pageConfig.CursorParam != "" && mcpCursor != "" {
+			currentLimit, limitKnown := params["limit"]
+			if msg := cursorLimitMismatchError(mcpCursor, currentLimit, limitKnown); msg != "" {
+				return mcpToolError(msg), nil
+			}
+		}
+
 		var data json.RawMessage
 		switch method {
 		case "GET":
@@ -823,16 +838,22 @@ func makeAPIHandlerVerbose(method, pathTemplate string, readOnly bool, binaryRes
 			data = deepStripFields(data, classAlwaysStripFields)
 		}
 		data = applyVerboseFieldToggles(data, args, verboseToggles)
+		// preSelectData is captured before "select" runs so pagination
+		// continuation detection (bound.PageOptions.PreProjectionData) can
+		// still see show_next/page/NextCursorPath even when a caller's own
+		// select drops them from the displayed result. See that field's
+		// doc comment.
+		preSelectData := data
 		// select is applied last, after any verbose-field stripping, so a
 		// caller who does pass include_stream_urls/include_instructor_bios=true
 		// can still narrow the now-larger response down with select in the
 		// same call. Binary responses are base64-encoded file payloads, not
 		// JSON a dotted-path projection could meaningfully narrow.
-		var hasSelect bool
+		var explicitlySelectedFields map[string]bool
 		if !binaryResponse {
 			if selectFields, ok := args["select"].(string); ok && strings.TrimSpace(selectFields) != "" {
 				data = cli.FilterFieldsJSON(data, selectFields)
-				hasSelect = true
+				explicitlySelectedFields = topLevelSelectFieldNames(selectFields)
 			}
 		}
 
@@ -852,7 +873,7 @@ func makeAPIHandlerVerbose(method, pathTemplate string, readOnly bool, binaryRes
 			return mcplib.NewToolResultText(string(out)), nil
 		}
 		if pageConfig.CursorParam != "" {
-			return mcpToolPageResultText(method, data, pageConfig, mcpCursor, hasSelect), nil
+			return mcpToolPageResultText(method, data, pageConfig, mcpCursor, explicitlySelectedFields, preSelectData, params["limit"]), nil
 		}
 		return mcpToolResultText(method, data), nil
 	}
@@ -894,7 +915,7 @@ func mcpToolError(message string) *mcplib.CallToolResult {
 	return mcplib.NewToolResultError(bound.Text(message))
 }
 
-func mcpToolPageResultText(method string, data json.RawMessage, pageConfig mcpPageConfig, cursor string, hasSelect bool) *mcplib.CallToolResult {
+func mcpToolPageResultText(method string, data json.RawMessage, pageConfig mcpPageConfig, cursor string, explicitlySelectedFields map[string]bool, preSelectData json.RawMessage, requestLimit string) *mcplib.CallToolResult {
 	opts := bound.PageOptions{
 		Cursor:                cursor,
 		CursorParam:           pageConfig.CursorParam,
@@ -902,16 +923,76 @@ func mcpToolPageResultText(method string, data json.RawMessage, pageConfig mcpPa
 		ArrayField:            pageConfig.ArrayField,
 		NextPageIndicatorPath: pageConfig.NextPageIndicatorPath,
 		CurrentPageNumberPath: pageConfig.CurrentPageNumberPath,
-	}
-	// A caller who explicitly named a field via select has already made
-	// their own choice about what to keep -- FirstPageOnlyFields exists to
-	// trim the *default* unprojected response's repeated fixed cost, not
-	// to silently override a deliberate later-page ask for that same
-	// field (e.g. select=data.id,summary on page 2 of workouts_list).
-	if !hasSelect {
-		opts.FirstPageOnlyFields = pageConfig.FirstPageOnlyFields
+		FirstPageOnlyFields:   pageConfig.FirstPageOnlyFields,
+		// A caller who explicitly named a FirstPageOnlyFields entry via
+		// select has made a deliberate ask for it on this page --
+		// FirstPageOnlyFields exists to trim the *default* unprojected
+		// response's repeated fixed cost, not to override that. A select
+		// that does NOT name the field (e.g. select=id) must still have it
+		// stripped: filterFieldsRec's envelope fallback can otherwise pass
+		// unselected sibling metadata straight through unfiltered, which
+		// would silently defeat the trim for every select that doesn't
+		// happen to also exclude it explicitly.
+		KeepFirstPageOnlyFields: explicitlySelectedFields,
+		// See bound.PageOptions.PreProjectionData: a select that drops
+		// show_next/page (or the endpoint's NextCursorPath field) must not
+		// be able to hide that more upstream data exists.
+		PreProjectionData: preSelectData,
+		// Stamped into every cursor this call mints so a later resumed
+		// call with a different limit gets rejected instead of silently
+		// addressing the wrong records -- see the CursorLimit check in
+		// makeAPIHandlerVerbose and bound.PageOptions.RequestLimit.
+		RequestLimit: requestLimit,
 	}
 	return mcplib.NewToolResultText(bound.EndpointPageResponse(method, data, opts))
+}
+
+// topLevelSelectFieldNames extracts the top-level segment of each
+// comma-separated select path (e.g. "data.id,summary" -> {"data": true,
+// "summary": true}), matching filterFieldsRec's own path-splitting and
+// lowercasing so a bound.PageOptions.KeepFirstPageOnlyFields lookup agrees
+// with what the projection actually kept.
+func topLevelSelectFieldNames(selectFields string) map[string]bool {
+	names := map[string]bool{}
+	for _, f := range strings.Split(selectFields, ",") {
+		f = strings.TrimSpace(f)
+		if f == "" {
+			continue
+		}
+		head, _, _ := strings.Cut(f, ".")
+		names[strings.ToLower(head)] = true
+	}
+	return names
+}
+
+// cursorLimitMismatchError returns a non-empty, caller-facing error message
+// when a resumed call's limit doesn't match the limit its cursor was minted
+// with (see bound.PageOptions.RequestLimit for why this matters), or "" when
+// the call may proceed: no cursor, an endpoint with no limit parameter
+// (limitKnown false), or limits that agree. When limitKnown is true, a
+// cursor with no recorded limit (minted before this check existed) is
+// rejected — accepting it would re-open the silent mispagination this
+// guard exists to close. limitKnown mirrors params["limit"]'s own
+// comma-ok form so an endpoint with no limit binding at all never blocks
+// on this.
+func cursorLimitMismatchError(mcpCursor, currentLimit string, limitKnown bool) string {
+	if mcpCursor == "" {
+		return ""
+	}
+	cursorLimit, err := bound.CursorLimit(mcpCursor)
+	if err != nil {
+		return ""
+	}
+	if cursorLimit == "" {
+		if !limitKnown {
+			return ""
+		}
+		return "cursor has no recorded page-size limit; resuming it after limit-binding shipped is not supported because its position cannot be validated against the current limit. Omit cursor to start a fresh query."
+	}
+	if !limitKnown || currentLimit == cursorLimit {
+		return ""
+	}
+	return fmt.Sprintf("cursor was issued for limit=%s; resuming with limit=%s is not supported because a cursor's position is only valid for the page size it was minted with. Retry with limit=%s to resume where you left off, or omit cursor to start a fresh query at the new limit.", cursorLimit, currentLimit, cursorLimit)
 }
 
 func newMCPClient() (*client.Client, error) {
