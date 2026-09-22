@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	mcplib "github.com/mark3labs/mcp-go/mcp"
@@ -412,8 +413,8 @@ func RegisterTools(s *server.MCPServer) {
 	)
 	s.AddTool(
 		mcplib.NewTool("workouts_list",
-			mcplib.WithDescription("List workout history in newest-first pages; user_id is supplied by the caller until U3 links the profile fact. Required: user_id. Optional: joins (default: ride), limit (default: 100), cursor (plus 2 more). Returns array of Workout."),
-			mcplib.WithString("user_id", mcplib.Required(), mcplib.Description("Provider user identifier.")),
+			mcplib.WithDescription("List workout history in newest-first pages. Optional: user_id (defaults to the authenticated profile's id via a live lookup when omitted), joins (default: ride), limit (default: 100), cursor (plus 2 more). Returns array of Workout."),
+			mcplib.WithString("user_id", mcplib.Description("Provider user identifier. Defaults to the authenticated profile's id (a live lookup, same as account_show) when omitted.")),
 			mcplib.WithString("joins", mcplib.Description("Include linked ride metadata.")),
 			mcplib.WithNumber("limit", mcplib.Description("Maximum records per page.")),
 			mcplib.WithString("sort", mcplib.Description("Newest-first sort order.")),
@@ -423,7 +424,7 @@ func RegisterTools(s *server.MCPServer) {
 			mcplib.WithDestructiveHintAnnotation(false),
 			mcplib.WithOpenWorldHintAnnotation(true),
 		),
-		makeAPIHandler("GET", "/api/user/{user_id}/workouts", true, false, nil, mcpPageConfig{CursorParam: "page", NextCursorPath: "", ArrayField: "data", NextPageIndicatorPath: "show_next", CurrentPageNumberPath: "page", FirstPageOnlyFields: []string{"summary"}}, []mcpParamBinding{{PublicName: "user_id", WireName: "user_id", Location: "path"}, {PublicName: "joins", WireName: "joins", Location: "query", Default: "ride"}, {PublicName: "limit", WireName: "limit", Location: "query", Default: "100"}, {PublicName: "sort", WireName: "sort", Location: "query", Default: "-start_time"}}, []string{"user_id"}),
+		makeAPIHandler("GET", "/api/user/{user_id}/workouts", true, false, nil, mcpPageConfig{CursorParam: "page", NextCursorPath: "", ArrayField: "data", NextPageIndicatorPath: "show_next", CurrentPageNumberPath: "page", FirstPageOnlyFields: []string{"summary"}}, []mcpParamBinding{{PublicName: "user_id", WireName: "user_id", Location: "path", ResolveFromLiveProfile: true}, {PublicName: "joins", WireName: "joins", Location: "query", Default: "ride"}, {PublicName: "limit", WireName: "limit", Location: "query", Default: "100"}, {PublicName: "sort", WireName: "sort", Location: "query", Default: "-start_time"}}, []string{"user_id"}),
 	)
 	s.AddTool(
 		mcplib.NewTool("workouts_performance",
@@ -492,6 +493,18 @@ type mcpParamBinding struct {
 	WireName   string
 	Location   string
 	Default    string
+
+	// ResolveFromLiveProfile, when true, means: if the caller omits this
+	// argument, resolve it via a live /api/me call (the same endpoint
+	// account_show uses, which needs no user_id itself since it comes from
+	// the session's own credentials) and use the returned profile id,
+	// instead of leaving it unset. Exists for workouts_list's user_id --
+	// account_show already returns id, so requiring a caller to separately
+	// know (or fetch) their own provider id before paging their own
+	// workouts was a needless two-hop call an agent has no way to
+	// anticipate from workouts_list's schema alone. See that tool's doc
+	// comment history ("until U3 links the profile fact").
+	ResolveFromLiveProfile bool
 }
 
 type mcpPageConfig struct {
@@ -652,6 +665,15 @@ func makeAPIHandlerVerbose(method, pathTemplate string, readOnly bool, binaryRes
 		// non-map payloads; GetArguments() returns the map[string]any shape
 		// we rely on here (or an empty map when the payload is something else).
 		args := req.GetArguments()
+
+		// Resolve any ResolveFromLiveProfile binding the caller omitted
+		// before the main bindings loop below reads args -- injecting the
+		// resolved value into args means every other binding-handling path
+		// (path/query/body substitution, positional-arg passthrough) just
+		// sees it as if the caller had supplied it directly.
+		if err := resolveLiveProfileBindings(ctx, c, args, bindings); err != nil {
+			return mcpToolError(err.Error()), nil
+		}
 
 		// positionalParams mixes real URL path params with CLI positional
 		// args that map to query params (e.g. `search <query>` -> ?query=);
@@ -993,6 +1015,91 @@ func cursorLimitMismatchError(mcpCursor, currentLimit string, limitKnown bool) s
 		return ""
 	}
 	return fmt.Sprintf("cursor was issued for limit=%s; resuming with limit=%s is not supported because a cursor's position is only valid for the page size it was minted with. Retry with limit=%s to resume where you left off, or omit cursor to start a fresh query at the new limit.", cursorLimit, currentLimit, cursorLimit)
+}
+
+// resolveLiveProfileBindings fills in any ResolveFromLiveProfile binding
+// the caller omitted from args, via a live profile lookup. Extracted from
+// makeAPIHandlerVerbose's closure so it's directly testable without the
+// full newMCPClient()/config-loading machinery -- a plain map[string]any
+// and a client pointed at a test server are enough.
+func resolveLiveProfileBindings(ctx context.Context, c *client.Client, args map[string]any, bindings []mcpParamBinding) error {
+	for _, binding := range bindings {
+		if !binding.ResolveFromLiveProfile {
+			continue
+		}
+		if _, ok := args[binding.PublicName]; ok {
+			continue
+		}
+		resolved, err := resolveLiveProfileID(ctx, c)
+		if err != nil {
+			return fmt.Errorf("%s was not supplied and could not be resolved from the authenticated profile: %w", binding.PublicName, err)
+		}
+		args[binding.PublicName] = resolved
+	}
+	return nil
+}
+
+// liveProfileIDCache memoizes resolveLiveProfileID's result for as long as
+// the resolving client's access token stays the same. A caller's own
+// provider id is immutable for a given authenticated account, so a live
+// lookup on every omitted-user_id call is pure waste -- confirmed live: an
+// uncached lookup would cost one extra upstream round-trip per page of a
+// full workouts_list enumeration (75 pages at the default page size for
+// one real account). Keyed by access token (not cached unconditionally)
+// so this can't go stale across an account switch on a long-running
+// server: if the persisted credential bundle changes to a different
+// account, installManagedPelotonBearer mints a different access token for
+// the very next client, which this cache treats as a cold miss and
+// re-resolves -- a Greptile review finding on the first version, which
+// cached unconditionally and would have kept returning the previous
+// account's id forever. Only a successful lookup is cached; a failure
+// (auth hiccup, transient network issue) must not stick, or every
+// subsequent call would fail from a single bad moment. The lock is held
+// across the network call, not just the cache read/write, so concurrent
+// cold calls serialize onto one real request instead of each seeing an
+// empty cache and firing its own (a second Greptile finding on the first
+// version).
+var (
+	liveProfileIDMu    sync.Mutex
+	liveProfileIDCache struct {
+		accessToken string
+		id          string
+	}
+)
+
+// resolveLiveProfileID looks up the authenticated Peloton user's id via a
+// live /api/me call, memoized by liveProfileIDCache for as long as c's
+// access token doesn't change. See that var's doc comment.
+func resolveLiveProfileID(ctx context.Context, c *client.Client) (string, error) {
+	currentToken := ""
+	if c != nil && c.Config != nil {
+		currentToken = c.Config.AccessToken
+	}
+
+	liveProfileIDMu.Lock()
+	defer liveProfileIDMu.Unlock()
+
+	if currentToken != "" && liveProfileIDCache.id != "" && liveProfileIDCache.accessToken == currentToken {
+		return liveProfileIDCache.id, nil
+	}
+
+	data, err := c.Get(ctx, "/api/me", nil)
+	if err != nil {
+		return "", err
+	}
+	var profile struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(data, &profile); err != nil {
+		return "", fmt.Errorf("decoding profile response: %w", err)
+	}
+	if profile.ID == "" {
+		return "", fmt.Errorf("profile response omitted an id")
+	}
+
+	liveProfileIDCache.accessToken = currentToken
+	liveProfileIDCache.id = profile.ID
+	return profile.ID, nil
 }
 
 func newMCPClient() (*client.Client, error) {

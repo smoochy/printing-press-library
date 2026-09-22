@@ -11275,9 +11275,9 @@
       "path": "library/productivity/granola",
       "release": {
         "cli_name": "granola-pp-cli",
-        "version": "2026.9.2",
-        "released_at": "2026-09-20T23:35:04Z",
-        "source_commit": "423894166e122aaecc24e438afdda57d79dc86af"
+        "version": "2026.9.3",
+        "released_at": "2026-09-21T00:23:16Z",
+        "source_commit": "7f8548e7329a9a1732fcd075b64e5e0d1d14c799"
       },
       "printer": "dstevens",
       "printer_name": "Damien Stevens",
@@ -13939,9 +13939,9 @@
       "path": "library/marketing/keyword-planner",
       "release": {
         "cli_name": "keyword-planner-pp-cli",
-        "version": "2026.9.2",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.9.3",
+        "released_at": "2026-09-21T09:16:59Z",
+        "source_commit": "db31246114abd62d99229fb641cfd31a07a40176"
       },
       "printer": "vieGPT",
       "printer_name": "Max Michel",
@@ -13949,6 +13949,12 @@
         "handle": "vieGPT",
         "name": "Max Michel"
       },
+      "contributors": [
+        {
+          "handle": "meoyawn",
+          "name": "Adel Nizamutdinov"
+        }
+      ],
       "mcp": {
         "binary": "keyword-planner-pp-mcp",
         "transports": [
@@ -13962,7 +13968,6 @@
           "GOOGLE_ADS_CLIENT_ID",
           "GOOGLE_ADS_CLIENT_SECRET",
           "GOOGLE_ADS_REFRESH_TOKEN",
-          "GOOGLE_ADS_DEVELOPER_TOKEN",
           "GOOGLE_ADS_CUSTOMER_ID",
           "GOOGLE_ADS_LOGIN_CUSTOMER_ID"
         ],
@@ -16478,6 +16483,73 @@
         ],
         "tool_count": 2,
         "public_tool_count": 2,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
+      "name": "nepra",
+      "category": "other",
+      "api": "NEPRA",
+      "description": "Pakistan's electricity regulator publishes the country's only plant-level power data as Excel-exported HTML that reads as empty and PDFs nobody extracts — this turns it into a queryable panel and names every gap.",
+      "search_terms": [
+        "nepra",
+        "nepra-pp-cli",
+        "Pakistan's electricity regulator publishes the country's only plant-level power data as Excel-exported HTML that reads as empty and PDFs nobody extracts — this turns it into a queryable panel and names every gap.",
+        "Plant-month generation extract",
+        "gen",
+        "Pull every power plant's monthly generation and utilisation for a fiscal year as rows you can pipe, with unreported months kept distinct from real zeros.",
+        "Operator and ticker fleet panel",
+        "fleet",
+        "Follow one plant or a listed operator's whole fleet across the fiscal years the crosswalk has observed, through renames and re-sorted row numbers.",
+        "Conflict and break ledger",
+        "conflicts",
+        "List every place NEPRA's own published figures disagree — two sources on one key, an unexplained step inside a single series, or a row that fails its own arithmetic — showing both values and both citations without picking a winner.",
+        "DISCO reliability panel",
+        "disco",
+        "Per-distribution-company transmission losses, recovery, interruption frequency and duration against the regulator's own targets, across report years.",
+        "Regulatory determination feed",
+        "events",
+        "A dated feed of tariff determinations and orders by company, distribution company or docket, with the verbatim document link.",
+        "Generation licence register",
+        "licence",
+        "The licence register with gross capacity, plant type, fuel and the modification trail, searchable by name or fuel.",
+        "Fetch and staleness gate",
+        "verify",
+        "Assert every published NEPRA surface against status, byte floor, content checksum, in-document year token and the frozen column fingerprint, exiting non-zero when stale or drifted.",
+        "Capacity by status and system",
+        "capacity",
+        "Installed and dependable capacity broken out by plant status and system, so each headline megawatt figure is labelled and derivable.",
+        "Fuel cost adjustment series",
+        "fca",
+        "The monthly requested-versus-allowed fuel cost adjustment series with cumulative disallowance, bounded to the window the source actually covers.",
+        "Source catalogue and enumerator diff",
+        "sources",
+        "Catalogue every reachable published document with size, coverage window, text-layer flag and reachability state, and diff it against the shipped manifest."
+      ],
+      "path": "library/other/nepra",
+      "release": {
+        "cli_name": "nepra-pp-cli",
+        "version": "2026.9.1",
+        "released_at": "2026-09-21T09:16:59Z",
+        "source_commit": "fca54ca324ea55fef3fca866b0249dc9dd6c225d"
+      },
+      "printer": "qazmataz",
+      "printer_name": "qazmataz",
+      "creator": {
+        "handle": "qazmataz",
+        "name": "qazmataz"
+      },
+      "mcp": {
+        "binary": "nepra-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 11,
+        "public_tool_count": 11,
         "auth_type": "none",
         "env_vars": [],
         "mcp_ready": "full",
@@ -19029,9 +19101,9 @@
       "path": "library/health/peloton",
       "release": {
         "cli_name": "peloton-pp-cli",
-        "version": "2026.9.12",
-        "released_at": "2026-09-20T09:23:54Z",
-        "source_commit": "4dc07dda8d4c69f190438d6815e0f462707320d6"
+        "version": "2026.9.14",
+        "released_at": "2026-09-21T09:16:59Z",
+        "source_commit": "c4470893405a85ed07b5d798a25251f7a8928436"
       },
       "printer": "itsmefelix-",
       "printer_name": "Felix Banuchi",
@@ -22972,44 +23044,35 @@
       "name": "sendfox",
       "category": "marketing",
       "api": "SendFox",
-      "description": "SendFox email marketing API for authenticated user details, contact lists, contacts, unsubscribe operations",
+      "description": "Agent-ready SendFox CLI and MCP server for contacts, lists, campaigns, automations, and forms, with local sync, growth and audience-health reporting, migration analysis, and guarded writes.",
       "search_terms": [
         "sendfox",
         "sendfox-pp-cli",
-        "Operate SendFox contacts, lists, campaigns, audience hygiene, CSV reconciliation, launch checklists, signup-form handoffs, and webhook setup packets from the terminal.",
-        "Capabilities Matrix",
-        "capabilities",
-        "Machine-readable support matrix that tells agents which SendFox resources can be listed, created, or only handled in the dashboard.",
-        "Account Snapshot",
-        "workflow account-snapshot",
-        "One read-only operating snapshot across /me, lists, contacts, and campaigns.",
-        "Audience Map",
-        "workflow audience-map",
-        "Map contacts to lists and surface contacts without list memberships for segmentation cleanup.",
-        "Hygiene Report",
-        "workflow hygiene-report",
-        "Find duplicate emails, invalid emails, status mix, and list-membership gaps from live contacts.",
-        "Launch Plan",
-        "workflow launch-plan",
-        "Generate a safe SendFox list-launch checklist and exact next CLI/dashboard steps without faking campaign write endpoints.",
-        "Campaign Digest",
-        "workflow campaign-digest",
-        "Summarize campaign count, status mix, and recent campaigns.",
-        "Contacts Audit CSV",
-        "contacts audit-csv",
-        "Validate subscriber CSVs for invalid and duplicate emails before any mutation.",
-        "Contacts Reconcile CSV",
-        "contacts reconcile-csv",
-        "Compare a CSV against live contacts and emit create/skip actions before bulk import.",
-        "Contacts Onboard",
-        "Create a contact and attach list memberships in one automation-aware command with dry-run call preview.",
-        "Contacts Import CSV",
-        "contacts import-csv",
-        "Bulk-create contacts from CSV after a required dry-run/--yes safety gate.",
-        "Forms Generate",
-        "Generate a self-contained signup form handoff with server-side SendFox proxy guidance.",
-        "Webhooks Handoff",
-        "Generate dashboard setup and handler-contract packets for SendFox webhook receivers."
+        "Use SendFox from the terminal or an agent to manage audiences and campaigns, sync account data locally, and generate evidence-backed growth, health, performance, and migration reports.",
+        "Audience health",
+        "workflow audience-health",
+        "Find duplicate, invalid, suppressed and unassigned contacts, plus engagement recency cohorts with never-versus-unknown evidence.",
+        "Campaign preflight",
+        "workflow campaign-preflight",
+        "Check draft content, targeting, suppression evidence and sender readiness before any send.",
+        "Campaign review",
+        "workflow campaign-review",
+        "Combine campaign metrics, recipient-weighted benchmarks, trends, link performance and engagement cohorts into an auditable resend plan.",
+        "Contact dossier",
+        "workflow contact-dossier",
+        "Join contact details, memberships, tags and available engagement into one support packet.",
+        "Automation plan",
+        "workflow automation-plan",
+        "Validate a versioned automation definition and produce inactive creation steps.",
+        "Export bundle",
+        "workflow export-bundle",
+        "Produce a read-only local inventory bundle with per-resource completeness, provenance and deterministic hashes.",
+        "Growth report",
+        "workflow growth-report",
+        "Calculate timestamped audience growth from one snapshot and exact observed list joins, leaves, retention and net growth from two.",
+        "Migration readiness",
+        "workflow migration-readiness",
+        "Compare local platform snapshots with suppression, mapping, delta and cutover gates."
       ],
       "path": "library/marketing/sendfox",
       "release": {
@@ -23030,7 +23093,7 @@
           "stdio",
           "http"
         ],
-        "tool_count": 11,
+        "tool_count": 60,
         "public_tool_count": 0,
         "auth_type": "bearer_token",
         "env_vars": [
