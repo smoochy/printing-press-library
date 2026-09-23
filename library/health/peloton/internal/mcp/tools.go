@@ -297,7 +297,7 @@ func RegisterTools(s *server.MCPServer) {
 
 	s.AddTool(
 		mcplib.NewTool("account_show",
-			mcplib.WithDescription("Show the current profile fact. Optional: select. Returns the Profile."),
+			mcplib.WithDescription("Show the current profile fact. Optional: select. Returns the Profile. Caveat: last_workout_at has been observed stale -- see context for details and a workaround."),
 			mcplib.WithString("select", mcplib.Description(selectParamDescription)),
 			mcplib.WithReadOnlyHintAnnotation(true),
 			mcplib.WithDestructiveHintAnnotation(false),
@@ -413,7 +413,7 @@ func RegisterTools(s *server.MCPServer) {
 	)
 	s.AddTool(
 		mcplib.NewTool("workouts_list",
-			mcplib.WithDescription("List workout history in newest-first pages. Optional: user_id (defaults to the authenticated profile's id via a live lookup when omitted), joins (default: ride), limit (default: 100), cursor (plus 2 more). Returns array of Workout."),
+			mcplib.WithDescription("List workout history in newest-first pages. Optional: user_id (defaults to the authenticated profile's id via a live lookup when omitted), joins (default: ride), limit (default: 100), cursor (plus 2 more). Returns array of Workout. Caveat: device_time_created_at is local wall time, not UTC, and history can include non-Peloton-originated workouts -- see context."),
 			mcplib.WithString("user_id", mcplib.Description("Provider user identifier. Defaults to the authenticated profile's id (a live lookup, same as account_show) when omitted.")),
 			mcplib.WithString("joins", mcplib.Description("Include linked ride metadata.")),
 			mcplib.WithNumber("limit", mcplib.Description("Maximum records per page.")),
@@ -428,7 +428,7 @@ func RegisterTools(s *server.MCPServer) {
 	)
 	s.AddTool(
 		mcplib.NewTool("workouts_performance",
-			mcplib.WithDescription("Show recorded performance samples and summaries for one workout. Required: workout_id. Optional: every_n (default: 1), select. Returns the PerformanceGraph."),
+			mcplib.WithDescription("Show recorded performance samples and summaries for one workout. Required: workout_id. Optional: every_n (default: 1), select. Returns the PerformanceGraph. Caveat: a partial split's seconds is pace-normalized, not elapsed time, and heart rate zones are Peloton's own %maxHR model -- see context."),
 			mcplib.WithString("workout_id", mcplib.Required(), mcplib.Description("Provider workout identifier.")),
 			mcplib.WithNumber("every_n", mcplib.Description("Sample stride; one preserves full samples.")),
 			mcplib.WithString("select", mcplib.Description(selectParamDescription)),
@@ -440,7 +440,7 @@ func RegisterTools(s *server.MCPServer) {
 	)
 	s.AddTool(
 		mcplib.NewTool("workouts_show",
-			mcplib.WithDescription("Show a recorded workout detail payload. Required: workout_id. Optional: select. Returns the WorkoutDetail."),
+			mcplib.WithDescription("Show a recorded workout detail payload. Required: workout_id. Optional: select. Returns the WorkoutDetail. Caveat: device_time_created_at is local wall time, not UTC -- see context."),
 			mcplib.WithString("workout_id", mcplib.Required(), mcplib.Description("Provider workout identifier.")),
 			mcplib.WithString("select", mcplib.Description(selectParamDescription)),
 			mcplib.WithReadOnlyHintAnnotation(true),
@@ -1660,6 +1660,10 @@ func handleContext(_ context.Context, _ mcplib.CallToolRequest) (*mcplib.CallToo
 			"Run doctor to check auth state, credential location, and sync cache freshness before assuming an API or credential problem.",
 			"Unrecognized typed-tool arguments are forwarded as raw live API params, not validated — a misspelled filter name silently no-ops instead of erroring. Double-check argument spelling against the tool's declared schema. classes_search/classes_catalog now declare duration, super_genre_id, has_workout, and is_favorite_ride directly, so those four no longer need the raw passthrough.",
 			"Every typed endpoint tool (classes_*, workouts_*, strength_movements, account_show) accepts a select argument with the same dotted-path projection as this CLI's --select flag. classes_catalog, classes_search, and workouts_list wrap their items under a top-level \"data\" key, so their select paths must be prefixed accordingly, e.g. classes_search(..., select=\"data.id,data.title,data.duration,data.instructor_id\") -- a bare \"id\" matches nothing on these three tools. Every other typed endpoint tool's response has no wrapper, so bare field names (e.g. workouts_show(..., select=\"id,ride\")) work directly. classes_catalog/classes_search/classes_show/classes_structure also default to omitting stream/playback URLs, join tokens, instructor bios/Q&A/share-images, internal cross-reference identifiers, and is_*/has_* boolean flags (is_favorite excepted, always present) -- pass include_stream_urls/include_instructor_bios/include_internal_ids/include_flags to get them back. The same four tools also always omit a handful of per-class fields confirmed always-empty/constant or duplicate of a kept sibling field (no argument restores these).",
+			"account_show's last_workout_at has been observed stale/lagging real activity by years despite recent workouts existing -- this is a raw passthrough of Peloton's own /api/me response (no caching or field processing happens on this server's side), so it's a provider-side data quality issue, not something a retry or select projection will fix. Derive recency from workouts_list's first record instead (the list is already sorted newest-first).",
+			"workouts_performance's splits: a partial (final, cut-short) split's seconds field is pace-normalized -- the implied duration at that split's pace, not the actual elapsed time for it -- while every full split's seconds is genuine elapsed time. Summing splits[].seconds across a workout with a partial final split will overstate total duration; use splits_metrics.total_time for the real elapsed time instead. Heart rate zones in the same response are Peloton's own percent-of-max-HR model (roughly Z2 126-145 at a ~195 max), not a standardized or cross-provider scheme -- don't compare them directly against zones computed by another platform (e.g. Garmin) without converting both to the same model first.",
+			"device_time_created_at (workouts_list, workouts_show) encodes local wall-clock time at the point of recording as if it were a UTC epoch -- it is NOT a true UTC instant, and the offset baked into it depends on the account's timezone at recording time, which can differ from one record to the next (travel, a DST transition). Do not sort or compare by it directly -- a record's own offset can make it appear out of chronological order relative to neighbors recorded under a different offset. Use created_at (genuine UTC) or start_time (what workouts_list itself sorts by, default -start_time) for any real chronological ordering or timezone-sensitive calculation.",
+			"workouts_list can interleave workouts this account didn't originate on Peloton equipment -- e.g. device_type: garmin_connect for an outdoor run synced in from a linked Garmin account -- alongside genuine Peloton Bike/Tread classes. Filter on device_type and/or is_peloton_originated_workout when an analysis should only cover Peloton-recorded activity.",
 		},
 		// Command-mirror capabilities are exposed through MCP by shelling out
 		// to the companion CLI binary.

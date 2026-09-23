@@ -2,6 +2,10 @@
 
 This file is maintained by printing-press-library release automation. Do not hand-edit release sections in normal PRs.
 
+## 2026.9.15 - 2026-09-22
+
+- docs(peloton): document five upstream field-semantics quirks (#2039).
+
 ## 2026.9.14 - 2026-09-21
 
 - feat(peloton): default workouts_list's user_id to a live profile lookup (#2033).
