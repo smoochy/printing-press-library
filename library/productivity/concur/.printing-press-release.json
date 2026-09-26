@@ -2,17 +2,17 @@
   "schema_version": 1,
   "slug": "concur",
   "cli_name": "concur-pp-cli",
-  "version": "2026.9.4",
-  "released_at": "2026-09-16T09:11:56Z",
-  "source_commit": "0a5a8f0aa73cca78e106b3efc28aabbb04dd479a",
+  "version": "2026.9.5",
+  "released_at": "2026-09-25T08:55:37Z",
+  "source_commit": "d146281990a1d3048110e1b81e71637b4a3fb080",
   "printing_press_version": "4.30.3",
   "run_id": "20260812-144651-60addfc5",
   "changes": [
     {
-      "title": "fix+feat(concur): correct expenses-create body shape and add browser-automation fallback for its live 404 defect",
-      "pr": 2003,
-      "url": "https://github.com/mvanhorn/printing-press-library/pull/2003",
-      "commit": "0a5a8f0aa73cca78e106b3efc28aabbb04dd479a"
+      "title": "fix(concur): add browser-automation fallbacks for expenses-update and reports-submit backend defects",
+      "pr": 2055,
+      "url": "https://github.com/mvanhorn/printing-press-library/pull/2055",
+      "commit": "d146281990a1d3048110e1b81e71637b4a3fb080"
     }
   ]
 }

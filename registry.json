@@ -12800,6 +12800,12 @@
         "Which agencies list in a zone, their PEB F/G share, private-seller share and the CRM software behind each feed."
       ],
       "path": "library/other/immovlan",
+      "release": {
+        "cli_name": "immovlan-pp-cli",
+        "version": "2026.9.1",
+        "released_at": "2026-09-24T08:56:14Z",
+        "source_commit": "e26a0069d1bf9eb31bc9f40d8e48a7e6db8088a6"
+      },
       "printer": "sambassio",
       "printer_name": "sambassio",
       "creator": {
@@ -17389,6 +17395,74 @@
         ],
         "mcp_ready": "full",
         "spec_format": "openapi3"
+      }
+    },
+    {
+      "name": "oneword-domains",
+      "category": "developer-tools",
+      "api": "One Word Domains",
+      "description": "Check a word across every TLD with registrar prices, watch the aftermarket, and generate names with DomainsGPT, all from the terminal with a local store the site itself does not offer.",
+      "search_terms": [
+        "oneword-domains",
+        "One Word Domains",
+        "oneword-domains-pp-cli",
+        "Check a word across every TLD with registrar prices, watch the aftermarket, and generate names with DomainsGPT, all from the terminal with a local store the site itself does not offer.",
+        "Brainstorm pipeline",
+        "brainstorm",
+        "Generate DomainsGPT names, keep only the available ones with price, cheapest registrar, and a dictionary flag, and save the batch locally; one call per TLD, quota 10 anonymous.",
+        "Shortlist recheck",
+        "recheck",
+        "Re-check every word and TLD you looked up before and report what changed: taken, freed, premium, price, or popularity.",
+        "Auction ranking",
+        "listings rank",
+        "Rank aftermarket auctions by how contested the word is across TLDs, price relative to fresh registration, and bid pace.",
+        "Cross-TLD intersection",
+        "domains intersect",
+        "Find dictionary words that are free on every TLD you list, or free on one and taken on another; needs the lifetime-pass session from auth login --chrome or auth login --cookies-file.",
+        "Dictionary mining",
+        "words mine",
+        "Filter the 27,627-word dictionary by several categories at once, length, prefix, or glob, offline after a one-time words mine --refresh.",
+        "TLD inventory",
+        "tlds inventory",
+        "Compare how many available one-word domains each TLD still has for a category and length filter, next to its cheapest registration price (public route).",
+        "Cross-TLD check",
+        "check",
+        "Check one word, or a file of words, across the most-viewed TLDs or all 93, with availability, premium flag, popularity, and the cheapest registrar price per TLD.",
+        "Side-by-side compare",
+        "compare",
+        "Compare several full domains in one table: available, premium, price, popularity, and cheapest registrar, with the cheapest available one called out.",
+        "Domain hacks",
+        "hacks",
+        "Find domain hacks: split a word so its ending is one of the 93 TLDs (sm.art), or list dictionary words ending in a TLD.",
+        "TLD price drift",
+        "tlds drift",
+        "Record registrar price snapshots for every TLD and report which prices moved since an earlier snapshot.",
+        "Aftermarket watch",
+        "listings watch",
+        "Diff the aftermarket feed against the last run: new listings, price or bid changes, listings that disappeared, and auctions ending within a window.",
+        "DomainsGPT generate",
+        "gpt generate",
+        "Run DomainsGPT and get the streamed names back as real JSON, optionally only the available ones."
+      ],
+      "path": "library/developer-tools/oneword-domains",
+      "printer": "devacto",
+      "printer_name": "Victor Wibisono",
+      "creator": {
+        "handle": "devacto",
+        "name": "Victor Wibisono"
+      },
+      "mcp": {
+        "binary": "oneword-domains-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 14,
+        "public_tool_count": 11,
+        "auth_type": "cookie",
+        "env_vars": [],
+        "mcp_ready": "partial",
+        "spec_format": "internal"
       }
     },
     {
@@ -29805,6 +29879,64 @@
         "env_vars": [],
         "mcp_ready": "full",
         "spec_format": "internal"
+      }
+    },
+    {
+      "name": "zimmo",
+      "category": "other",
+      "api": "Zimmo",
+      "description": "Belgian real estate from Zimmo with exact addresses, sold comps, commune prices per m² and a local store for deal sourcing.",
+      "search_terms": [
+        "zimmo",
+        "zimmo-pp-cli",
+        "Belgian real estate from Zimmo with exact addresses, sold comps, commune prices per m² and a local store for deal sourcing.",
+        "Bulk detail enrichment",
+        "enrich",
+        "Refresh stored listings from Zimmo, resumably: status changes, price history, EPC, flood and planning flags, GPS.",
+        "Cross-portal match",
+        "same-as",
+        "Find the Immoweb or Immovlan twin of a Zimmo listing and the price gap between portals.",
+        "Sold comps",
+        "comps",
+        "Sold or rented listings around one property with median €/m² and the subject's gap to it.",
+        "PEB trap",
+        "peb-trap",
+        "Energy-poor stored listings (EPC F/G or high kWh/m²), rented ones first with their rent, showing Zimmo's renovation-obligation flag.",
+        "Underpriced vs commune",
+        "underpriced",
+        "Rank stored for-sale houses and apartments by discount to their commune's €/m² (viager, whole buildings and service flats skipped).",
+        "Gross rental yield",
+        "yield",
+        "Gross rental yield of sale listings: the published rent when let, otherwise rentals of similar surface in the same postcode and type.",
+        "Motivated seller score",
+        "motivated",
+        "Rank listings by seller pressure: days on market, total price cut, re-listing, EPC."
+      ],
+      "path": "library/other/zimmo",
+      "release": {
+        "cli_name": "zimmo-pp-cli",
+        "version": "2026.9.1",
+        "released_at": "2026-09-25T08:54:13Z",
+        "source_commit": "9716115f79763d283bd1558e0c59e44769c62620"
+      },
+      "printer": "sambassio",
+      "printer_name": "sambassio",
+      "creator": {
+        "handle": "sambassio",
+        "name": "sambassio"
+      },
+      "mcp": {
+        "binary": "zimmo-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 10,
+        "public_tool_count": 10,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "openapi3"
       }
     },
     {
