@@ -5135,9 +5135,9 @@
       "path": "library/productivity/concur",
       "release": {
         "cli_name": "concur-pp-cli",
-        "version": "2026.9.4",
-        "released_at": "2026-09-16T09:11:56Z",
-        "source_commit": "0a5a8f0aa73cca78e106b3efc28aabbb04dd479a"
+        "version": "2026.9.5",
+        "released_at": "2026-09-25T08:55:37Z",
+        "source_commit": "d146281990a1d3048110e1b81e71637b4a3fb080"
       },
       "printer": "enlewof",
       "printer_name": "Allen Lew",
@@ -10945,9 +10945,9 @@
       "path": "library/marketing/google-search-console",
       "release": {
         "cli_name": "google-search-console-pp-cli",
-        "version": "2026.9.2",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.9.3",
+        "released_at": "2026-09-25T08:56:46Z",
+        "source_commit": "6437c7718486f73d6ce49c62138edf79a31b897a"
       },
       "printer": "bossriceshark",
       "printer_name": "Matt",
@@ -17445,6 +17445,12 @@
         "Run DomainsGPT and get the streamed names back as real JSON, optionally only the available ones."
       ],
       "path": "library/developer-tools/oneword-domains",
+      "release": {
+        "cli_name": "oneword-domains-pp-cli",
+        "version": "2026.9.1",
+        "released_at": "2026-09-25T08:56:46Z",
+        "source_commit": "194f50c6d6b2d767fa36b93ae76b13917ca59447"
+      },
       "printer": "devacto",
       "printer_name": "Victor Wibisono",
       "creator": {
@@ -26473,6 +26479,51 @@
         "env_vars": [],
         "mcp_ready": "full",
         "spec_format": "openapi3"
+      }
+    },
+    {
+      "name": "thunderbird",
+      "category": "productivity",
+      "api": "Thunderbird",
+      "description": "Search, read and audit the mail Thunderbird already downloaded — offline, read-only, no credentials.",
+      "search_terms": [
+        "thunderbird",
+        "thunderbird-pp-cli",
+        "Search, read and audit the mail Thunderbird already downloaded — offline, read-only, no credentials.",
+        "Awaiting reply",
+        "awaiting-reply",
+        "See every thread where someone is waiting on your answer, across all accounts, oldest first.",
+        "Correspondents ranking",
+        "contacts top",
+        "Rank the people you exchange mail with by volume and recency, and spot frequent ones missing from your address book.",
+        "Filters audit",
+        "Check every message filter: how often it matches, whether it is disabled, and whether its target folder still exists.",
+        "Largest items",
+        "largest",
+        "Find the biggest messages or attachments across all accounts and folders.",
+        "Newsletters and bulk senders",
+        "newsletters",
+        "List mailing lists and bulk senders by volume and how much of their mail you never read."
+      ],
+      "path": "library/productivity/thunderbird",
+      "printer": "Bri1003",
+      "printer_name": "Edoardo Manco",
+      "creator": {
+        "handle": "Bri1003",
+        "name": "Edoardo Manco"
+      },
+      "mcp": {
+        "binary": "thunderbird-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 6,
+        "public_tool_count": 6,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
       }
     },
     {
