@@ -2,17 +2,17 @@
   "schema_version": 1,
   "slug": "concur",
   "cli_name": "concur-pp-cli",
-  "version": "2026.9.5",
-  "released_at": "2026-09-25T08:55:37Z",
-  "source_commit": "d146281990a1d3048110e1b81e71637b4a3fb080",
+  "version": "2026.9.6",
+  "released_at": "2026-09-29T08:58:34Z",
+  "source_commit": "0535c25884c0ecf87494274c9c9f155955237871",
   "printing_press_version": "4.30.3",
   "run_id": "20260812-144651-60addfc5",
   "changes": [
     {
-      "title": "fix(concur): add browser-automation fallbacks for expenses-update and reports-submit backend defects",
-      "pr": 2055,
-      "url": "https://github.com/mvanhorn/printing-press-library/pull/2055",
-      "commit": "d146281990a1d3048110e1b81e71637b4a3fb080"
+      "title": "fix+feat(concur): resolve custom-named Chrome profile resolution, add expenses list command",
+      "pr": 2078,
+      "url": "https://github.com/mvanhorn/printing-press-library/pull/2078",
+      "commit": "0535c25884c0ecf87494274c9c9f155955237871"
     }
   ]
 }

@@ -235,6 +235,59 @@
       }
     },
     {
+      "name": "activity-japan",
+      "category": "travel",
+      "api": "Activity Japan",
+      "description": "Source-backed Japan experiences with explicit plan, price, language and availability evidence.",
+      "search_terms": [
+        "activity-japan",
+        "Activity Japan",
+        "activity-japan-pp-cli",
+        "Source-backed Japan experiences with explicit plan, price, language and availability evidence.",
+        "Date-fit scan",
+        "experience dates",
+        "See observed session and option-price differences across up to seven itinerary dates.",
+        "Constraint-aware shortlist",
+        "experience compare",
+        "Compare a few known plans against explicit age, party, time, price, and language constraints.",
+        "Price-basis report",
+        "experience price",
+        "See source option IDs, selected-date amounts, participant basis, and excluded extras.",
+        "Language-surface check",
+        "inventory languages",
+        "Check whether a plan ID is indexed in English, Japanese, or both.",
+        "Handoff readiness",
+        "experience brief",
+        "Get a compact booking-handoff packet with known conditions and unresolved questions."
+      ],
+      "path": "library/travel/activity-japan",
+      "release": {
+        "cli_name": "activity-japan-pp-cli",
+        "version": "2026.9.1",
+        "released_at": "2026-09-29T08:58:34Z",
+        "source_commit": "d0edacd7dc171ec48812e16b4b46cf3f885eed54"
+      },
+      "printer": "zjsng",
+      "printer_name": "zjsng",
+      "creator": {
+        "handle": "zjsng",
+        "name": "zjsng"
+      },
+      "mcp": {
+        "binary": "activity-japan-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 4,
+        "public_tool_count": 4,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
       "name": "adguard-home",
       "category": "monitoring",
       "api": "AdGuard Home",
@@ -5135,9 +5188,9 @@
       "path": "library/productivity/concur",
       "release": {
         "cli_name": "concur-pp-cli",
-        "version": "2026.9.5",
-        "released_at": "2026-09-25T08:55:37Z",
-        "source_commit": "d146281990a1d3048110e1b81e71637b4a3fb080"
+        "version": "2026.9.6",
+        "released_at": "2026-09-29T08:58:34Z",
+        "source_commit": "0535c25884c0ecf87494274c9c9f155955237871"
       },
       "printer": "enlewof",
       "printer_name": "Allen Lew",
@@ -13158,16 +13211,22 @@
       "path": "library/social-and-messaging/instagram",
       "release": {
         "cli_name": "instagram-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.9.2",
+        "released_at": "2026-09-29T08:55:27Z",
+        "source_commit": "fb7b3da2f0c1a3b15f1d8fb61f291c9b0d9b0f99"
       },
       "printer": "alkhamis-80",
       "printer_name": "Mohammed Al Khamis",
       "creator": {
         "handle": "alkhamis-80",
         "name": "Mohammed Al Khamis"
-      }
+      },
+      "contributors": [
+        {
+          "handle": "bobeglz",
+          "name": "bobeglz"
+        }
+      ]
     },
     {
       "name": "intercom",
@@ -15948,6 +16007,10 @@
         {
           "handle": "tmchow",
           "name": "Trevin Chow"
+        },
+        {
+          "handle": "cathrynlavery",
+          "name": "Cathryn Lavery"
         }
       ],
       "mcp": {
@@ -23669,6 +23732,12 @@
         "Get one deduplicated, numbered source list for a topic from web, news and scholar results at once."
       ],
       "path": "library/ai/serply",
+      "release": {
+        "cli_name": "serply-pp-cli",
+        "version": "2026.9.1",
+        "released_at": "2026-09-28T09:26:19Z",
+        "source_commit": "ebe06e3c81756408fe67aafab9c5f8dbd67f6663"
+      },
       "printer": "googio",
       "printer_name": "googio",
       "creator": {
