@@ -201,9 +201,9 @@
       "path": "library/social-and-messaging/3cx-xapi",
       "release": {
         "cli_name": "3cx-xapi-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T02:58:45Z",
+        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
       },
       "printer": "therichardgill",
       "printer_name": "Richard Gill",
@@ -1219,9 +1219,9 @@
       "path": "library/commerce/amazon-ads",
       "release": {
         "cli_name": "amazon-ads-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T02:58:45Z",
+        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
       },
       "printer": "cathrynlavery",
       "printer_name": "Cathryn Lavery",
@@ -2356,6 +2356,51 @@
       }
     },
     {
+      "name": "asoview",
+      "category": "travel",
+      "api": "Asoview",
+      "description": "Discover and compare Japan leisure tickets with explicit price units, terms and public dated availability.",
+      "search_terms": [
+        "asoview",
+        "asoview-pp-cli",
+        "Discover and compare Japan leisure tickets with explicit price units, terms and public dated availability.",
+        "Compare terms",
+        "compare",
+        "Compare a bounded shortlist and preserve missing values.",
+        "Bounded relevance",
+        "discover",
+        "Filter Japanese names without claiming a global keyword index.",
+        "Dated stock",
+        "availability",
+        "Inspect public stock for a date and quantity.",
+        "Dated bands",
+        "options",
+        "Read exact date-specific price units and age labels.",
+        "Reference inventory",
+        "inventory",
+        "Resolve region/category IDs with explicit refresh control."
+      ],
+      "path": "library/travel/asoview",
+      "printer": "zjsng-trav",
+      "printer_name": "zjsng",
+      "creator": {
+        "handle": "zjsng-trav",
+        "name": "zjsng"
+      },
+      "mcp": {
+        "binary": "asoview-pp-mcp",
+        "transports": [
+          "stdio"
+        ],
+        "tool_count": 2,
+        "public_tool_count": 2,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
       "name": "atlas-obscura",
       "category": "travel",
       "api": "Atlas Obscura",
@@ -2730,9 +2775,9 @@
       "path": "library/developer-tools/azure-devops",
       "release": {
         "cli_name": "azure-devops-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T02:58:45Z",
+        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
       },
       "printer": "davbebawy",
       "printer_name": "David Bebawy",
@@ -4926,9 +4971,9 @@
       "path": "library/cloud/cloudflare",
       "release": {
         "cli_name": "cloudflare-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T02:58:45Z",
+        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
       },
       "printer": "cathrynlavery",
       "printer_name": "Cathryn Lavery",
@@ -5520,9 +5565,9 @@
       "path": "library/sales-and-crm/copper",
       "release": {
         "cli_name": "copper-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T02:58:45Z",
+        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
       },
       "printer": "kmorebetter",
       "printer_name": "Kerry Morrison",
@@ -6511,9 +6556,9 @@
       "path": "library/media-and-entertainment/discogs",
       "release": {
         "cli_name": "discogs-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T02:58:45Z",
+        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
       },
       "printer": "ganes-j",
       "printer_name": "ganes-j",
@@ -6562,9 +6607,9 @@
       "path": "library/productivity/discord",
       "release": {
         "cli_name": "discord-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T02:58:45Z",
+        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
       },
       "printer": "mvanhorn",
       "printer_name": "Hunter Veltri",
@@ -6662,9 +6707,9 @@
       "path": "library/developer-tools/dnsmadeeasy",
       "release": {
         "cli_name": "dnsmadeeasy-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T02:58:45Z",
+        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
       },
       "printer": "dericknwq",
       "printer_name": "Derick Ng",
@@ -7277,9 +7322,9 @@
       "path": "library/payments/e-boekhouden",
       "release": {
         "cli_name": "e-boekhouden-pp-cli",
-        "version": "2026.9.2",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T02:58:45Z",
+        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
       },
       "printer": "markvandeven",
       "printer_name": "markvandeven"
@@ -7336,6 +7381,47 @@
         "auth_type": "cookie",
         "env_vars": [],
         "mcp_ready": "partial",
+        "spec_format": "internal"
+      }
+    },
+    {
+      "name": "ecbo-cloak",
+      "category": "travel",
+      "api": "ecbo cloak",
+      "description": "Discover Japan luggage storage and inspect read-only source offers.",
+      "search_terms": [
+        "ecbo-cloak",
+        "ecbo cloak",
+        "ecbo-cloak-pp-cli",
+        "Discover Japan luggage storage and inspect read-only source offers.",
+        "Nearby discovery",
+        "facilities near",
+        "Facility identity/hours/restrictions",
+        "facilities get",
+        "Source date/time/count price and validity",
+        "offer inspect",
+        "Explicit bounded inventory refresh",
+        "inventory refresh",
+        "Offline inventory/query",
+        "inventory list"
+      ],
+      "path": "library/travel/ecbo-cloak",
+      "printer": "zjsng-trav",
+      "printer_name": "zjsng",
+      "creator": {
+        "handle": "zjsng-trav",
+        "name": "zjsng"
+      },
+      "mcp": {
+        "binary": "ecbo-cloak-pp-mcp",
+        "transports": [
+          "stdio"
+        ],
+        "tool_count": 4,
+        "public_tool_count": 4,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
         "spec_format": "internal"
       }
     },
@@ -7474,9 +7560,9 @@
       "path": "library/ai/elevenlabs",
       "release": {
         "cli_name": "elevenlabs-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T02:58:45Z",
+        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
       },
       "printer": "cathrynlavery",
       "printer_name": "Cathryn Lavery",
@@ -7657,6 +7743,46 @@
         "env_vars": [],
         "mcp_ready": "full",
         "spec_format": "openapi3"
+      }
+    },
+    {
+      "name": "eplus",
+      "category": "media-and-entertainment",
+      "api": "eplus",
+      "description": "Discover Japanese performances and plan source-backed ticket sale windows.",
+      "search_terms": [
+        "eplus",
+        "eplus-pp-cli",
+        "Discover Japanese performances and plan source-backed ticket sale windows.",
+        "Sale-round planning",
+        "events detail",
+        "Inspect separate performance and sale-round identities, exact JST windows and lottery deadlines while keeping unknown inventory and overseas access explicit."
+      ],
+      "path": "library/media-and-entertainment/eplus",
+      "release": {
+        "cli_name": "eplus-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T08:51:19Z",
+        "source_commit": "654c0e12c0b128552e7db69acea12fb7d035d9b7"
+      },
+      "printer": "zjsng",
+      "printer_name": "zjsng",
+      "creator": {
+        "handle": "zjsng",
+        "name": "zjsng"
+      },
+      "mcp": {
+        "binary": "eplus-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 2,
+        "public_tool_count": 2,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
       }
     },
     {
@@ -8086,9 +8212,9 @@
       "path": "library/ai/exa",
       "release": {
         "cli_name": "exa-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T02:58:45Z",
+        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
       },
       "printer": "SomSamantray",
       "printer_name": "Som Samantray",
@@ -8933,9 +9059,9 @@
       "path": "library/ai/fish-audio",
       "release": {
         "cli_name": "fish-audio-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T02:58:45Z",
+        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
       },
       "printer": "jongouveia",
       "printer_name": "Jon Gouveia",
@@ -8988,9 +9114,9 @@
       "path": "library/travel/flight-goat",
       "release": {
         "cli_name": "flight-goat-pp-cli",
-        "version": "2026.9.3",
-        "released_at": "2026-09-24T08:55:18Z",
-        "source_commit": "3aa4c42dc3a04f211f242c71afc34cc43e277f31"
+        "version": "2026.9.4",
+        "released_at": "2026-09-30T08:53:43Z",
+        "source_commit": "314c143ac10b850ba6dd13d3b5492ffc44ef1368"
       },
       "printer": "mvanhorn",
       "printer_name": "Matt Van Horn",
@@ -10073,9 +10199,9 @@
       "path": "library/developer-tools/github",
       "release": {
         "cli_name": "github-pp-cli",
-        "version": "2026.9.2",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T02:58:45Z",
+        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
       },
       "printer": "brandon-charles-novice-developer",
       "printer_name": "Brandon Nye",
@@ -12228,9 +12354,9 @@
       "path": "library/travel/hostex",
       "release": {
         "cli_name": "hostex-pp-cli",
-        "version": "2026.9.2",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T02:58:45Z",
+        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
       },
       "printer": "Bust011r",
       "printer_name": "Bust011r",
@@ -12902,9 +13028,9 @@
       "path": "library/media-and-entertainment/immich",
       "release": {
         "cli_name": "immich-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T02:58:45Z",
+        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
       },
       "printer": "Avanderheyde",
       "printer_name": "avanderheyde",
@@ -13062,9 +13188,9 @@
       "path": "library/other/inaturalist",
       "release": {
         "cli_name": "inaturalist-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T02:58:45Z",
+        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
       },
       "printer": "Avanderheyde",
       "printer_name": "avanderheyde",
@@ -13252,9 +13378,9 @@
       "path": "library/sales-and-crm/intercom",
       "release": {
         "cli_name": "intercom-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T02:58:45Z",
+        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
       },
       "printer": "rob-coco",
       "printer_name": "Rob Zehner",
@@ -13316,9 +13442,9 @@
       "path": "library/other/intervals-icu",
       "release": {
         "cli_name": "intervals-icu-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T02:58:45Z",
+        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
       },
       "printer": "milosm",
       "printer_name": "Milos Mladenovic",
@@ -13722,6 +13848,53 @@
       }
     },
     {
+      "name": "jma",
+      "category": "travel",
+      "api": "Japan Meteorological Agency",
+      "description": "Resolve JMA areas and inspect official forecasts, warnings and uncertain typhoon tracks.",
+      "search_terms": [
+        "jma",
+        "Japan Meteorological Agency",
+        "jma-pp-cli",
+        "Resolve JMA areas and inspect official forecasts, warnings and uncertain typhoon tracks.",
+        "Explicit source resolution",
+        "areas resolve",
+        "Resolve source IDs and reject ambiguous destination names.",
+        "Warning completeness",
+        "warnings get",
+        "Separate applicable no-warning, not-applicable, lifted and incomplete source records.",
+        "Coherent cyclone detail",
+        "typhoons get",
+        "Join matching JMA issued/valid-time geometry and intensity documents.",
+        "Lazy cyclone discovery",
+        "typhoons list",
+        "Discover current source cyclone IDs without detail requests.",
+        "Auditable inventory refresh",
+        "inventory refresh",
+        "Validate first-party source catalogs before atomic local replacement."
+      ],
+      "path": "library/travel/jma",
+      "printer": "zjsng",
+      "printer_name": "zjsng",
+      "creator": {
+        "handle": "zjsng",
+        "name": "zjsng"
+      },
+      "mcp": {
+        "binary": "jma-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 9,
+        "public_tool_count": 9,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
       "name": "jobber",
       "category": "sales-and-crm",
       "api": "Jobber",
@@ -14095,9 +14268,9 @@
       "path": "library/marketing/kdpnichefinder",
       "release": {
         "cli_name": "kdpnichefinder-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T02:58:45Z",
+        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
       },
       "printer": "vcolombo",
       "printer_name": "Vincent Colombo",
@@ -15012,9 +15185,9 @@
       "path": "library/marketing/listingview",
       "release": {
         "cli_name": "listingview-pp-cli",
-        "version": "2026.9.2",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T02:58:45Z",
+        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
       },
       "printer": "vcolombo",
       "printer_name": "Vincent Colombo",
@@ -15698,9 +15871,9 @@
       "path": "library/marketing/meta-ads",
       "release": {
         "cli_name": "meta-ads-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.9.2",
+        "released_at": "2026-09-30T08:53:43Z",
+        "source_commit": "1dbcedf406d6c0f099dbd0e87705b54587cfa87e"
       },
       "printer": "sdhilip200",
       "printer_name": "Dhilip Subramanian",
@@ -15993,9 +16166,9 @@
       "path": "library/productivity/mobbin",
       "release": {
         "cli_name": "mobbin-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.9.2",
+        "released_at": "2026-09-29T20:11:58Z",
+        "source_commit": "69720c0acec69db8678c5f97a62efbf9a951bffa"
       },
       "printer": "darinkishore",
       "printer_name": "Darin Kishore",
@@ -16913,9 +17086,9 @@
       "path": "library/cloud/netlify",
       "release": {
         "cli_name": "netlify-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T02:58:45Z",
+        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
       },
       "printer": "Selrach84",
       "printer_name": "Charles Denzel Segovia",
@@ -16977,6 +17150,52 @@
         ],
         "tool_count": 2,
         "public_tool_count": 2,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
+      "name": "nifty-onsen",
+      "category": "travel",
+      "api": "Nifty Onsen",
+      "description": "Find Japanese day-use baths with source evidence and explicit unknowns.",
+      "search_terms": [
+        "nifty-onsen",
+        "Nifty Onsen",
+        "nifty-onsen-pp-cli",
+        "Find Japanese day-use baths with source evidence and explicit unknowns.",
+        "Source-safe bath inspection",
+        "bath show",
+        "Preserve natural hot spring, ordinary bath and private bath/room evidence separately.",
+        "Conditional public coupons",
+        "bath coupons",
+        "Read public validity, app/subscription, pair, age and holiday terms without issuing coupons.",
+        "Bounded nearby ranking",
+        "bath nearby",
+        "Rank at most 20 live map candidates by straight-line distance with explicit partial coverage.",
+        "Projected discovery",
+        "bath search",
+        "Select compact organic listing facts while keeping independent freshness and pagination metadata.",
+        "Fresh parsed detail cache",
+        "Reuse parsed source facts with timestamps and explicit offline/stale provenance."
+      ],
+      "path": "library/travel/nifty-onsen",
+      "printer": "zjsng",
+      "printer_name": "zjsng",
+      "creator": {
+        "handle": "zjsng",
+        "name": "zjsng"
+      },
+      "mcp": {
+        "binary": "nifty-onsen-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 7,
+        "public_tool_count": 7,
         "auth_type": "none",
         "env_vars": [],
         "mcp_ready": "full",
@@ -17666,6 +17885,52 @@
       }
     },
     {
+      "name": "omakase",
+      "category": "travel",
+      "api": "OMAKASE",
+      "description": "Discover premium Japanese restaurants with source courses, release rules and honest availability states.",
+      "search_terms": [
+        "omakase",
+        "omakase-pp-cli",
+        "Discover premium Japanese restaurants with source courses, release rules and honest availability states.",
+        "Course price/fee inspection",
+        "courses",
+        "Inspect public course price floors, units, service charges, reservation fee and cancellation caveats.",
+        "Release schedule inspection",
+        "release",
+        "Read source release timing in JST; distinguish scheduled, irregular and undetermined releases from seats.",
+        "Date/party availability boundary",
+        "availability",
+        "Inspect a planning date and party with unknown exact seats and query_evaluated false when public access is gated.",
+        "Restaurant comparison",
+        "compare",
+        "Compare public terms for two to five restaurant IDs with explicit per-ID failures.",
+        "Local summary inventory",
+        "inventory",
+        "Explicitly refresh bounded summary pages and inspect or search local inventory coverage."
+      ],
+      "path": "library/travel/omakase",
+      "printer": "zjsng-trav",
+      "printer_name": "zjsng",
+      "creator": {
+        "handle": "zjsng-trav",
+        "name": "zjsng"
+      },
+      "mcp": {
+        "binary": "omakase-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 2,
+        "public_tool_count": 2,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
       "name": "oneword-domains",
       "category": "developer-tools",
       "api": "One Word Domains",
@@ -17918,9 +18183,9 @@
       "path": "library/marketing/openai-ads",
       "release": {
         "cli_name": "openai-ads-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T02:58:45Z",
+        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
       },
       "printer": "bobeglz",
       "printer_name": "bobe",
@@ -19389,9 +19654,9 @@
       "path": "library/commerce/peekaboo",
       "release": {
         "cli_name": "peekaboo-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T02:58:45Z",
+        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
       },
       "printer": "qazmataz",
       "printer_name": "qazmataz",
@@ -19687,9 +19952,9 @@
       "path": "library/sales-and-crm/pipedrive",
       "release": {
         "cli_name": "pipedrive-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T02:58:45Z",
+        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
       },
       "printer": "debgotwired",
       "printer_name": "Deb Mukherjee",
@@ -19848,9 +20113,9 @@
       "path": "library/project-management/plane",
       "release": {
         "cli_name": "plane-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T02:58:45Z",
+        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
       },
       "printer": "sidorovanthon",
       "printer_name": "Anton Sidorov aka anticodeguy",
@@ -19919,6 +20184,37 @@
         ],
         "mcp_ready": "full",
         "spec_format": "openapi3"
+      }
+    },
+    {
+      "name": "pocket-concierge",
+      "category": "travel",
+      "api": "Pocket Concierge",
+      "description": "Discover fine dining with sourced courses, session identity and safe booking handoff.",
+      "search_terms": [
+        "pocket-concierge",
+        "Pocket Concierge",
+        "pocket-concierge-pp-cli",
+        "Discover fine dining with sourced courses, session identity and safe booking handoff.",
+        "Bilingual source identity",
+        "restaurants search",
+        "Match first-party English and Japanese restaurant identities by source ID with bounded native filters.",
+        "Joins language variants by source ID rather than guessing translations.",
+        "Fee conflict preservation",
+        "courses list",
+        "Keep per-guest and per-group JPY prices and conflicting course and restaurant fee statements without inventing a payable total.",
+        "Keeps both source contexts visible rather than flattening fees into a misleading sum.",
+        "Validated canonical handoff",
+        "booking handoff",
+        "Validate course and session ownership and party bounds before returning the canonical restaurant link.",
+        "Combines public course and session identity checks with a read-only first-party handoff."
+      ],
+      "path": "library/travel/pocket-concierge",
+      "printer": "zjsng-trav",
+      "printer_name": "zjsng",
+      "creator": {
+        "handle": "zjsng-trav",
+        "name": "zjsng"
       }
     },
     {
@@ -20452,6 +20748,60 @@
         "public_tool_count": 8,
         "auth_type": "none",
         "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "openapi3"
+      }
+    },
+    {
+      "name": "postmark",
+      "category": "productivity",
+      "api": "Postmark",
+      "description": "One account token for every Postmark server, and a local archive that outlasts Postmark's 45-day retention.",
+      "search_terms": [
+        "postmark",
+        "postmark-pp-cli",
+        "One account token for every Postmark server, and a local archive that outlasts Postmark's 45-day retention.",
+        "Send-volume pulse",
+        "pulse",
+        "Compares each server, stream, or tag with its own recent weeks and flags any that stopped sending, dropped off, or spiked in bounces or spam, across every server on the account token.",
+        "Idempotent send",
+        "email send-once",
+        "Sends an email at most once per key within a window (15 minutes by default), so an agent or script that retries after an error cannot deliver a second copy. Previews until you add --send.",
+        "Recipient-domain report",
+        "recipient-domains",
+        "Groups sends, bounces by type, complaints, suppressions, and opens by the recipient's mailbox domain across every synced server, so one provider's problem stands out. Run sync first.",
+        "Template CI gate",
+        "templates check",
+        "Validates every template and layout on a server or in a pulled folder, and exits non-zero on render errors, missing test-model keys, or broken layout links.",
+        "New-project server bootstrap",
+        "servers bootstrap",
+        "Creates a new project's Postmark server with its message streams, webhooks, sending-domain DNS records, and templates copied from another server. Prints the plan until you add --apply."
+      ],
+      "path": "library/productivity/postmark",
+      "release": {
+        "cli_name": "postmark-pp-cli",
+        "version": "2026.9.1",
+        "released_at": "2026-09-30T21:12:37Z",
+        "source_commit": "d2a09f374ddca19f879648f7d2cba5f617762cc9"
+      },
+      "printer": "cathrynlavery",
+      "printer_name": "Cathryn Lavery",
+      "creator": {
+        "handle": "cathrynlavery",
+        "name": "Cathryn Lavery"
+      },
+      "mcp": {
+        "binary": "postmark-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 88,
+        "public_tool_count": 0,
+        "auth_type": "api_key",
+        "env_vars": [
+          "POSTMARK_SERVER_TOKEN"
+        ],
         "mcp_ready": "full",
         "spec_format": "openapi3"
       }
@@ -22540,9 +22890,9 @@
       "path": "library/social-and-messaging/roblox",
       "release": {
         "cli_name": "roblox-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T02:58:45Z",
+        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
       },
       "printer": "krMaynard",
       "printer_name": "Kieran Maynard",
@@ -25884,9 +26234,9 @@
       "path": "library/productivity/supermemory-admin",
       "release": {
         "cli_name": "supermemory-admin-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T02:58:45Z",
+        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
       },
       "printer": "hnshah",
       "printer_name": "Hiten Shah",
@@ -27028,9 +27378,9 @@
       "path": "library/productivity/thunderbird",
       "release": {
         "cli_name": "thunderbird-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-27T08:56:41Z",
-        "source_commit": "c9d4b12cd6e914fde5cd577337fdb4895e5be0a2"
+        "version": "2026.9.2",
+        "released_at": "2026-09-30T08:52:03Z",
+        "source_commit": "62602fe63afd71e0877792f086a9aa6439cf6aa5"
       },
       "printer": "Bri1003",
       "printer_name": "Edoardo Manco",
@@ -27268,9 +27618,9 @@
       "path": "library/productivity/tidycal",
       "release": {
         "cli_name": "tidycal-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T02:58:45Z",
+        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
       },
       "printer": "cathrynlavery",
       "printer_name": "Cathryn Lavery",
@@ -27399,6 +27749,49 @@
         ],
         "mcp_ready": "full",
         "spec_format": "openapi3"
+      }
+    },
+    {
+      "name": "tokyo-art-beat",
+      "category": "travel",
+      "api": "Tokyo Art Beat",
+      "description": "Discover Japanese exhibitions for trip dates with bilingual identities and explicit schedule uncertainty.",
+      "search_terms": [
+        "tokyo-art-beat",
+        "Tokyo Art Beat",
+        "tokyo-art-beat-pp-cli",
+        "Discover Japanese exhibitions for trip dates with bilingual identities and explicit schedule uncertainty.",
+        "trip-window",
+        "events search",
+        "Filter inclusive date spans; closures require detail.",
+        "starting-ending",
+        "Filter exhibition starts or ends within trip dates.",
+        "day-assessment",
+        "events detail",
+        "Assess a full-year date, preserving schedule uncertainty.",
+        "nearby",
+        "Rank bounded candidates by straight-line public venue distance.",
+        "compact-fresh",
+        "Project fields and expose cache/source freshness."
+      ],
+      "path": "library/travel/tokyo-art-beat",
+      "printer": "zjsng",
+      "printer_name": "zjsng",
+      "creator": {
+        "handle": "zjsng",
+        "name": "zjsng"
+      },
+      "mcp": {
+        "binary": "tokyo-art-beat-pp-mcp",
+        "transports": [
+          "stdio"
+        ],
+        "tool_count": 1,
+        "public_tool_count": 1,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
       }
     },
     {
@@ -28645,9 +29038,9 @@
       "path": "library/cloud/vercel-admin",
       "release": {
         "cli_name": "vercel-admin-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T02:58:45Z",
+        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
       },
       "printer": "hnshah",
       "printer_name": "hnshah",
@@ -28797,9 +29190,9 @@
       "path": "library/devices/wahoo",
       "release": {
         "cli_name": "wahoo-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T02:58:45Z",
+        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
       },
       "printer": "stellato",
       "printer_name": "Greg Stellato",
@@ -29203,9 +29596,9 @@
       "path": "library/ai/wavespeed",
       "release": {
         "cli_name": "wavespeed-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.2",
+        "released_at": "2026-10-01T01:40:02Z",
+        "source_commit": "0d7c1f6800b1c41f6071fb7c5eb6281393d55c7b"
       },
       "printer": "cathrynlavery",
       "printer_name": "Cathryn Lavery",
@@ -29736,9 +30129,9 @@
       "path": "library/developer-tools/wordpress",
       "release": {
         "cli_name": "wordpress-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T02:58:45Z",
+        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
       },
       "printer": "bobeglz",
       "printer_name": "bobe",
@@ -29909,9 +30302,9 @@
       "path": "library/commerce/worten",
       "release": {
         "cli_name": "worten-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-01T02:58:45Z",
+        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
       },
       "printer": "asantos00",
       "printer_name": "Alexandre Santos",

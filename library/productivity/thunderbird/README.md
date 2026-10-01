@@ -140,6 +140,14 @@ thunderbird-pp-cli awaiting-reply --since 14d
 These capabilities aren't available in any other tool for this API.
 
 ### Inbox intelligence
+- **`drafts new --attach`** — Open a Thunderbird compose window with local files already attached, from the terminal or from an MCP agent (agents are limited to files inside Documents).
+  Add `--html` for an HTML body that keeps the identity's signature, and `--body-file <path>` to read the body from a file (via MCP, files inside Documents only).
+
+  _Use it when the user wants a mail prepared with a document attached, ready to review and send themselves._
+
+  ```bash
+  thunderbird-pp-cli drafts new --to alice@example.com --attach ~/Documents/report.pdf --open
+  ```
 - **`awaiting-reply`** — See every thread where someone is waiting on your answer, across all accounts, oldest first.
 
   _Reach for this when asked what mail still needs a reply instead of scanning recent messages._
@@ -220,6 +228,22 @@ thunderbird-pp-cli drafts reply "3f9a1c2e7b40" --body "Thanks, confirmed." --age
 ```
 
 Prints the prefilled reply fields and the thunderbird -compose command line; add --open to open the compose window. Nothing is ever sent.
+
+### Draft a new mail with an attachment
+
+```bash
+thunderbird-pp-cli drafts new --to alice@example.com --subject "Report" --attach ~/Documents/report.pdf --open
+```
+
+Opens the compose window with the file attached; nothing is sent. Through MCP the `attach` parameter takes a comma-separated list and only accepts files inside the user's Documents folder (symlinks and junctions are resolved first); from the terminal any readable file works.
+
+### Draft a formatted mail (HTML body, signature)
+
+```bash
+thunderbird-pp-cli drafts new --to alice@example.com --subject "Offer" --body-file ~/Documents/offer.html --html --open
+```
+
+`--html` treats the body as HTML (bold text and the like) and keeps the sending identity's HTML signature, including its image. `--body-file` reads the body from a file instead of `--body`. Through MCP both are the `body-file` and `html` parameters, and `body-file` only accepts files inside the user's Documents folder; from the terminal any readable file works.
 
 ## Usage
 

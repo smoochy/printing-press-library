@@ -88,6 +88,11 @@ func newRestyleCmd(flags *rootFlags) *cobra.Command {
 			for _, d := range res.Downloads {
 				oc.Files = append(oc.Files, d.Path)
 			}
+			noteDownloadFailure(&oc, res)
+			if oc.DownloadFailed {
+				env.Warnings = append(env.Warnings, oc.Warning)
+				env.PartialFailure = true
+			}
 			if res.Failed {
 				oc.Err = fmt.Sprintf("prediction failed with status %q", res.Status)
 				env.PartialFailure = true
@@ -100,9 +105,15 @@ func newRestyleCmd(flags *rootFlags) *cobra.Command {
 				if len(oc.Files) > 0 {
 					g.Path = oc.Files[0]
 				}
+				g.Data = oc.recoveryData()
 				if rerr := recordGeneration(g); rerr != nil {
 					env.LibraryRecordErrors = append(env.LibraryRecordErrors, rerr.Error())
 				}
+			}
+			if oc.DownloadFailed && !res.Failed {
+				env.RecommendedAction = "the restyle completed but was not saved locally; download it from the output URL in warnings or with prediction-results <id>"
+				_ = emitEnvelope(cmd.OutOrStdout(), env)
+				return partialFailureErr(fmt.Errorf("restyle completed but the output was not downloaded"))
 			}
 			env.RecommendedAction = "pack the restyled asset for posting"
 			return emitEnvelope(cmd.OutOrStdout(), env)

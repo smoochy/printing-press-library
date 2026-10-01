@@ -2,6 +2,10 @@
 
 This file is maintained by printing-press-library release automation. Do not hand-edit release sections in normal PRs.
 
+## 2026.9.4 - 2026-09-30
+
+- fix(flight-goat): expose flights MCP positionals separately; document companion CLI for MCP install (#2083).
+
 ## 2026.9.3 - 2026-09-24
 
 - fix(flight-goat): enforce stop limits in HTML fallback (#2046).

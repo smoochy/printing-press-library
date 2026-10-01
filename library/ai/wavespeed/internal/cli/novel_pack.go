@@ -52,6 +52,45 @@ type shotOutcome struct {
 	Skipped     bool     `json:"skipped,omitempty"`
 	Warning     string   `json:"warning,omitempty"`
 	Err         string   `json:"error,omitempty"`
+	// DownloadFailed marks a prediction that completed (and was billed) but
+	// whose output could not be saved locally. It is not a failed generation:
+	// the output URL is in Warning and the result is still recorded.
+	DownloadFailed bool `json:"download_failed,omitempty"`
+	// PredictionID and OutputURLs identify a completed prediction whose output
+	// was not saved locally, so it can be recovered later.
+	PredictionID string   `json:"prediction_id,omitempty"`
+	OutputURLs   []string `json:"output_urls,omitempty"`
+}
+
+// recoveryData is persisted on the library record for a completed prediction
+// whose download failed, so `library show` can still identify the paid result.
+func (oc shotOutcome) recoveryData() json.RawMessage {
+	if !oc.DownloadFailed {
+		return nil
+	}
+	raw, _ := json.Marshal(map[string]any{
+		"download_failed": true,
+		"prediction_id":   oc.PredictionID,
+		"output_urls":     oc.OutputURLs,
+		"recover_with":    "wavespeed-pp-cli prediction-results " + oc.PredictionID,
+	})
+	return raw
+}
+
+// noteDownloadFailure records a post-completion download failure as a
+// warning on the outcome, keeping it distinct from a failed prediction.
+func noteDownloadFailure(oc *shotOutcome, res submitResult) {
+	msg := downloadFailureMessage(res)
+	if msg == "" {
+		return
+	}
+	oc.DownloadFailed = true
+	oc.PredictionID = res.PredictionID
+	oc.OutputURLs = collectURLStrings(unwrapWaveSpeedData(res.Result))
+	if oc.Warning != "" {
+		oc.Warning += "; "
+	}
+	oc.Warning += msg
 }
 
 // platformManifest is the contract a downstream social-posting tool consumes.
@@ -303,7 +342,7 @@ func packExecute(cmd *cobra.Command, c *client.Client, project wavespeedProjectC
 			if oc.Err != "" && pf.onFailure == "abort" {
 				aborted = true
 				failure = true
-			} else if oc.Err != "" {
+			} else if oc.Err != "" || oc.DownloadFailed {
 				failure = true
 			}
 			outcomes[i] = oc
@@ -405,6 +444,7 @@ func produceShot(ctx context.Context, c *client.Client, pf packFlags, slug strin
 		oc.Dimensions = dims
 		oc.Warning = warn
 	}
+	noteDownloadFailure(&oc, res)
 	return oc
 }
 
@@ -454,7 +494,9 @@ func writePlatformManifests(pf packFlags, slug string, shots []Shot, outcomes []
 	order := []string{}
 	for i := range outcomes {
 		oc := outcomes[i]
-		if oc.Skipped || oc.Err != "" || len(oc.Files) == 0 {
+		// A shot with any missing output is not post-ready, even if some of
+		// its files downloaded; its URLs stay in the envelope warnings.
+		if oc.Skipped || oc.Err != "" || oc.DownloadFailed || len(oc.Files) == 0 {
 			continue
 		}
 		p := shots[i].Platform
@@ -462,6 +504,33 @@ func writePlatformManifests(pf packFlags, slug string, shots []Shot, outcomes []
 			order = append(order, p)
 		}
 		byPlatform[p] = append(byPlatform[p], entry{shot: shots[i], oc: oc})
+	}
+
+	// A platform targeted by this run that produced no post-ready shot must
+	// not keep a manifest from an earlier run under the post-ready name; a
+	// posting tool would treat those old assets as the current pack. The old
+	// manifest is renamed, not deleted, so the earlier pack stays recoverable.
+	for i := range shots {
+		p := shots[i].Platform
+		if _, ready := byPlatform[p]; ready {
+			continue
+		}
+		stale := filepath.Join(pf.outDir, slug, dirSafe(p), "manifest.json")
+		if _, err := os.Stat(stale); err == nil {
+			// Keep the earlier pack recoverable, but not under the
+			// post-ready name a posting tool reads.
+			ts := time.Now().UTC().Format("20060102-150405.000000000")
+			archived := filepath.Join(filepath.Dir(stale), "manifest.superseded-"+ts+".json")
+			// Stop on anything but "exists" so an unreadable directory
+			// cannot spin here; the rename then reports nothing harmful.
+			for n := 2; n < 100; n++ {
+				if _, err := os.Stat(archived); err != nil {
+					break
+				}
+				archived = filepath.Join(filepath.Dir(stale), fmt.Sprintf("manifest.superseded-%s-%d.json", ts, n))
+			}
+			_ = os.Rename(stale, archived)
+		}
 	}
 
 	written := []string{}
@@ -531,6 +600,7 @@ func recordPackShot(oc shotOutcome, s Shot, brandName, brandID string) error {
 	if len(oc.Files) > 0 {
 		g.Path = oc.Files[0]
 	}
+	g.Data = oc.recoveryData()
 	return recordGeneration(g)
 }
 

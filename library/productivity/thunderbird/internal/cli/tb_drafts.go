@@ -48,6 +48,7 @@ type tbComposeSpec struct {
 	Bcc            []string       `json:"bcc"`
 	Subject        string         `json:"subject"`
 	Body           string         `json:"body"`
+	HTML           bool           `json:"html,omitempty"`
 	Attachments    []string       `json:"attachments"`
 	InReplyTo      string         `json:"in_reply_to,omitempty"`
 	References     []string       `json:"references,omitempty"`
@@ -131,7 +132,11 @@ func tbComposeArg(s *tbComposeSpec) string {
 	if s.Identity != nil {
 		add("preselectid", s.Identity.ID)
 	}
-	add("format", "text")
+	if s.HTML {
+		add("format", "html")
+	} else {
+		add("format", "text")
+	}
 	return strings.Join(parts, ",")
 }
 
@@ -402,8 +407,12 @@ func tbBuildDraftEML(s *tbComposeSpec, now time.Time) ([]byte, error) {
 		}
 		return qp.Close()
 	}
+	subtype := "plain"
+	if s.HTML {
+		subtype = "html"
+	}
 	if len(s.Attachments) == 0 {
-		hdr("Content-Type", "text/plain; charset=utf-8")
+		hdr("Content-Type", "text/"+subtype+"; charset=utf-8")
 		hdr("Content-Transfer-Encoding", "quoted-printable")
 		buf.WriteString("\r\n")
 		if err := text(&buf); err != nil {
@@ -415,7 +424,7 @@ func tbBuildDraftEML(s *tbComposeSpec, now time.Time) ([]byte, error) {
 	mw := multipart.NewWriter(&body)
 	hdr("Content-Type", "multipart/mixed; boundary=\""+mw.Boundary()+"\"")
 	buf.WriteString("\r\n")
-	tp, err := mw.CreatePart(textproto.MIMEHeader{"Content-Type": {"text/plain; charset=utf-8"}, "Content-Transfer-Encoding": {"quoted-printable"}})
+	tp, err := mw.CreatePart(textproto.MIMEHeader{"Content-Type": {"text/" + subtype + "; charset=utf-8"}, "Content-Transfer-Encoding": {"quoted-printable"}})
 	if err != nil {
 		return nil, err
 	}
@@ -536,7 +545,7 @@ func newTBDraftsCmd(flags *rootFlags) *cobra.Command {
 func newTBDraftsNewCmd(flags *rootFlags) *cobra.Command {
 	var to, cc, bcc, attach []string
 	var subject, body, bodyFile, fromIdentity string
-	var open bool
+	var open, html bool
 	cmd := &cobra.Command{
 		Use:   "new",
 		Short: "Prepare a new message for Thunderbird's compose window",
@@ -544,8 +553,11 @@ func newTBDraftsNewCmd(flags *rootFlags) *cobra.Command {
 exact thunderbird -compose command line. --open writes a .eml copy under this
 CLI's data directory and opens the compose window; nothing is ever sent.
 --from-identity takes an identity email or key (idN) from accounts.
---body-file <path> reads the body from a file and --attach <path> (repeatable)
-attaches a local file; both are CLI-only and not offered to MCP agents.`,
+--attach <path> (repeatable) attaches a local file; through MCP it takes a
+comma-separated list and only files inside the user's Documents folder are
+accepted. --body-file <path> reads the body from a file (through MCP only files
+inside Documents). --html treats the body as HTML and keeps the identity's
+HTML signature (bold text, signature image).`,
 		Example: strings.Trim(`
   thunderbird-pp-cli drafts new --to alice@example.com --subject "Budget review" --body "Hi Alice,"
   thunderbird-pp-cli drafts new --to alice@example.com --cc carol@example.com --from-identity id1 --json
@@ -564,7 +576,7 @@ attaches a local file; both are CLI-only and not offered to MCP agents.`,
 			if body != "" && bodyFile != "" {
 				return usageErr(errors.New("use either --body or --body-file, not both"))
 			}
-			s := &tbComposeSpec{Subject: subject, Body: body}
+			s := &tbComposeSpec{Subject: subject, Body: body, HTML: html}
 			var err error
 			if s.To, err = tbParseRecipients(to); err != nil {
 				return usageErr(err)
@@ -575,17 +587,32 @@ attaches a local file; both are CLI-only and not offered to MCP agents.`,
 			if s.Bcc, err = tbParseRecipients(bcc); err != nil {
 				return usageErr(err)
 			}
+			mcpSurface := tbMCPSurface()
 			if bodyFile != "" {
-				b, err := os.ReadFile(filepath.Clean(bodyFile))
+				bodyPath := filepath.Clean(bodyFile)
+				if mcpSurface {
+					if bodyPath, err = tbResolveMCPFile("--body-file", bodyFile); err != nil {
+						return usageErr(err)
+					}
+				}
+				b, err := os.ReadFile(bodyPath)
 				if err != nil {
 					return usageErr(fmt.Errorf("--body-file: %w", err))
 				}
 				s.Body = string(b)
 			}
+			if mcpSurface {
+				attach = tbSplitMCPAttachments(attach)
+			}
 			for _, a := range attach {
 				abs, err := filepath.Abs(a)
 				if err != nil {
 					return usageErr(err)
+				}
+				if mcpSurface {
+					if abs, err = tbResolveMCPAttachment(a); err != nil {
+						return usageErr(err)
+					}
 				}
 				if info, err := os.Stat(abs); err != nil || info.IsDir() {
 					return usageErr(fmt.Errorf("--attach %q: not a readable file", a))
@@ -610,11 +637,9 @@ attaches a local file; both are CLI-only and not offered to MCP agents.`,
 	cmd.Flags().StringArrayVar(&bcc, "bcc", nil, "Bcc recipient (repeatable)")
 	cmd.Flags().StringVar(&subject, "subject", "", "Subject")
 	cmd.Flags().StringVar(&body, "body", "", "Plain-text body")
-	cmd.Flags().StringVar(&bodyFile, "body-file", "", "Read the plain-text body from this file")
-	cmd.Flags().StringArrayVar(&attach, "attach", nil, "File to attach (repeatable)")
-	// Hidden flags are dropped from the MCP tool schema, so agents cannot read local files through them.
-	_ = cmd.Flags().MarkHidden("body-file")
-	_ = cmd.Flags().MarkHidden("attach")
+	cmd.Flags().StringVar(&bodyFile, "body-file", "", "Read the body from this file (via MCP: a file inside Documents)")
+	cmd.Flags().StringArrayVar(&attach, "attach", nil, "File to attach (repeatable; via MCP a comma-separated list of files inside Documents)")
+	cmd.Flags().BoolVar(&html, "html", false, "Treat the body as HTML (keeps the identity's HTML signature)")
 	cmd.Flags().StringVar(&fromIdentity, "from-identity", "", "Sending identity: email or key like id1")
 	cmd.Flags().BoolVar(&open, "open", false, "Open the Thunderbird compose window (otherwise only print the command)")
 	return cmd
