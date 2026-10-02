@@ -2,6 +2,10 @@
 
 This file is maintained by printing-press-library release automation. Do not hand-edit release sections in normal PRs.
 
+## 2026.10.1 - 2026-10-02
+
+- fix(shopper): scope refresh to profile and accept token on stdin (#2192).
+
 ## 2026.9.2 - 2026-09-23
 
 - fix(shopper): store cluster truth + cart contents (from #2042) (#2043).

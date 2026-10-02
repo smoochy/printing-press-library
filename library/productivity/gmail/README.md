@@ -7,6 +7,9 @@ Every read and cleanup surface from the Gmail tool landscape, multi-account, wit
 Learn more at the [Gmail API docs](https://developers.google.com/gmail/api).
 
 Created by [@dmarketingllm](https://github.com/dmarketingllm) (Derik Parkinson).
+Contributors: [@cathrynlavery](https://github.com/cathrynlavery) (Cathryn Lavery).
+
+Cleanup recovery records each message's progress. After an uncertain trash response, it checks the current mailbox state before acting again. An uncertain untrash stops for review. A confirmed untrash can resume placement restoration only if the message's labels have not changed since that untrash.
 
 ## Install
 

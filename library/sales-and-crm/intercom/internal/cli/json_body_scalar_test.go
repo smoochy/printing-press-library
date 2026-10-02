@@ -37,12 +37,12 @@ func TestJSONBodyScalarCoercion(t *testing.T) {
 		{kind: "bool", raw: "true", want: "true"},
 		{kind: "bool", raw: "0", want: "false"},
 		{kind: "bool", raw: "maybe", wantErr: true},
-		{kind: "int", raw: "", omitted: true},
+		{kind: "int", raw: "", wantErr: true},
 		{kind: "int", raw: "null", want: "null"},
 	}
 	for _, tc := range cases {
 		body := map[string]any{}
-		err := setJSONBodyScalar(body, "f", "flag", tc.kind, tc.raw)
+		err := setJSONBodyScalar(body, "help_center_id", "flag", tc.kind, tc.raw)
 		if tc.wantErr {
 			if err == nil {
 				t.Errorf("%s %q: expected error", tc.kind, tc.raw)
@@ -53,13 +53,13 @@ func TestJSONBodyScalarCoercion(t *testing.T) {
 			t.Fatalf("%s %q: %v", tc.kind, tc.raw, err)
 		}
 		if tc.omitted {
-			if _, ok := body["f"]; ok {
+			if _, ok := body["help_center_id"]; ok {
 				t.Errorf("%s %q: expected key to be omitted", tc.kind, tc.raw)
 			}
 			continue
 		}
 		out, _ := json.Marshal(body)
-		if got := string(out); got != `{"f":`+tc.want+`}` {
+		if got := string(out); got != `{"help_center_id":`+tc.want+`}` {
 			t.Errorf("%s %q: wire = %s, want {\"f\":%s}", tc.kind, tc.raw, got, tc.want)
 		}
 	}
@@ -289,5 +289,61 @@ func TestJSONBodyScalarsSentWithDeclaredType(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestJSONBodyScalarNullOnlyForNullableFields(t *testing.T) {
+	body := map[string]any{}
+	if err := setJSONBodyScalar(body, "author_id", "author-id", "int", "null"); err == nil {
+		t.Fatalf("null accepted for non-nullable author_id; body=%v", body)
+	}
+	body = map[string]any{}
+	if err := setJSONBodyScalar(body, "help_center_id", "help-center-id", "int", "null"); err != nil {
+		t.Fatalf("null rejected for nullable help_center_id: %v", err)
+	}
+	if v, ok := body["help_center_id"]; !ok || v != nil {
+		t.Fatalf("help_center_id = %#v, want JSON null", v)
+	}
+}
+
+func TestJSONBodyScalarRejectsExplicitBlank(t *testing.T) {
+	for _, raw := range []string{"", "  \t "} {
+		body := map[string]any{}
+		if err := setJSONBodyScalar(body, "author_id", "author-id", "int", raw); err == nil {
+			t.Errorf("%q: expected error for blank author ID", raw)
+		}
+		if _, ok := body["author_id"]; ok {
+			t.Errorf("%q: blank author ID was added to body", raw)
+		}
+	}
+}
+
+func TestInternalArticleUpdateRejectsBlankAuthorIDBeforeRequest(t *testing.T) {
+	var requests int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
+	t.Setenv("XDG_CACHE_HOME", filepath.Join(home, ".cache"))
+	t.Setenv("INTERCOM_ACCESS_TOKEN", "test-credential")
+	t.Setenv("INTERCOM_BASE_URL", srv.URL)
+	t.Setenv("INTERCOM_CONFIG", filepath.Join(home, "config.toml"))
+
+	root := RootCmd()
+	root.SetArgs([]string{"internal-articles", "update", "1", "--author-id", "", "--yes"})
+	root.SetOut(io.Discard)
+	root.SetErr(io.Discard)
+	err := root.Execute()
+	if err == nil || !strings.Contains(err.Error(), "--author-id must not be empty") {
+		t.Fatalf("error = %v, want blank author ID error", err)
+	}
+	if requests != 0 {
+		t.Fatalf("blank author ID caused %d requests", requests)
 	}
 }

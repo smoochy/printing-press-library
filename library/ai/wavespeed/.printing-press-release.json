@@ -2,17 +2,17 @@
   "schema_version": 1,
   "slug": "wavespeed",
   "cli_name": "wavespeed-pp-cli",
-  "version": "2026.10.2",
-  "released_at": "2026-10-01T01:40:02Z",
-  "source_commit": "0d7c1f6800b1c41f6071fb7c5eb6281393d55c7b",
-  "printing_press_version": "4.18.1",
-  "run_id": "20260527-214905",
+  "version": "2026.10.3",
+  "released_at": "2026-10-01T19:31:20Z",
+  "source_commit": "63a2b0c73e0b71d11d53b4507a1a85ef25ca6313",
+  "printing_press_version": "4.32.6",
+  "run_id": "20260930-225845-bd628bfa",
   "changes": [
     {
-      "title": "fix(wavespeed): keep superseded pack manifests and paid-run recovery details",
-      "pr": 2089,
-      "url": "https://github.com/mvanhorn/printing-press-library/pull/2089",
-      "commit": "0d7c1f6800b1c41f6071fb7c5eb6281393d55c7b"
+      "title": "feat(wavespeed): reprint wavespeed on press 4.32.6",
+      "pr": 2111,
+      "url": "https://github.com/mvanhorn/printing-press-library/pull/2111",
+      "commit": "63a2b0c73e0b71d11d53b4507a1a85ef25ca6313"
     }
   ]
 }

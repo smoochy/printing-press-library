@@ -2,17 +2,17 @@
   "schema_version": 1,
   "slug": "anac-pl",
   "cli_name": "anac-pl-pp-cli",
-  "version": "2026.9.6",
-  "released_at": "2026-09-19T09:16:02Z",
-  "source_commit": "179d1d5125d9d77b0f419ca315fb31a62457bf4d",
+  "version": "2026.10.1",
+  "released_at": "2026-10-02T00:02:45Z",
+  "source_commit": "6b9338c8a9d52ced6daae9a20a6451095562930c",
   "printing_press_version": "4.17.0",
   "run_id": "20260623-093040-ed91772a",
   "changes": [
     {
-      "title": "fix(anac-pl): real token pagination for cerca; --page was a no-op",
-      "pr": 2018,
-      "url": "https://github.com/mvanhorn/printing-press-library/pull/2018",
-      "commit": "179d1d5125d9d77b0f419ca315fb31a62457bf4d"
+      "title": "Follow ANAC continuation tokens for avvisi search --all",
+      "pr": 2174,
+      "url": "https://github.com/mvanhorn/printing-press-library/pull/2174",
+      "commit": "6b9338c8a9d52ced6daae9a20a6451095562930c"
     }
   ]
 }

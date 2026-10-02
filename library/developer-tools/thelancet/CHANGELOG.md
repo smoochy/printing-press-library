@@ -2,6 +2,10 @@
 
 This file is maintained by printing-press-library release automation. Do not hand-edit release sections in normal PRs.
 
+## 2026.10.1 - 2026-10-02
+
+- fix(thelancet): keep rolling refreshes current and update saved metadata (#2188).
+
 ## 2026.9.3 - 2026-09-20
 
 - thelancet: make mesh usable on a real store (#2024).
