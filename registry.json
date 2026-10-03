@@ -13992,6 +13992,104 @@
       }
     },
     {
+      "name": "japan-bus-online",
+      "category": "travel",
+      "api": "Japan Bus Online",
+      "description": "Read-only bus routes, dated inventory and source-grounded fares.",
+      "search_terms": [
+        "japan-bus-online",
+        "Japan Bus Online",
+        "japan-bus-online-pp-cli",
+        "Read-only bus routes, dated inventory and source-grounded fares.",
+        "Dated inventory with overnight dates",
+        "bus services",
+        "See service-day dates and inventory uncertainty explicitly.",
+        "Stop-pair party fare evidence",
+        "bus quote",
+        "Read selected-stop Adult/Child fares, one-way party totals and capacity evidence.",
+        "Schedule and stop identity",
+        "bus route",
+        "Read directional timetables and mapped stops."
+      ],
+      "path": "library/travel/japan-bus-online",
+      "release": {
+        "cli_name": "japan-bus-online-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-02T08:52:35Z",
+        "source_commit": "4b4499acecd81df1c682df9aedff6986d6bfb2f7"
+      },
+      "printer": "zjsng",
+      "printer_name": "zjsng",
+      "creator": {
+        "handle": "zjsng",
+        "name": "zjsng"
+      },
+      "mcp": {
+        "binary": "japan-bus-online-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 23,
+        "public_tool_count": 23,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "openapi3"
+      }
+    },
+    {
+      "name": "japan-guide",
+      "category": "travel",
+      "api": "Japan Guide",
+      "description": "Source-linked Japan sightseeing facts in compact JSON.",
+      "search_terms": [
+        "japan-guide",
+        "Japan Guide",
+        "japan-guide-pp-cli",
+        "Source-linked Japan sightseeing facts in compact JSON.",
+        "Small-list planning comparison",
+        "guide compare",
+        "Compare scoped visit facts for up to five source pages and retain per-item failures.",
+        "Scoped schedules",
+        "guide inspect",
+        "Keep shrine, museum and garden schedules attached to their own facilities.",
+        "Explicit opening uncertainty",
+        "Return source schedules with open_now explicitly unknown.",
+        "Offline facts with freshness",
+        "Read saved compact facts while retaining their original source and retrieval dates.",
+        "Resource budgets",
+        "guide destinations",
+        "Return a bounded destination page with request, byte and elapsed-time metrics."
+      ],
+      "path": "library/travel/japan-guide",
+      "release": {
+        "cli_name": "japan-guide-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-02T08:53:48Z",
+        "source_commit": "56e3c91da3597fb3687374be725eb0b658673302"
+      },
+      "printer": "zjsng",
+      "printer_name": "zjsng",
+      "creator": {
+        "handle": "zjsng",
+        "name": "zjsng"
+      },
+      "mcp": {
+        "binary": "japan-guide-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 1,
+        "public_tool_count": 1,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
       "name": "jimmy-johns",
       "category": "food-and-dining",
       "api": "Jimmy John's",
@@ -15619,6 +15717,48 @@
         "env_vars": [],
         "mcp_ready": "full",
         "spec_format": "internal"
+      }
+    },
+    {
+      "name": "loops",
+      "category": "marketing",
+      "api": "Loops",
+      "description": "Agent-ready Loops CLI for contacts, audiences, campaigns, workflows, events, and transactional email, with team checks and explicit send approval.",
+      "search_terms": [
+        "loops",
+        "loops-pp-cli",
+        "Agent-ready Loops CLI for contacts, audiences, campaigns, workflows, events, and transactional email, with team checks and explicit send approval.",
+        "Exact team and mutation safety",
+        "team verify",
+        "Verify the selected API team before a change, preview writes without private values, and journal send attempts.",
+        "Lifecycle inventory",
+        "audit lifecycle",
+        "Count communication resources without retrieving contact records.",
+        "Campaign preflight",
+        "campaigns preflight",
+        "Check draft status, audience targeting, message presence, and Guardian findings before publication."
+      ],
+      "path": "library/marketing/loops",
+      "printer": "cathrynlavery",
+      "printer_name": "Cathryn Lavery",
+      "creator": {
+        "handle": "cathrynlavery",
+        "name": "Cathryn Lavery"
+      },
+      "mcp": {
+        "binary": "loops-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 68,
+        "public_tool_count": 0,
+        "auth_type": "bearer_token",
+        "env_vars": [
+          "LOOPS_API_KEY"
+        ],
+        "mcp_ready": "partial",
+        "spec_format": "openapi3"
       }
     },
     {
@@ -20263,6 +20403,63 @@
       }
     },
     {
+      "name": "philonet",
+      "category": "social-and-messaging",
+      "api": "Philonet",
+      "description": "Your Philonet reading life in the terminal: feed, threads, streaks and friends, plus a local history the web app does not keep.",
+      "search_terms": [
+        "philonet",
+        "philonet-pp-cli",
+        "Your Philonet reading life in the terminal: feed, threads, streaks and friends, plus a local history the web app does not keep.",
+        "Today briefing",
+        "today",
+        "One snapshot of your streak, reading time, friends thinking now, unread counts and pending requests.",
+        "Reading rhythm",
+        "rhythm",
+        "Weekly and monthly reading minutes, longest streak and rank-vs-friends trend, accumulated from your own runs (history starts at the first run).",
+        "Friends digest",
+        "digest",
+        "Friends' thoughts this CLI first saw recently, grouped by friend; 'recently' is relative to when the CLI saw them.",
+        "Owed replies",
+        "owed",
+        "Threads among your recent thoughts where someone replied and you have not answered yet.",
+        "Voices",
+        "Rank people from your stored For You feed cards by thoughts on a topic, filtered by alma mater or employer badge.",
+        "Reading queue",
+        "queue",
+        "Read-later and bookmarks that fit your free minutes (items with unknown length are dropped unless --include-unknown), flagged when discussed.",
+        "Resonance",
+        "Which of your thoughts earned stars and insightful reactions, by tag and week."
+      ],
+      "path": "library/social-and-messaging/philonet",
+      "release": {
+        "cli_name": "philonet-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-02T08:53:48Z",
+        "source_commit": "3650c337ca5ef7cd8b302d5797015b39344d9a4a"
+      },
+      "printer": "SomSamantray",
+      "printer_name": "Som Samantray",
+      "creator": {
+        "handle": "SomSamantray",
+        "name": "Som Samantray"
+      },
+      "mcp": {
+        "binary": "philonet-pp-mcp",
+        "transports": [
+          "stdio"
+        ],
+        "tool_count": 46,
+        "public_tool_count": 1,
+        "auth_type": "bearer_token",
+        "env_vars": [
+          "PHILONET_TOKEN"
+        ],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
       "name": "pinecone",
       "category": "ai",
       "api": "Pinecone",
@@ -23579,9 +23776,9 @@
       "path": "library/ai/sarvam",
       "release": {
         "cli_name": "sarvam-pp-cli",
-        "version": "2026.10.9",
-        "released_at": "2026-10-02T02:47:21Z",
-        "source_commit": "c957b1f4bb5109a43bb3d3190dae3cdc436af56e"
+        "version": "2026.10.10",
+        "released_at": "2026-10-02T03:01:09Z",
+        "source_commit": "4a9415d29951d08780fb4cd8a00a7d9887d62dc5"
       },
       "printer": "SomSamantray",
       "printer_name": "Som Samantray",
@@ -25423,6 +25620,63 @@
         ],
         "tool_count": 18,
         "public_tool_count": 18,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
+      "name": "smartex",
+      "category": "travel",
+      "api": "smartEX",
+      "description": "Compare Shinkansen fares and constraints before booking",
+      "search_terms": [
+        "smartex",
+        "smartex-pp-cli",
+        "Compare Shinkansen fares and constraints before booking",
+        "Resolve station names and corridor order",
+        "stations",
+        "Identify corridors and train categories with booking links",
+        "route",
+        "Compare fresh dated adult fares and membership restrictions",
+        "fare",
+        "Compare discount deadlines and unresolved eligibility conditions",
+        "products",
+        "Compute precise JST advance request and confirmation boundaries",
+        "window",
+        "Check baggage size and required reserved seat class",
+        "baggage",
+        "Retrieve practical boarding, changes and refunds guidance",
+        "policy",
+        "Find current official basic timetables and validated regular service examples",
+        "timetable",
+        "Prepare canonical booking links and an exact travel checklist",
+        "handoff",
+        "Inspect source freshness and planning versus inventory boundaries",
+        "sources"
+      ],
+      "path": "library/travel/smartex",
+      "release": {
+        "cli_name": "smartex-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-02T08:53:48Z",
+        "source_commit": "fee2d2bbed6c843a73543169efd63e1c4c9e17a7"
+      },
+      "printer": "zjsng",
+      "printer_name": "zjsng",
+      "creator": {
+        "handle": "zjsng",
+        "name": "zjsng"
+      },
+      "mcp": {
+        "binary": "smartex-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 14,
+        "public_tool_count": 14,
         "auth_type": "none",
         "env_vars": [],
         "mcp_ready": "full",
@@ -28457,6 +28711,58 @@
       }
     },
     {
+      "name": "toyota-rentacar",
+      "category": "travel",
+      "api": "TOYOTA Rent a Car",
+      "description": "Live Japan rental class estimates, distinct shops, and a careful booking handoff.",
+      "search_terms": [
+        "toyota-rentacar",
+        "TOYOTA Rent a Car",
+        "toyota-rentacar-pp-cli",
+        "Live Japan rental class estimates, distinct shops, and a careful booking handoff.",
+        "Identity-safe shop resolution",
+        "shops search",
+        "Resolve distinct Toyota branches and return restrictions.",
+        "Context-checked class estimates",
+        "cars quote",
+        "Compare real dated class offers with explicit price assumptions.",
+        "Option inclusion honesty",
+        "rental options",
+        "Read live option and waiver fees with source units.",
+        "One-way fee and inventory separation",
+        "oneway quote",
+        "Run Toyota’s route surcharge simulator.",
+        "Canonical booking checklist",
+        "booking handoff",
+        "Print a canonical booking link and reusable rental checklist."
+      ],
+      "path": "library/travel/toyota-rentacar",
+      "release": {
+        "cli_name": "toyota-rentacar-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-02T08:53:48Z",
+        "source_commit": "d13f19e474cb0bbfb305b0d023201afdd44b7f9d"
+      },
+      "printer": "zjsng",
+      "printer_name": "zjsng",
+      "creator": {
+        "handle": "zjsng",
+        "name": "zjsng"
+      },
+      "mcp": {
+        "binary": "toyota-rentacar-pp-mcp",
+        "transports": [
+          "stdio"
+        ],
+        "tool_count": 5,
+        "public_tool_count": 5,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
       "name": "travelclick",
       "category": "travel",
       "api": "travelclick",
@@ -31309,6 +31615,62 @@
         ],
         "tool_count": 11,
         "public_tool_count": 11,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
+      "name": "yamato",
+      "category": "travel",
+      "api": "Yamato Transport",
+      "description": "Plan Japan luggage forwarding with source rates, calendar deadlines and acceptance evidence.",
+      "search_terms": [
+        "yamato",
+        "Yamato Transport",
+        "yamato-pp-cli",
+        "Plan Japan luggage forwarding with source rates, calendar deadlines and acceptance evidence.",
+        "Measured luggage eligibility",
+        "parcel",
+        "Classify both size and weight and preserve acceptance unknowns.",
+        "Source calendar and tariff",
+        "quote",
+        "Fetch current source rates and date-specific arrival or shipping deadline.",
+        "Terminal-aware airport resolution",
+        "airports",
+        "Use live upstream airport codes and Japanese terminal names.",
+        "Acceptance and hour evidence",
+        "counters",
+        "Inspect public send/pickup/floor evidence and fingerprint-checked image hours.",
+        "Distinct same-day evidence",
+        "same-day",
+        "Inspect limited-area cutoff schedules and separate example prices.",
+        "Product distinctions",
+        "products",
+        "Review live service policy evidence for standard, airport, roundtrip and same-day products."
+      ],
+      "path": "library/travel/yamato",
+      "release": {
+        "cli_name": "yamato-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-02T08:53:48Z",
+        "source_commit": "6ff8ad0627c6397f4500a5e0354481dbf12fd9cc"
+      },
+      "printer": "zjsng",
+      "printer_name": "zjsng",
+      "creator": {
+        "handle": "zjsng",
+        "name": "zjsng"
+      },
+      "mcp": {
+        "binary": "yamato-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 1,
+        "public_tool_count": 1,
         "auth_type": "none",
         "env_vars": [],
         "mcp_ready": "full",
