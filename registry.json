@@ -4348,9 +4348,9 @@
       "path": "library/travel/carstay",
       "release": {
         "cli_name": "carstay-pp-cli",
-        "version": "2026.10.1",
-        "released_at": "2026-10-03T08:50:22Z",
-        "source_commit": "411e0b1c46f4b428691df11e05cfac4468faf629"
+        "version": "2026.10.2",
+        "released_at": "2026-10-04T08:52:41Z",
+        "source_commit": "9717d3d7d37907a236b660eed6a1b8bd631a04d6"
       },
       "printer": "zjsng",
       "printer_name": "zjsng",
@@ -10343,9 +10343,9 @@
       "path": "library/media-and-entertainment/game-goat",
       "release": {
         "cli_name": "game-goat-pp-cli",
-        "version": "2026.10.1",
-        "released_at": "2026-10-03T08:50:22Z",
-        "source_commit": "ce18c33b7d9a74c1194ca48656b8eadeab513e66"
+        "version": "2026.10.2",
+        "released_at": "2026-10-04T08:52:41Z",
+        "source_commit": "4a703a00a4e9bb222f4abf2cb35441f7f8095b67"
       },
       "printer": "bleighk",
       "printer_name": "Brad Knight",
@@ -12376,6 +12376,58 @@
       }
     },
     {
+      "name": "halal-gourmet-japan",
+      "category": "travel",
+      "api": "Halal Gourmet Japan",
+      "description": "Compare explicit food and prayer evidence across Japan with source dates and honest unknowns.",
+      "search_terms": [
+        "halal-gourmet-japan",
+        "Halal Gourmet Japan",
+        "halal-gourmet-japan-pp-cli",
+        "Compare explicit food and prayer evidence across Japan with source dates and honest unknowns.",
+        "Selected-place evidence comparison",
+        "plan compare",
+        "Align the source-reported food and prayer facts of selected saved places.",
+        "Explicit condition matcher",
+        "plan match",
+        "See which requested source labels are reported and which need confirmation.",
+        "Missing planning-evidence triage",
+        "plan gaps",
+        "List missing certifier, certificate validity, hours and access evidence.",
+        "Food-and-prayer proximity pairs",
+        "plan pair",
+        "Pair selected restaurants and prayer places by straight-line distance.",
+        "Saved evidence changes",
+        "plan changes",
+        "See factual changes between the latest two successful observations."
+      ],
+      "path": "library/travel/halal-gourmet-japan",
+      "release": {
+        "cli_name": "halal-gourmet-japan-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-04T08:54:26Z",
+        "source_commit": "2fc3d4dcf2caf51243fa5ed41635509e3ee6a024"
+      },
+      "printer": "zjsng",
+      "printer_name": "Jet Sng",
+      "creator": {
+        "handle": "zjsng",
+        "name": "zjsng"
+      },
+      "mcp": {
+        "binary": "halal-gourmet-japan-pp-mcp",
+        "transports": [
+          "stdio"
+        ],
+        "tool_count": 4,
+        "public_tool_count": 4,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
       "name": "haneda-airport",
       "category": "travel",
       "api": "Haneda Airport",
@@ -12827,6 +12879,51 @@
       }
     },
     {
+      "name": "hostelworld",
+      "category": "travel",
+      "api": "Hostelworld",
+      "description": "Compare dated dorm beds and private rooms with explicit quantities, prices and terms.",
+      "search_terms": [
+        "hostelworld",
+        "hostelworld-pp-cli",
+        "Compare dated dorm beds and private rooms with explicit quantities, prices and terms.",
+        "Comparable party costs",
+        "hostels compare",
+        "Compare actual dated dorm beds and private rooms with explicit source units.",
+        "Flexible stay windows",
+        "hostels dates",
+        "Check actual availability for each alternative check-in date.",
+        "Nightly price basis",
+        "hostels offers",
+        "Keep nightly bed, room and occupancy-slot price bases explicit.",
+        "Payment and cancellation evidence",
+        "See rate terms and exact cancellation deadline alongside the price.",
+        "Saved planning evidence",
+        "hostels saved",
+        "Re-read your bounded planning snapshots offline."
+      ],
+      "path": "library/travel/hostelworld",
+      "printer": "zjsng",
+      "printer_name": "zjsng",
+      "creator": {
+        "handle": "zjsng",
+        "name": "zjsng"
+      },
+      "mcp": {
+        "binary": "hostelworld-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 4,
+        "public_tool_count": 4,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
       "name": "hostex",
       "category": "travel",
       "api": "Hostex",
@@ -12860,9 +12957,9 @@
       "path": "library/travel/hostex",
       "release": {
         "cli_name": "hostex-pp-cli",
-        "version": "2026.10.3",
-        "released_at": "2026-10-03T08:50:22Z",
-        "source_commit": "cf00f9b957d51401bf8ddf03f009978031ec38d3"
+        "version": "2026.10.4",
+        "released_at": "2026-10-04T08:52:41Z",
+        "source_commit": "2388bec609f8943b0fea591c9613421e61e7d2e6"
       },
       "printer": "Bust011r",
       "printer_name": "Bust011r",
@@ -12880,7 +12977,7 @@
         "public_tool_count": 0,
         "auth_type": "api_key",
         "env_vars": [
-          "HOSTEX_HOSTEX_ACCESS_TOKEN"
+          "HOSTEX_ACCESS_TOKEN"
         ],
         "mcp_ready": "full",
         "spec_format": "openapi3"
@@ -13419,6 +13516,12 @@
         "Search saved family facts with their original observation times and collection coverage."
       ],
       "path": "library/travel/iko-yo",
+      "release": {
+        "cli_name": "iko-yo-pp-cli",
+        "version": "2026.10.2",
+        "released_at": "2026-10-04T08:52:41Z",
+        "source_commit": "cff8c54cbdbb8b640f45b14c3265cb17ddeb4635"
+      },
       "printer": "zjsng",
       "printer_name": "zjsng",
       "creator": {
@@ -15391,9 +15494,9 @@
       "path": "library/travel/kurumatabi",
       "release": {
         "cli_name": "kurumatabi-pp-cli",
-        "version": "2026.10.1",
-        "released_at": "2026-10-03T08:50:22Z",
-        "source_commit": "508a67b7f86aef2c901f2addb682adb84922720d"
+        "version": "2026.10.2",
+        "released_at": "2026-10-04T08:52:41Z",
+        "source_commit": "5308314c8a2cf9a11dd3d0e65035a5b1f119394c"
       },
       "printer": "zjsng",
       "printer_name": "zjsng",
@@ -16887,6 +16990,12 @@
         "Compare two saved snapshot files offline by stable station ID and factual fields, or use an explicit synthetic demo"
       ],
       "path": "library/travel/michi-no-eki",
+      "release": {
+        "cli_name": "michi-no-eki-pp-cli",
+        "version": "2026.10.2",
+        "released_at": "2026-10-04T08:49:57Z",
+        "source_commit": "5c2673940c81928f98e0027a4b1a2393f8412f11"
+      },
       "printer": "zjsng",
       "printer_name": "zjsng",
       "creator": {
@@ -17755,9 +17864,9 @@
       "path": "library/travel/nap-camp",
       "release": {
         "cli_name": "nap-camp-pp-cli",
-        "version": "2026.10.1",
-        "released_at": "2026-10-03T08:50:22Z",
-        "source_commit": "cb49e7347b20e876eb1e4930f231ae6b2fa4e21a"
+        "version": "2026.10.2",
+        "released_at": "2026-10-04T08:52:41Z",
+        "source_commit": "e868db3351fc099af45ac4e77578fe432209c6b8"
       },
       "printer": "zjsng",
       "printer_name": "zjsng",
@@ -26454,6 +26563,57 @@
       }
     },
     {
+      "name": "snowjapan",
+      "category": "travel",
+      "api": "SnowJapan",
+      "description": "Compare Japan ski areas with terrain facts, dated reports and explicit historical-season evidence.",
+      "search_terms": [
+        "snowjapan",
+        "snowjapan-pp-cli",
+        "Compare Japan ski areas with terrain facts, dated reports and explicit historical-season evidence.",
+        "Resort tradeoff frontier",
+        "plan frontier",
+        "Show nondominated resort choices for explicitly selected statistics.",
+        "Historical trip-window intersection",
+        "plan windows",
+        "Intersect a past trip window with recorded first/last season spans.",
+        "Municipality option portfolios",
+        "plan towns",
+        "Compare source-defined towns by known resort options and statistical ranges.",
+        "Historical evidence coverage",
+        "plan coverage",
+        "Find listed resorts with missing or ambiguous historical endpoint evidence.",
+        "Saved-fact changes",
+        "plan changes",
+        "See factual field changes between the latest two locally captured observations."
+      ],
+      "path": "library/travel/snowjapan",
+      "release": {
+        "cli_name": "snowjapan-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-04T08:54:26Z",
+        "source_commit": "45613d174d25b7f09827d5afcc21c0fbf0e91886"
+      },
+      "printer": "zjsng",
+      "printer_name": "zjsng",
+      "creator": {
+        "handle": "zjsng",
+        "name": "zjsng"
+      },
+      "mcp": {
+        "binary": "snowjapan-pp-mcp",
+        "transports": [
+          "stdio"
+        ],
+        "tool_count": 5,
+        "public_tool_count": 5,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
       "name": "soccer-goat",
       "category": "media-and-entertainment",
       "api": "soccer-goat",
@@ -28810,7 +28970,7 @@
         "Compare how a journal's topic distribution shifts between two time windows; spot emerging and fading specialties.",
         "Reading List Curation",
         "curate",
-        "Auto-generate ranked reading lists for a topic, sorted by date/citations/relevance, exportable as Markdown or BibTeX.",
+        "Auto-generate ranked reading lists for a topic, sorted by citations, date or per-year (average citations per year since publication; age = years since pub_date, or July 1 of the year if unknown, at least 0.25; local store only), exportable as Markdown or BibTeX.",
         "Citation Visibility Gap",
         "visibility-gap",
         "Find authors whose citation impact is out of step with the prestige of the Lancet journals they publish in."
@@ -28818,9 +28978,9 @@
       "path": "library/developer-tools/thelancet",
       "release": {
         "cli_name": "thelancet-pp-cli",
-        "version": "2026.10.1",
-        "released_at": "2026-10-02T00:57:08Z",
-        "source_commit": "f923408ab31c715b1317386485ef2ba66d262801"
+        "version": "2026.10.2",
+        "released_at": "2026-10-04T08:54:26Z",
+        "source_commit": "7376d5fc0da12663c1234a0e72e19912516c76d2"
       },
       "printer": "laci141",
       "printer_name": "laci141",
@@ -31467,6 +31627,56 @@
         ],
         "mcp_ready": "full",
         "spec_format": "openapi3"
+      }
+    },
+    {
+      "name": "wheelog",
+      "category": "travel",
+      "api": "WheeLog",
+      "description": "Find and compare recorded accessibility facts with gaps and conflicting reports visible.",
+      "search_terms": [
+        "wheelog",
+        "wheelog-pp-cli",
+        "Find and compare recorded accessibility facts with gaps and conflicting reports visible.",
+        "Requested-question comparison",
+        "spots compare",
+        "Align requested source question IDs and report supporting, opposing, mixed, unknown and inapplicable evidence.",
+        "Detail-checked discovery",
+        "spots search",
+        "Expand a bounded keyword shortlist into actual detail evidence for requested questions.",
+        "Saved-observation changes",
+        "shortlist changes",
+        "Show exact changes between two allowlisted source observations for selected public places.",
+        "Recheck queue",
+        "shortlist list",
+        "Prioritize old, unknown or conflicting evidence in a saved shortlist with explicit reasons.",
+        "Nearest saved facilities",
+        "Rank saved public facilities by straight-line distance from an explicit origin."
+      ],
+      "path": "library/travel/wheelog",
+      "release": {
+        "cli_name": "wheelog-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-04T08:54:26Z",
+        "source_commit": "6e0eb2c4bc28cc71e49ce9e454514feb2d900020"
+      },
+      "printer": "zjsng",
+      "printer_name": "Jet Sng",
+      "creator": {
+        "handle": "zjsng",
+        "name": "Jet Sng"
+      },
+      "mcp": {
+        "binary": "wheelog-pp-mcp",
+        "transports": [
+          "stdio"
+        ],
+        "tool_count": 2,
+        "public_tool_count": 2,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
       }
     },
     {
