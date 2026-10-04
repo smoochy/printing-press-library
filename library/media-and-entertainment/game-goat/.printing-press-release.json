@@ -2,17 +2,17 @@
   "schema_version": 1,
   "slug": "game-goat",
   "cli_name": "game-goat-pp-cli",
-  "version": "2026.9.1",
-  "released_at": "2026-09-28T08:53:15Z",
-  "source_commit": "ef535cbb1e579222ac067efc8f54489855716b64",
+  "version": "2026.10.1",
+  "released_at": "2026-10-03T08:50:22Z",
+  "source_commit": "ce18c33b7d9a74c1194ca48656b8eadeab513e66",
   "printing_press_version": "4.32.5",
   "run_id": "20260927-155341-72694577",
   "changes": [
     {
-      "title": "feat(game-goat): add game-goat",
-      "pr": 2057,
-      "url": "https://github.com/mvanhorn/printing-press-library/pull/2057",
-      "commit": "ef535cbb1e579222ac067efc8f54489855716b64"
+      "title": "feat(game-goat): Steam as a first-class keyless store source; Game GOAT naming",
+      "pr": 2244,
+      "url": "https://github.com/mvanhorn/printing-press-library/pull/2244",
+      "commit": "ce18c33b7d9a74c1194ca48656b8eadeab513e66"
     }
   ]
 }

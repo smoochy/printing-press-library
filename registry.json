@@ -986,6 +986,58 @@
       }
     },
     {
+      "name": "airport-limousine",
+      "category": "travel",
+      "api": "Airport Limousine",
+      "description": "Plan Tokyo airport buses with exact terminals, dated fares and explicit travel-time uncertainty.",
+      "search_terms": [
+        "airport-limousine",
+        "Airport Limousine",
+        "airport-limousine-pp-cli",
+        "Plan Tokyo airport buses with exact terminals, dated fares and explicit travel-time uncertainty.",
+        "Dated terminal journeys",
+        "timetable",
+        "Plan a service date at exact stops with JST times and midnight rollover.",
+        "Current duration evidence",
+        "travel-times",
+        "Compare current and standard duration estimates with explicit unavailable states.",
+        "Airport transfer comparison",
+        "transfers",
+        "Read both airport transfer directions for the same service date.",
+        "Party fare planning",
+        "fare",
+        "Calculate an adult/child total from the operator fare for a served pair.",
+        "Baggage and boarding facts",
+        "conditions",
+        "Read concise current provider conditions with source timestamps and notices."
+      ],
+      "path": "library/travel/airport-limousine",
+      "release": {
+        "cli_name": "airport-limousine-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-03T08:50:22Z",
+        "source_commit": "56d19bb46a8d7789e44011cffbbe212321e66dc6"
+      },
+      "printer": "zjsng",
+      "printer_name": "zjsng",
+      "creator": {
+        "handle": "zjsng",
+        "name": "zjsng"
+      },
+      "mcp": {
+        "binary": "airport-limousine-pp-mcp",
+        "transports": [
+          "stdio"
+        ],
+        "tool_count": 4,
+        "public_tool_count": 4,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
       "name": "alaska-airlines",
       "category": "travel",
       "api": "Alaska Airlines",
@@ -4269,6 +4321,57 @@
       }
     },
     {
+      "name": "carstay",
+      "category": "travel",
+      "api": "Carstay",
+      "description": "Discover Japan overnight spots with Japanese coverage, honest facility evidence and booking links.",
+      "search_terms": [
+        "carstay",
+        "carstay-pp-cli",
+        "Discover Japan overnight spots with Japanese coverage, honest facility evidence and booking links.",
+        "Evidence comparison",
+        "spots compare",
+        "Contrast a small shortlist with facility, price and parking-space evidence.",
+        "Explicit constraint assessment",
+        "spots fit",
+        "Check explicit space dimensions and facility requirements while preserving unknowns.",
+        "Radial nearby ranking",
+        "spots near",
+        "Rank designated overnight spots around an itinerary coordinate by straight-line distance.",
+        "Language coverage audit",
+        "spots coverage",
+        "See Japanese options and English publication or translation gaps.",
+        "Booking evidence audit",
+        "spots audit",
+        "Expose unresolved price, availability and qualified facility evidence before booking."
+      ],
+      "path": "library/travel/carstay",
+      "release": {
+        "cli_name": "carstay-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-03T08:50:22Z",
+        "source_commit": "411e0b1c46f4b428691df11e05cfac4468faf629"
+      },
+      "printer": "zjsng",
+      "printer_name": "zjsng",
+      "creator": {
+        "handle": "zjsng",
+        "name": "zjsng"
+      },
+      "mcp": {
+        "binary": "carstay-pp-mcp",
+        "transports": [
+          "stdio"
+        ],
+        "tool_count": 1,
+        "public_tool_count": 1,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
       "name": "catapult-openfield-connect",
       "category": "health",
       "api": "Catapult OpenField",
@@ -7251,6 +7354,58 @@
       }
     },
     {
+      "name": "driveplaza",
+      "category": "travel",
+      "api": "Drive Plaza",
+      "description": "Plan expressway journeys with source toll estimates, directional rest stops and official advisories.",
+      "search_terms": [
+        "driveplaza",
+        "Drive Plaza",
+        "driveplaza-pp-cli",
+        "Plan expressway journeys with source toll estimates, directional rest stops and official advisories.",
+        "Assumptions attached to quote",
+        "route",
+        "Keep vehicle, JST schedule and conditional toll assumptions beside route alternatives.",
+        "Bilingual interchange identity",
+        "interchanges",
+        "Resolve English names to stable IDs and source Japanese names.",
+        "Directional facility evidence",
+        "sapa list",
+        "Compare directional stops using source facility availability.",
+        "Advisory uncertainty",
+        "notices",
+        "Read dated traffic notices without mistaking them for active restrictions.",
+        "Restriction and live-map handoffs",
+        "handoff",
+        "Get official construction, ETC-lane and live-traffic URLs."
+      ],
+      "path": "library/travel/driveplaza",
+      "release": {
+        "cli_name": "driveplaza-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-03T08:49:00Z",
+        "source_commit": "e3b4304407cd0fc8662f0430008689154de38cbd"
+      },
+      "printer": "zjsng",
+      "printer_name": "zjsng",
+      "creator": {
+        "handle": "zjsng",
+        "name": "zjsng"
+      },
+      "mcp": {
+        "binary": "driveplaza-pp-mcp",
+        "transports": [
+          "stdio"
+        ],
+        "tool_count": 3,
+        "public_tool_count": 3,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
       "name": "drudgereport",
       "category": "media-and-entertainment",
       "api": "Drudge Report",
@@ -10153,26 +10308,44 @@
     {
       "name": "game-goat",
       "category": "media-and-entertainment",
-      "api": "Rawg Video Games",
-      "description": "Look up any game and find what to play next - RAWG search, ratings, franchise order, tag-matched recommendations with remake-aware title resolution, plus IsThereAnyDeal historical price tracking and currency-localised storefront prices, built for agents.",
+      "api": "Game GOAT",
+      "description": "Look up any game, find what to play next, and browse the Steam store from one CLI - RAWG search and ratings, remake-aware title resolution, and IsThereAnyDeal price history.",
       "search_terms": [
         "game-goat",
-        "Rawg Video Games",
+        "Game GOAT",
         "game-goat-pp-cli",
-        "Look up any game and find what to play next - RAWG search, ratings, franchise order, tag-matched recommendations with remake-aware title resolution, plus IsThereAnyDeal historical price tracking and currency-localised storefront prices, built for agents.",
+        "Look up any game, find what to play next, and browse the Steam store from one CLI - RAWG search and ratings, remake-aware title resolution, and IsThereAnyDeal price history.",
+        "Steam Store Search",
+        "steam search",
+        "Plural keyless search of the Steam store across games, demos, DLC, soundtracks, software, video, mods, and hardware, with the store tags, price, and release date on every row.",
+        "Steam Catalog Browse",
+        "steam browse",
+        "Paginated Steam catalog browse filtered by app type, free-only, store tag, and coming-soon/released, localised with --country - so \"every free demo in my region\" is one command.",
         "Similar Games",
         "similar",
         "Games like <title>: the seed's own studio first, then its defining gameplay tag (roguelite, metroidvania) found by tag-neighborhood co-occurrence, then a confidence-floored genre join. Every row carries its tier and a reason.",
+        "Ratings Card",
+        "ratings",
+        "One card per game: RAWG community score, Metacritic, and a keyless Steam review score with the current store price, resolving the Steam appid from RAWG so remakes never collide.",
         "Retention Verdict",
         "retention",
-        "Community completion and drop verdict for one game from RAWG added_by_status counts (needs RAWG_API_KEY)."
+        "Community completion and drop verdict for one game from RAWG added_by_status counts (needs RAWG_API_KEY).",
+        "Franchise Order",
+        "series",
+        "Franchise play order from the RAWG game-series endpoint, so a series is played in sequence rather than by release-year guesswork.",
+        "Price History",
+        "price-history",
+        "All-time, 1-year, and 3-month lows with a dated change log and a buy-now verdict, localised to a --country currency (needs ITAD_API_KEY).",
+        "Storefront Prices",
+        "prices",
+        "Current prices across every storefront, cheapest first, with a --deals-only filter, localised to a --country currency (needs ITAD_API_KEY)."
       ],
       "path": "library/media-and-entertainment/game-goat",
       "release": {
         "cli_name": "game-goat-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-28T08:53:15Z",
-        "source_commit": "ef535cbb1e579222ac067efc8f54489855716b64"
+        "version": "2026.10.1",
+        "released_at": "2026-10-03T08:50:22Z",
+        "source_commit": "ce18c33b7d9a74c1194ca48656b8eadeab513e66"
       },
       "printer": "bleighk",
       "printer_name": "Brad Knight",
@@ -12203,6 +12376,57 @@
       }
     },
     {
+      "name": "haneda-airport",
+      "category": "travel",
+      "api": "Haneda Airport",
+      "description": "Query first-party Haneda flight boards with precise dates, codeshares and terminal handoffs.",
+      "search_terms": [
+        "haneda-airport",
+        "Haneda Airport",
+        "haneda-airport-pp-cli",
+        "Query first-party Haneda flight boards with precise dates, codeshares and terminal handoffs.",
+        "Snapshot save",
+        "Preserve timestamped scoped boards locally.",
+        "Offline search",
+        "snapshot search",
+        "Filter a saved board without network access.",
+        "Material changes",
+        "snapshot diff",
+        "See changed status, time and terminal facilities.",
+        "Terminal briefing",
+        "plan",
+        "Find the source terminal, gates and check-in handoffs.",
+        "Midnight rollover",
+        "flights rollover",
+        "Inspect adjacent service days and cross-midnight changes."
+      ],
+      "path": "library/travel/haneda-airport",
+      "release": {
+        "cli_name": "haneda-airport-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-03T08:50:22Z",
+        "source_commit": "190780345af7714ce1cc05e66afa0789e2ab5307"
+      },
+      "printer": "zjsng",
+      "printer_name": "zjsng",
+      "creator": {
+        "handle": "zjsng",
+        "name": "zjsng"
+      },
+      "mcp": {
+        "binary": "haneda-airport-pp-mcp",
+        "transports": [
+          "stdio"
+        ],
+        "tool_count": 10,
+        "public_tool_count": 10,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
       "name": "harris-teeter",
       "category": "commerce",
       "api": "Harris Teeter",
@@ -12370,6 +12594,58 @@
         "tool_count": 17,
         "public_tool_count": 0,
         "auth_type": "api_key",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
+      "name": "hello-cycling",
+      "category": "travel",
+      "api": "HELLO CYCLING",
+      "description": "Find compatible HELLO CYCLING pickup and return stations with timestamped counts and published pricing.",
+      "search_terms": [
+        "hello-cycling",
+        "HELLO CYCLING",
+        "hello-cycling-pp-cli",
+        "Find compatible HELLO CYCLING pickup and return stations with timestamped counts and published pricing.",
+        "Nearby availability",
+        "stations nearby",
+        "Find nearby pickup or return choices while retaining closed, empty, full, stale and unknown states.",
+        "Compatible trip endpoints",
+        "trip compare",
+        "Compare pickup and dropoff pairs with per-type return capacity and straight-line access distances.",
+        "Explicit offline snapshots",
+        "stations sync",
+        "Save a provider snapshot for offline station discovery with original source timestamps.",
+        "Snapshot changes",
+        "stations changes",
+        "Inspect count and operational changes since an explicitly saved snapshot.",
+        "Regional model pricing",
+        "pricing show",
+        "Read current source tables including municipal exceptions without asserting a station bike price."
+      ],
+      "path": "library/travel/hello-cycling",
+      "release": {
+        "cli_name": "hello-cycling-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-03T08:50:22Z",
+        "source_commit": "b9e23bc2aeed8109c752756985a2ce644b7b2ab0"
+      },
+      "printer": "zjsng",
+      "printer_name": "zjsng",
+      "creator": {
+        "handle": "zjsng",
+        "name": "zjsng"
+      },
+      "mcp": {
+        "binary": "hello-cycling-pp-mcp",
+        "transports": [
+          "stdio"
+        ],
+        "tool_count": 2,
+        "public_tool_count": 2,
+        "auth_type": "none",
         "env_vars": [],
         "mcp_ready": "full",
         "spec_format": "internal"
@@ -12584,9 +12860,9 @@
       "path": "library/travel/hostex",
       "release": {
         "cli_name": "hostex-pp-cli",
-        "version": "2026.10.1",
-        "released_at": "2026-10-01T02:58:45Z",
-        "source_commit": "b9919bcc7c214bad576f361557ba39739090f277"
+        "version": "2026.10.3",
+        "released_at": "2026-10-03T08:50:22Z",
+        "source_commit": "cf00f9b957d51401bf8ddf03f009978031ec38d3"
       },
       "printer": "Bust011r",
       "printer_name": "Bust011r",
@@ -13115,6 +13391,51 @@
         ],
         "mcp_ready": "full",
         "spec_format": "openapi3"
+      }
+    },
+    {
+      "name": "iko-yo",
+      "category": "travel",
+      "api": "Iko-yo Trip",
+      "description": "Iko-yo Trip: find selected family trips and compare published dates, fees and explicit family facts.",
+      "search_terms": [
+        "iko-yo",
+        "Iko-yo Trip",
+        "iko-yo-pp-cli",
+        "Iko-yo Trip: find selected family trips and compare published dates, fees and explicit family facts.",
+        "Bounded date-window discovery",
+        "trip discover",
+        "Find regional candidates while seeing exactly which listing pages and records were checked.",
+        "Evidence-backed family fact card",
+        "trip inspect",
+        "See published age, indoor, nursing and changing evidence with unknown fields exposed.",
+        "Qualified charge and application comparison",
+        "trip compare",
+        "Compare separate fee statements, payment conditions and explicit application intervals.",
+        "Family-constraint comparison",
+        "Compare selected outings against age, requested amenities and a trip date using supported, excluded and unknown states.",
+        "Offline shortlist with retained coverage",
+        "trip cached",
+        "Search saved family facts with their original observation times and collection coverage."
+      ],
+      "path": "library/travel/iko-yo",
+      "printer": "zjsng",
+      "printer_name": "zjsng",
+      "creator": {
+        "handle": "zjsng",
+        "name": "zjsng"
+      },
+      "mcp": {
+        "binary": "iko-yo-pp-mcp",
+        "transports": [
+          "stdio"
+        ],
+        "tool_count": 6,
+        "public_tool_count": 6,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
       }
     },
     {
@@ -14300,6 +14621,64 @@
       }
     },
     {
+      "name": "jr-east-status",
+      "category": "travel",
+      "api": "JR East Status",
+      "description": "Compare JR East line impacts with bilingual identity, source freshness and reporting limits.",
+      "search_terms": [
+        "jr-east-status",
+        "JR East Status",
+        "jr-east-status-pp-cli",
+        "Compare JR East line impacts with bilingual identity, source freshness and reporting limits.",
+        "Bilingual line facts",
+        "status",
+        "Reconcile native Japanese IDs with English row labels, keeping multiple notices and source uncertainty.",
+        "Itinerary line impact",
+        "impact",
+        "Compare selected itinerary lines with per-region source timing and affected sections.",
+        "Planned closure handoffs",
+        "planned",
+        "Inspect construction evidence without promoting future notices to current service suspension.",
+        "Published certificate routing",
+        "certificates",
+        "Return actual published route/time-slot links and source coverage limits.",
+        "Reporting coverage classifier",
+        "coverage",
+        "Explain reporting hours, threshold conflicts, midnight service-day rollover and remaining unknowns."
+      ],
+      "path": "library/travel/jr-east-status",
+      "release": {
+        "cli_name": "jr-east-status-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-03T08:50:22Z",
+        "source_commit": "c5260a36e1108e560cc4070a661c652dab83e17c"
+      },
+      "printer": "zjsng",
+      "printer_name": "zjsng",
+      "creator": {
+        "handle": "zjsng",
+        "name": "zjsng"
+      },
+      "contributors": [
+        {
+          "handle": "zjsng",
+          "name": "zjsng"
+        }
+      ],
+      "mcp": {
+        "binary": "jr-east-status-pp-mcp",
+        "transports": [
+          "stdio"
+        ],
+        "tool_count": 1,
+        "public_tool_count": 1,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
       "name": "judge-me",
       "category": "marketing",
       "api": "Judge Me",
@@ -14982,6 +15361,58 @@
           "name": "Cathryn Lavery"
         }
       ]
+    },
+    {
+      "name": "kurumatabi",
+      "category": "travel",
+      "api": "Kurumatabi / くるま旅",
+      "description": "Plan Japanese overnight vehicle stops with explicit fit, facilities and unknowns.",
+      "search_terms": [
+        "kurumatabi",
+        "Kurumatabi / くるま旅",
+        "kurumatabi-pp-cli",
+        "Plan Japanese overnight vehicle stops with explicit fit, facilities and unknowns.",
+        "Published vehicle compatibility",
+        "parks fit",
+        "Compare your vehicle with one park’s published dimensions and membership rules.",
+        "Evidence comparison",
+        "parks compare",
+        "Compare park evidence without inventing total prices or unknown facilities.",
+        "Waypoint proximity",
+        "parks near",
+        "Rank cached parks by straight-line distance from an explicit waypoint.",
+        "Observation evidence audit",
+        "parks audit",
+        "Surface disabled-icon conflicts, stale observations and qualified opening notes.",
+        "Required-service screening",
+        "parks match",
+        "Screen cached parks into proven, uncertain and ruled-out service matches."
+      ],
+      "path": "library/travel/kurumatabi",
+      "release": {
+        "cli_name": "kurumatabi-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-03T08:50:22Z",
+        "source_commit": "508a67b7f86aef2c901f2addb682adb84922720d"
+      },
+      "printer": "zjsng",
+      "printer_name": "zjsng",
+      "creator": {
+        "handle": "zjsng",
+        "name": "zjsng"
+      },
+      "mcp": {
+        "binary": "kurumatabi-pp-mcp",
+        "transports": [
+          "stdio"
+        ],
+        "tool_count": 2,
+        "public_tool_count": 2,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
     },
     {
       "name": "kvmctl",
@@ -15739,6 +16170,12 @@
         "Check draft status, audience targeting, message presence, and Guardian findings before publication."
       ],
       "path": "library/marketing/loops",
+      "release": {
+        "cli_name": "loops-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-02T19:18:45Z",
+        "source_commit": "208781893b2a1077f86862d1eee2ebbb715f642e"
+      },
       "printer": "cathrynlavery",
       "printer_name": "Cathryn Lavery",
       "creator": {
@@ -16422,6 +16859,57 @@
         ],
         "mcp_ready": "full",
         "spec_format": "openapi3"
+      }
+    },
+    {
+      "name": "michi-no-eki",
+      "category": "travel",
+      "api": "Michi-no-Eki",
+      "description": "Find and compare Japan roadside-station service stops with source evidence and explicit unknowns.",
+      "search_terms": [
+        "michi-no-eki",
+        "michi-no-eki-pp-cli",
+        "Find and compare Japan roadside-station service stops with source evidence and explicit unknowns.",
+        "Stop evidence and unknowns",
+        "readiness",
+        "Inspect source facts and permission or service unknowns for one station ID",
+        "Ordered station comparison",
+        "compare",
+        "Compare up to six ordered station IDs with source facts and per-ID failures",
+        "Scoped straight-line nearby ranking",
+        "nearby",
+        "Rank source stations by straight-line kilometers from required latitude/longitude, scoped by area and facilities",
+        "Bounded station-linked notices",
+        "station-notices",
+        "Find notices explicitly linked to one station ID within page/detail scan limits",
+        "Offline observation diff",
+        "changes",
+        "Compare two saved snapshot files offline by stable station ID and factual fields, or use an explicit synthetic demo"
+      ],
+      "path": "library/travel/michi-no-eki",
+      "printer": "zjsng",
+      "printer_name": "zjsng",
+      "creator": {
+        "handle": "zjsng",
+        "name": "zjsng"
+      },
+      "contributors": [
+        {
+          "handle": "tmchow",
+          "name": "Trevin Chow"
+        }
+      ],
+      "mcp": {
+        "binary": "michi-no-eki-pp-mcp",
+        "transports": [
+          "stdio"
+        ],
+        "tool_count": 4,
+        "public_tool_count": 4,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
       }
     },
     {
@@ -17236,6 +17724,58 @@
         ],
         "mcp_ready": "full",
         "spec_format": "openapi3"
+      }
+    },
+    {
+      "name": "nap-camp",
+      "category": "travel",
+      "api": "なっぷ (Nap Camp)",
+      "description": "Plan campervan campsite stays with source-backed pitch rules and dated acceptance evidence.",
+      "search_terms": [
+        "nap-camp",
+        "なっぷ (Nap Camp)",
+        "nap-camp-pp-cli",
+        "Plan campervan campsite stays with source-backed pitch rules and dated acceptance evidence.",
+        "Selected-pitch requirement check",
+        "planner fit",
+        "Check one specific pitch for vehicle, group, pet and power requirements without certifying unreported dimensions.",
+        "Evidence shortlist comparison",
+        "planner compare",
+        "Compare a bounded shortlist of specific campsite/pitch pairs with the same requirements.",
+        "Consecutive acceptance windows",
+        "planner windows",
+        "Find candidate consecutive nights from dated source acceptance evidence.",
+        "Dated evidence snapshot",
+        "planner snapshot",
+        "Capture a compact dated observation spanning campsite, pitch and optional calendar.",
+        "Observation drift comparison",
+        "planner changes",
+        "Compare two saved observations of the same campsite and pitch."
+      ],
+      "path": "library/travel/nap-camp",
+      "release": {
+        "cli_name": "nap-camp-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-03T08:50:22Z",
+        "source_commit": "cb49e7347b20e876eb1e4930f231ae6b2fa4e21a"
+      },
+      "printer": "zjsng",
+      "printer_name": "zjsng",
+      "creator": {
+        "handle": "zjsng",
+        "name": "zjsng"
+      },
+      "mcp": {
+        "binary": "nap-camp-pp-mcp",
+        "transports": [
+          "stdio"
+        ],
+        "tool_count": 7,
+        "public_tool_count": 7,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
       }
     },
     {
@@ -22907,6 +23447,57 @@
       }
     },
     {
+      "name": "repark",
+      "category": "travel",
+      "api": "三井のリパーク (Repark)",
+      "description": "Find Repark parking with live source vacancy, declared vehicle limits, and verified price estimates.",
+      "search_terms": [
+        "repark",
+        "三井のリパーク (Repark)",
+        "repark-pp-cli",
+        "Find Repark parking with live source vacancy, declared vehicle limits, and verified price estimates.",
+        "Compare lots",
+        "parking compare",
+        "Compare source rates, maximum rules, opening hours and vehicle limits across chosen lot IDs.",
+        "Declared fit",
+        "parking nearby",
+        "Assess supplied dimensions independently from remaining bay suitability.",
+        "Vacancy shortlist",
+        "Filter source vacancy categories within an explicit search radius.",
+        "Auditable tariff facts",
+        "parking detail",
+        "Read day type, rate windows and maximum rules alongside exact source conditions.",
+        "Source capability boundaries",
+        "parking capabilities",
+        "Inspect source support, measurement unknowns and bounded request policy."
+      ],
+      "path": "library/travel/repark",
+      "release": {
+        "cli_name": "repark-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-03T08:50:22Z",
+        "source_commit": "fd5419e5778d57771bb18adeda6bd3a8945a1258"
+      },
+      "printer": "zjsng",
+      "printer_name": "Jet Sng",
+      "creator": {
+        "handle": "zjsng",
+        "name": "Jet Sng"
+      },
+      "mcp": {
+        "binary": "repark-pp-mcp",
+        "transports": [
+          "stdio"
+        ],
+        "tool_count": 3,
+        "public_tool_count": 3,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
       "name": "resend",
       "category": "productivity",
       "api": "Resend",
@@ -26782,6 +27373,62 @@
       }
     },
     {
+      "name": "sunflower-ferry",
+      "category": "travel",
+      "api": "Sunflower Ferry",
+      "description": "Plan dated Sunflower ferry sailings, cabin fares and port access from official sources.",
+      "search_terms": [
+        "sunflower-ferry",
+        "Sunflower Ferry",
+        "sunflower-ferry-pp-cli",
+        "Plan dated Sunflower ferry sailings, cabin fares and port access from official sources.",
+        "Exact overnight itinerary",
+        "sailings",
+        "Turns source boarding-date results into dated JST arrival; handles daytime E cruises without projecting ordinary timetables.",
+        "Party-sensitive fare matrix",
+        "quote",
+        "Presents every source-eligible cabin fare for the entered party/vehicle without hand-made fare arithmetic.",
+        "Seasonal date comparison",
+        "calendar",
+        "Filters bounded published date ranges with explicit coverage and special sailing warnings.",
+        "Cabin occupancy evidence",
+        "cabins",
+        "Extracts source room occupancy so agents can distinguish dormitory capacity from private room occupancy.",
+        "Terminal-aware port planning",
+        "ports",
+        "Keeps Osaka Terminal1 and Terminal2 distinct with concise source address/access/checkin evidence.",
+        "Condition-aware handoff",
+        "conditions",
+        "Preserves source cancellation/baggage and quote assumptions with explicit missing English day-before band."
+      ],
+      "path": "library/travel/sunflower-ferry",
+      "release": {
+        "cli_name": "sunflower-ferry-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-03T08:50:22Z",
+        "source_commit": "a213ec3d69202c84ca4c42ed503fffae6fcf1e7d"
+      },
+      "printer": "zjsng",
+      "printer_name": "zjsng",
+      "creator": {
+        "handle": "zjsng",
+        "name": "zjsng"
+      },
+      "mcp": {
+        "binary": "sunflower-ferry-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 5,
+        "public_tool_count": 5,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
       "name": "suno",
       "category": "media-and-entertainment",
       "api": "Suno",
@@ -28798,6 +29445,60 @@
       "creator": {
         "handle": "enlewof",
         "name": "Allen Lew"
+      }
+    },
+    {
+      "name": "traveloka",
+      "category": "travel",
+      "api": "Traveloka",
+      "description": "Research dated flights and hotel stays with source price bases, complete itineraries and comparable quote snapshots.",
+      "search_terms": [
+        "traveloka",
+        "traveloka-pp-cli",
+        "Research dated flights and hotel stays with source price bases, complete itineraries and comparable quote snapshots.",
+        "Observed core guest-session cookie names for generator metadata. The delivered session importer preserves the complete scoped cookie jar and captured operation profiles; these names do not imply other cookies are unnecessary.",
+        "Explicit flight date grid",
+        "flights date-grid",
+        "Compare retrieved trip totals across a bounded list of explicit departure and return dates.",
+        "Explicit hotel stay grid",
+        "hotels date-grid",
+        "Compare source stay totals for one property across equal-length stays with fixed occupancy.",
+        "Flight trade-off frontier",
+        "flights shortlist",
+        "Keep retrieved flight offers that trade price against stops and elapsed time.",
+        "Same-room cancellation price difference",
+        "hotels flexibility",
+        "See the stay-price difference between comparable cancellable and nonrefundable room rates.",
+        "Quote snapshot changes",
+        "quotes diff",
+        "Compare matched-offer price and policy changes between two explicit retrieval snapshots."
+      ],
+      "path": "library/travel/traveloka",
+      "release": {
+        "cli_name": "traveloka-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-03T08:50:22Z",
+        "source_commit": "314227afc7b63186409c87c94c8788f05ec951b0"
+      },
+      "printer": "zjsng",
+      "printer_name": "Jet Sng",
+      "creator": {
+        "handle": "zjsng",
+        "name": "Jet Sng"
+      },
+      "mcp": {
+        "binary": "traveloka-pp-mcp",
+        "transports": [
+          "stdio"
+        ],
+        "tool_count": 8,
+        "public_tool_count": 0,
+        "auth_type": "cookie",
+        "env_vars": [
+          "TRAVELOKA_SESSION_FILE"
+        ],
+        "mcp_ready": "partial",
+        "spec_format": "internal"
       }
     },
     {

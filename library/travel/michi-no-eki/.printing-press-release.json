@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "slug": "michi-no-eki",
+  "cli_name": "michi-no-eki-pp-cli",
+  "version": "2026.10.1",
+  "released_at": "2026-10-03T09:31:51Z",
+  "source_commit": "5d1107670534dca7d6c4692dd3849e9bb5541485",
+  "printing_press_version": "4.32.5",
+  "run_id": "20261003-001046-81800c96",
+  "changes": [
+    {
+      "title": "feat(michi-no-eki): add michi-no-eki (leftover of #2248)",
+      "pr": 2252,
+      "url": "https://github.com/mvanhorn/printing-press-library/pull/2252",
+      "commit": "5d1107670534dca7d6c4692dd3849e9bb5541485"
+    }
+  ]
+}

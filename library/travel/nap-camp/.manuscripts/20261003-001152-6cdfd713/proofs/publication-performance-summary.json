@@ -1,0 +1,53 @@
+{
+  "status": "pass",
+  "observed_at": "2026-10-03T07:35:54.193597+00:00",
+  "measurement_stage": "current canonical publication source after response-bound, MCP partial-evidence and scoped-learning fixes",
+  "source_fingerprint": "b1e8da230b42a23078b649c84066f7d6858f3052dd12e96ff5ef7b5fe244ed33",
+  "binary_sha256": "c3a9e55898dbdf6167d5f5bde17ac7617095fa04cd3588d0622e54ec770e98eb",
+  "normal_mode": true,
+  "scope": "Six representative commands x1 successful normal-mode process run; network/startup included; no latency threshold or percentile/SLA claim.",
+  "performance": [
+    {
+      "command": "discover",
+      "runs": 1,
+      "passed": 1,
+      "seconds": 0.8756,
+      "stdout_bytes": 7806
+    },
+    {
+      "command": "calendar",
+      "runs": 1,
+      "passed": 1,
+      "seconds": 0.9748,
+      "stdout_bytes": 5208
+    },
+    {
+      "command": "fit",
+      "runs": 1,
+      "passed": 1,
+      "seconds": 0.7303,
+      "stdout_bytes": 3025
+    },
+    {
+      "command": "compare",
+      "runs": 1,
+      "passed": 1,
+      "seconds": 1.7622,
+      "stdout_bytes": 7040
+    },
+    {
+      "command": "snapshot",
+      "runs": 1,
+      "passed": 1,
+      "seconds": 1.4642,
+      "stdout_bytes": 32050
+    },
+    {
+      "command": "changes",
+      "runs": 1,
+      "passed": 1,
+      "seconds": 0.0108,
+      "stdout_bytes": 361
+    }
+  ]
+}

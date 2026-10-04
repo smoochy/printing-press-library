@@ -37,7 +37,7 @@ const (
 )
 
 // version is the printed MCP server's version, overridable at build time via ldflags.
-var version = "2026.9.1"
+var version = "2026.10.1"
 
 func main() {
 	// Pin the learn-event surface for this process and every walker
@@ -48,7 +48,7 @@ func main() {
 		os.Exit(1)
 	}
 	s := server.NewMCPServer(
-		"Rawg Video Games",
+		"Game GOAT",
 		version,
 		server.WithToolCapabilities(false),
 	)

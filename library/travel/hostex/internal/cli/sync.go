@@ -83,7 +83,16 @@ Resource scoping:
   by hand). There is no flag today to suppress the cascade for a named
   parent. To run a dependent without re-syncing its parent, list only
   the dependent by name; the parent table must already be populated
-  from a prior sync.`,
+  from a prior sync.
+
+Transactions window:
+  The transactions endpoint accepts at most 366 days, so sync fetches the
+  last 365 days of transactions, including with --full. Older history is
+  not mirrored by default. To backfill another window of up to 366 days,
+  pass both dates for that resource, for example:
+  --resources transactions \
+    --resource-param transactions:start_date=2025-01-01 \
+    --resource-param transactions:end_date=2025-12-31`,
 		Example: `  # Sync all resources
   hostex-pp-cli sync
 
@@ -95,6 +104,9 @@ Resource scoping:
 
   # Incremental sync: only records from the last 7 days
   hostex-pp-cli sync --since 7d
+
+  # Backfill an older transactions window (max 366 days)
+  hostex-pp-cli sync --resources transactions --resource-param transactions:start_date=2025-01-01 --resource-param transactions:end_date=2025-12-31
 
   # Parallel sync with 8 workers
   hostex-pp-cli sync --concurrency 8
@@ -452,6 +464,11 @@ func syncResource(ctx context.Context, c interface {
 	var consumedTotal int
 	anomalyEmitted := false
 
+	// PATCH(hostex-sync-satisfies-required-list-params: fix the transactions window once per sync so pages never straddle midnight)
+	now := time.Now()
+	txStartDate := now.AddDate(0, 0, -365).Format("2006-01-02")
+	txEndDate := now.Format("2006-01-02")
+
 	for {
 		params := map[string]string{}
 
@@ -459,7 +476,16 @@ func syncResource(ctx context.Context, c interface {
 			params[pageSize.limitParam] = strconv.Itoa(pageSize.limit)
 			if cursor != "" {
 				params[pageSize.cursorParam] = cursor
+			} else if pageSize.cursorType == "offset" {
+				// PATCH(hostex-sync-satisfies-required-list-params: Hostex rejects list calls without an explicit offset)
+				params[pageSize.cursorParam] = "0"
 			}
+		}
+		// PATCH(hostex-sync-satisfies-required-list-params: /transactions requires start_date and end_date)
+		if resource == "transactions" {
+			// The API caps the range at 366 days: sync the last 365.
+			params["start_date"] = txStartDate
+			params["end_date"] = txEndDate
 		}
 
 		// Set since filter
@@ -1561,7 +1587,6 @@ func parseSinceDuration(s string) (time.Time, error) {
 
 func defaultSyncResources() []string {
 	return []string{
-		"automation",
 		"calendar-share-links",
 		"channel-accounts",
 		"conversations",
@@ -1574,7 +1599,6 @@ func defaultSyncResources() []string {
 		"knowledge-bases",
 		"listings",
 		"message",
-		"pricing-ratios",
 		"properties",
 		"reservation-tags",
 		"reservations",
@@ -1688,7 +1712,7 @@ var resourceIDFieldOverrides = map[string]string{
 	"reservation-tags":     "request_id",
 	"reservations":         "request_id",
 	"review":               "request_id",
-	"reviews":              "request_id",
+	"reviews":              "reservation_code",
 	"room-types":           "request_id",
 	"staffs":               "request_id",
 	"tags":                 "request_id",
