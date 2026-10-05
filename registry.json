@@ -12903,6 +12903,12 @@
         "Re-read your bounded planning snapshots offline."
       ],
       "path": "library/travel/hostelworld",
+      "release": {
+        "cli_name": "hostelworld-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-04T08:57:44Z",
+        "source_commit": "ffae0772c5eb8ad31a84d88e6702706245bad453"
+      },
       "printer": "zjsng",
       "printer_name": "zjsng",
       "creator": {
@@ -14507,6 +14513,50 @@
         ],
         "tool_count": 1,
         "public_tool_count": 1,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
+      "name": "japan47go",
+      "category": "travel",
+      "api": "JAPAN47GO",
+      "description": "Find local guides and experiences with published request, fee and participant evidence.",
+      "search_terms": [
+        "japan47go",
+        "japan47go-pp-cli",
+        "Find local guides and experiences with published request, fee and participant evidence.",
+        "Bounded local service discovery",
+        "services discover",
+        "Find Japanese guide and experience candidates with honest page coverage.",
+        "Published request conditions",
+        "services inspect",
+        "Inspect bounded Japanese request, duration, fee and schedule facts.",
+        "Notice and party compatibility",
+        "services compare",
+        "Check a requested date and party against explicit notice and participant rules.",
+        "Qualified fee comparison",
+        "Compare fees without turning expense-based volunteer services into free tours.",
+        "Saved service observations",
+        "services saved",
+        "Revisit saved normalized facts offline with original observation times."
+      ],
+      "path": "library/travel/japan47go",
+      "printer": "zjsng",
+      "printer_name": "zjsng",
+      "creator": {
+        "handle": "zjsng",
+        "name": "zjsng"
+      },
+      "mcp": {
+        "binary": "japan47go-pp-mcp",
+        "transports": [
+          "stdio"
+        ],
+        "tool_count": 4,
+        "public_tool_count": 4,
         "auth_type": "none",
         "env_vars": [],
         "mcp_ready": "full",
@@ -28226,6 +28276,58 @@
       }
     },
     {
+      "name": "tabiwa",
+      "category": "travel",
+      "api": "tabiwa by WESTER catalog",
+      "description": "Compare regional tabiwa catalog products with payment units and original restriction evidence.",
+      "search_terms": [
+        "tabiwa",
+        "tabiwa by WESTER catalog",
+        "tabiwa-pp-cli",
+        "Compare regional tabiwa catalog products with payment units and original restriction evidence.",
+        "Dated regional discovery",
+        "catalog search",
+        "Discover regional products with a dated catalog filter and explicit scanned coverage.",
+        "Quoted payment units",
+        "catalog compare",
+        "Compare points-only and yen-quoted products without inventing currency conversion.",
+        "Overview restriction evidence",
+        "catalog inspect",
+        "Read original Japanese restriction and redemption hints while complete terms remain unknown.",
+        "Requested-date membership",
+        "Show whether selected products appear in a requested-date catalog without claiming ticket stock.",
+        "Saved decision evidence",
+        "catalog saved",
+        "Read saved selected products offline with their original observation times."
+      ],
+      "path": "library/travel/tabiwa",
+      "release": {
+        "cli_name": "tabiwa-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-05T08:56:47Z",
+        "source_commit": "c7d40106d8c7152e654b42a6f5d7f2204ddd2d9c"
+      },
+      "printer": "zjsng",
+      "printer_name": "zjsng",
+      "creator": {
+        "handle": "zjsng",
+        "name": "zjsng"
+      },
+      "mcp": {
+        "binary": "tabiwa-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 27,
+        "public_tool_count": 27,
+        "auth_type": "none",
+        "env_vars": [],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
       "name": "table-reservation-goat",
       "category": "food-and-dining",
       "api": "Table Reservation GOAT",
@@ -29513,6 +29615,51 @@
           "TOODLEDO_CLIENT_ID",
           "TOODLEDO_CLIENT_SECRET"
         ],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
+      "name": "toretabi",
+      "category": "travel",
+      "api": "Toretabi",
+      "description": "Inspect Japan rail-ticket conditions and linked official operator rules with explicit uncertainty.",
+      "search_terms": [
+        "toretabi",
+        "toretabi-pp-cli",
+        "Inspect Japan rail-ticket conditions and linked official operator rules with explicit uncertainty.",
+        "Bounded coverage audit",
+        "tickets list",
+        "Report native-filtered routes, scanned records and continuation so zero matches have a scope.",
+        "Combines source-specific normalized evidence and bounded local observations.",
+        "Date evidence comparison",
+        "tickets compare",
+        "Compare publisher and linked operator periods, corroboration and conflicts while preserving calendar uncertainty.",
+        "Supplement and exception contrast",
+        "Contrast publisher and linked operator supplements and excluded trains with source clocks.",
+        "Purchase prerequisites",
+        "tickets get",
+        "Inspect linked operator fares, eligibility and purchase channels while keeping missing facts explicit.",
+        "Timestamped offline shortlist",
+        "tickets cached",
+        "Read saved normalized evidence without refreshing the source."
+      ],
+      "path": "library/travel/toretabi",
+      "printer": "zjsng",
+      "printer_name": "zjsng",
+      "creator": {
+        "handle": "zjsng",
+        "name": "zjsng"
+      },
+      "mcp": {
+        "binary": "toretabi-pp-mcp",
+        "transports": [
+          "stdio"
+        ],
+        "tool_count": 4,
+        "public_tool_count": 4,
+        "auth_type": "none",
+        "env_vars": [],
         "mcp_ready": "full",
         "spec_format": "internal"
       }
