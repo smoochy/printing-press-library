@@ -184,7 +184,7 @@ These capabilities aren't available in any other tool for this API.
   ```bash
   thelancet-pp-cli drift --journal lancet-oncology --window1 2018:2020 --window2 2023:2024 --json
   ```
-- **`curate`** — Auto-generate ranked reading lists for a topic, sorted by citations, date or per-year (average citations per year since publication; age = years since pub_date, or July 1 of the year if unknown, at least 0.25; local store only), exportable as Markdown or BibTeX.
+- **`curate`** — Auto-generate ranked reading lists for a topic, sorted by citations, date, per-year (average citations per year since publication; age = years since pub_date, or July 1 of the year if unknown, at least 0.25) or velocity (recency-weighted mean of citations in the last up to 3 complete calendar years, weights 0.5/0.3/0.2; needs a refreshed store); per-year and velocity use the local store only, exportable as Markdown or BibTeX. Works whose yearly counts were never fetched (counts_synced_at is NULL) have no velocity and rank last; --sort velocity prints one stderr line with how many matched works lack counts and fails with a refresh hint when none have them.
 
   _Librarians and researchers use this to quickly assemble authoritative reading lists without manual screening._
 
@@ -329,7 +329,7 @@ Static request headers can be configured under `headers`; per-command header ove
 ### API-specific
 - **analytics command says 'no local mirror'** — Run refresh first: thelancet-pp-cli refresh --journal lancet (analytics read the local OpenAlex-derived store)
 - **rank-authors or mesh returns empty for an institution** — Institution names match OpenAlex display names; try a distinctive substring like 'Oxford' rather than a full legal name or acronym
-- **OpenAlex returns 429 (rate limited)** — OpenAlex allows ~10 req/s; lower --rate-limit or set a contact email via OPENALEX_MAILTO to join the polite pool
+- **OpenAlex returns 429 (rate limited)** — OpenAlex meters usage per API key (no key = 1,000 list calls/day). Get a free key at openalex.org/settings/api and export OPENALEX_API_KEY (sent as a Bearer header, masked in dry-run output and errors); also lower --rate-limit if needed
 
 ## Sources & Inspiration
 
