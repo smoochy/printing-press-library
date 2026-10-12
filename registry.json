@@ -3509,6 +3509,12 @@
         "Find prior calls made through this CLI by task wording and inspect their returned outcomes."
       ],
       "path": "library/ai/bland",
+      "release": {
+        "cli_name": "bland-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-11T08:52:49Z",
+        "source_commit": "26b2299662558c224ad765c0faa9a997305deb75"
+      },
       "printer": "gregmushen",
       "printer_name": "Greg Mushen",
       "creator": {
@@ -9665,9 +9671,9 @@
       "path": "library/travel/flight-goat",
       "release": {
         "cli_name": "flight-goat-pp-cli",
-        "version": "2026.10.1",
-        "released_at": "2026-10-01T21:49:09Z",
-        "source_commit": "653e24fa44b47dea577b74d0a29d913036ce6707"
+        "version": "2026.10.2",
+        "released_at": "2026-10-12T08:47:00Z",
+        "source_commit": "196bffcfeda6f9b42519e86ad4a48fa9d11e4ad3"
       },
       "printer": "mvanhorn",
       "printer_name": "Matt Van Horn",
@@ -9699,6 +9705,10 @@
         {
           "handle": "cathrynlavery",
           "name": "Cathryn Lavery"
+        },
+        {
+          "handle": "Alexguitar-zz",
+          "name": "Lex"
         }
       ],
       "mcp": {
@@ -9986,9 +9996,9 @@
       "path": "library/food-and-dining/fooda",
       "release": {
         "cli_name": "fooda-pp-cli",
-        "version": "2026.10.1",
-        "released_at": "2026-10-10T08:56:54Z",
-        "source_commit": "fdb1e53e895a5839598dee6f836b13fe861c99ee"
+        "version": "2026.10.2",
+        "released_at": "2026-10-11T08:52:49Z",
+        "source_commit": "c11db286cbaae20cf3ebef1175e7687fa29fe46e"
       },
       "printer": "enlewof",
       "printer_name": "Allen Lew",
@@ -13182,6 +13192,12 @@
         "Distinguishes stored session presence from a verified signed-in read."
       ],
       "path": "library/commerce/homedepot",
+      "release": {
+        "cli_name": "homedepot-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-11T08:52:49Z",
+        "source_commit": "b3416e5b57cfbbedda5a52dd620c1d0d5b78c9c5"
+      },
       "printer": "gregmushen",
       "printer_name": "Greg Mushen",
       "creator": {
@@ -13317,6 +13333,72 @@
         ],
         "mcp_ready": "full",
         "spec_format": "openapi3"
+      }
+    },
+    {
+      "name": "hostfully",
+      "category": "travel",
+      "api": "Hostfully",
+      "description": "Hostfully reservations and guest messaging — plus caller-ID lookup, quotes, and multi-unit vacancy analysis.",
+      "search_terms": [
+        "hostfully",
+        "hostfully-pp-cli",
+        "Hostfully reservations and guest messaging — plus caller-ID lookup, quotes, and multi-unit vacancy analysis.",
+        "Caller-ID Guest Lookup",
+        "whois",
+        "Look up a guest by phone number or name and get every stay, payment status and reservation access PIN.",
+        "Guest Messaging Inbox",
+        "inbox",
+        "Read recent guest messages and threads, and reply through the reservation thread with a dry-run guard.",
+        "Live Complete Quote",
+        "quote",
+        "Price a stay for a property and dates with rent, taxes and fees itemized.",
+        "Service Jobs",
+        "jobs",
+        "List cleaning and maintenance jobs with service and provider identity, including cancelled jobs.",
+        "Multi-Unit Vacancy Finder",
+        "vacancy",
+        "Find consecutive vacant days across several units at once.",
+        "Maintenance Windows",
+        "maintenance",
+        "Find maintenance slots across units around upcoming bookings.",
+        "Turnover Gap Detection",
+        "turnover",
+        "See cleaning windows between each checkout and the next check-in.",
+        "Occupancy Rate Analysis",
+        "occupancy",
+        "Per-unit and overall occupancy for any period.",
+        "Channel Mix Analytics",
+        "channels",
+        "Break down where bookings come from over a period.",
+        "Revenue Estimation",
+        "revenue",
+        "Estimate revenue per unit and month from booked nights.",
+        "Booking Pattern Analysis",
+        "patterns",
+        "Spot weekday/weekend and seasonal booking trends."
+      ],
+      "path": "library/travel/hostfully",
+      "printer": "gregmushen",
+      "printer_name": "Greg Mushen",
+      "creator": {
+        "handle": "gregmushen",
+        "name": "Greg Mushen"
+      },
+      "mcp": {
+        "binary": "hostfully-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 2,
+        "public_tool_count": 0,
+        "auth_type": "api_key",
+        "env_vars": [
+          "HOSTFULLY_API_KEY"
+        ],
+        "mcp_ready": "full",
+        "spec_format": "internal"
       }
     },
     {
@@ -18635,6 +18717,12 @@
         "Flag computes that never scale to zero, have fixed autoscaling, or are oversized on non-default branches, from the local mirror (run sync first)."
       ],
       "path": "library/cloud/neon",
+      "release": {
+        "cli_name": "neon-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-11T08:52:49Z",
+        "source_commit": "4141b069a41683bacda7ea902116e94091f3ba10"
+      },
       "printer": "gregmushen",
       "printer_name": "Greg Mushen",
       "creator": {
@@ -29242,6 +29330,12 @@
         "Send a text after checking the sender is wired correctly and showing recent history; requires --yes."
       ],
       "path": "library/social-and-messaging/telnyx",
+      "release": {
+        "cli_name": "telnyx-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-11T08:52:49Z",
+        "source_commit": "61570a131dc7fb41ca402dfb7f5a34d77b16f378"
+      },
       "printer": "gregmushen",
       "printer_name": "Greg Mushen",
       "creator": {
