@@ -27,7 +27,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -44,9 +43,9 @@ const (
 // actionable messages.
 var (
 	errSigninRateLimited = errors.New("Costco is rate-limiting sign-in (HTTP 429 from signin.costco.com). Wait about 15-30 minutes before trying again; retrying sooner extends the block")
-	errBrowserNotFound   = errors.New("no Chrome or Chromium found; install Google Chrome, pass --browser-path, or set " + browserLoginEnvBinary + ". Fallbacks: 'auth login --chrome' or 'pbpaste | auth login --cookies-file -'")
+	errBrowserNotFound   = errors.New("no Chromium-based browser found (looked for Chrome, Chromium, Brave, Edge, Vivaldi and Arc); install one, pass --browser-path, or set " + browserLoginEnvBinary + ". Fallbacks: 'auth login --chrome' or 'pbpaste | auth login --cookies-file -'")
 	errBrowserClosed     = errors.New("the login window was closed before sign-in finished; run 'auth login' again")
-	errProfileInUse      = errors.New("the CLI login profile is already open in another Chrome window (a previous 'auth login' may still be running); close that window and retry")
+	errProfileInUse      = errors.New("the CLI login profile is already open in another browser window (a previous 'auth login' may still be running); close that window and retry")
 )
 
 // browserLoginTimeoutError reports a sign-in that did not finish in time.
@@ -98,7 +97,7 @@ func defaultBrowserProfileDir() (string, error) {
 	return filepath.Join(dir, browserLoginProfile), nil
 }
 
-// findBrowserBinary picks an installed Chrome/Chromium.
+// findBrowserBinary picks an installed Chromium-based browser (browser_detect.go).
 func findBrowserBinary(explicit string) (string, error) {
 	for _, p := range []string{explicit, os.Getenv(browserLoginEnvBinary)} {
 		if p = strings.TrimSpace(p); p != "" {
@@ -111,30 +110,8 @@ func findBrowserBinary(explicit string) (string, error) {
 			return "", fmt.Errorf("browser %q not found", p)
 		}
 	}
-	var candidates []string
-	switch runtime.GOOS {
-	case "darwin":
-		candidates = []string{
-			"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-			"/Applications/Chromium.app/Contents/MacOS/Chromium",
-			"/Applications/Google Chrome Beta.app/Contents/MacOS/Google Chrome Beta",
-		}
-	case "windows":
-		for _, env := range []string{"ProgramFiles", "ProgramFiles(x86)", "LocalAppData"} {
-			if base := os.Getenv(env); base != "" {
-				candidates = append(candidates, filepath.Join(base, "Google", "Chrome", "Application", "chrome.exe"))
-			}
-		}
-	}
-	for _, c := range candidates {
-		if _, err := os.Stat(c); err == nil {
-			return c, nil
-		}
-	}
-	for _, name := range []string{"google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "chrome"} {
-		if p, err := exec.LookPath(name); err == nil {
-			return p, nil
-		}
+	if found, ok := detectInstalledBrowser(); ok {
+		return found.Path, nil
 	}
 	return "", errBrowserNotFound
 }
@@ -208,6 +185,32 @@ func cookieHeaderOf(cs []sessionCookie) string {
 	return strings.Join(parts, "; ")
 }
 
+// browserClosedGrace is how long polls must keep seeing no page target
+// before the login window counts as closed (a var so tests can shorten it).
+var browserClosedGrace = 4 * time.Second
+
+// startLoginBrowserFn starts the login browser (replaced in tests).
+var startLoginBrowserFn = startLoginBrowser
+
+// redactedPageURL keeps only scheme, host and path of a page URL: no query,
+// fragment or user info, which can carry SSO codes or state.
+func redactedPageURL(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return ""
+	}
+	return (&url.URL{Scheme: u.Scheme, Host: u.Host, Path: u.Path}).String()
+}
+
+// browserClosedErr reports a closed login window with the last page seen.
+func browserClosedErr(lastURL string, out io.Writer) error {
+	if lastURL == "" {
+		return errBrowserClosed
+	}
+	fmt.Fprintf(out, "Login window closed; last page seen: %s\n", lastURL)
+	return fmt.Errorf("%w (last page seen: %s)", errBrowserClosed, lastURL)
+}
+
 // runBrowserLogin launches the browser, waits for a signed-in session,
 // captures the session cookies and closes the browser.
 //
@@ -265,7 +268,7 @@ func runBrowserLogin(ctx context.Context, opts browserLoginOptions) (browserLogi
 	args = append(args, opts.ExtraFlags...)
 	args = append(args, opts.StartURL)
 	started := time.Now()
-	proc, cdpc, exited, err := startLoginBrowser(ctx, bin, args)
+	proc, cdpc, exited, err := startLoginBrowserFn(ctx, bin, args)
 	if err != nil {
 		return res, err
 	}
@@ -316,7 +319,7 @@ func runBrowserLogin(ctx context.Context, opts browserLoginOptions) (browserLogi
 		}
 	}
 
-	fmt.Fprintln(opts.Out, "A Chrome window opened with a separate profile for this CLI.")
+	fmt.Fprintf(opts.Out, "A %s window opened with a separate profile for this CLI.\n", browserNameForPath(bin))
 	fmt.Fprintln(opts.Out, "Sign in with 'Sign in via Costco.com' as you normally would. This window closes by itself once you're signed in.")
 
 	var (
@@ -327,6 +330,10 @@ func runBrowserLogin(ctx context.Context, opts browserLoginOptions) (browserLogi
 		lastAcct    accountTypeResult
 		sawSession  bool
 		nextNotice  = time.Now().Add(time.Minute)
+		// noPagesSince is when polls started seeing no page target;
+		// lastPageURL is the last page seen (scheme, host and path only).
+		noPagesSince time.Time
+		lastPageURL  string
 	)
 	ticker := time.NewTicker(opts.PollInterval)
 	defer ticker.Stop()
@@ -339,8 +346,10 @@ func runBrowserLogin(ctx context.Context, opts browserLoginOptions) (browserLogi
 			}
 			return res, ctx.Err()
 		case <-exited:
+			// The browser process ended (window closed): no grace delay,
+			// but still name the last page seen.
 			reaped = true
-			return res, errBrowserClosed
+			return res, browserClosedErr(lastPageURL, opts.Out)
 		case <-ticker.C:
 		}
 
@@ -352,6 +361,11 @@ func runBrowserLogin(ctx context.Context, opts browserLoginOptions) (browserLogi
 		}
 		pages, onSameDay := 0, false
 		for _, ti := range targets.TargetInfos {
+			if ti.Type == "page" {
+				if u := redactedPageURL(ti.URL); u != "" {
+					lastPageURL = u
+				}
+			}
 			if ti.Type != "page" {
 				continue
 			}
@@ -373,9 +387,19 @@ func runBrowserLogin(ctx context.Context, opts browserLoginOptions) (browserLogi
 			}
 		}
 		if pages == 0 {
+			// SSO redirects (site hops, renderer swaps, popups) can briefly
+			// leave no page target. Only a run of empty polls lasting
+			// browserClosedGrace means the user closed the window.
+			if noPagesSince.IsZero() {
+				noPagesSince = time.Now()
+			}
+			if time.Since(noPagesSince) < browserClosedGrace {
+				continue
+			}
 			closeBrowser()
-			return res, errBrowserClosed
+			return res, browserClosedErr(lastPageURL, opts.Out)
 		}
+		noPagesSince = time.Time{}
 		var jar struct {
 			Cookies []cdpCookie `json:"cookies"`
 		}

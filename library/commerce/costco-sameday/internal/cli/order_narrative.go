@@ -95,6 +95,7 @@ func newOrderPreviewCmd(flags *rootFlags) *cobra.Command {
 				"checkout_session_id": checkoutSessionID,
 				"invoice":             json.RawMessage(data),
 			}
+			var extra []json.RawMessage
 			if shopID != "" {
 				cmdParams := map[string]string{
 					"operationName": "CheckoutCmd",
@@ -103,9 +104,11 @@ func newOrderPreviewCmd(flags *rootFlags) *cobra.Command {
 				}
 				if cmdData, cmdErr := c.Get(cmd.Context(), "/graphql", cmdParams); cmdErr == nil {
 					out["checkout_cmd"] = json.RawMessage(cmdData)
+					extra = append(extra, cmdData)
 				}
 			}
-			return printNarrativeJSON(cmd, flags, out)
+			// Totals summary first (checkout_summary.go).
+			return printSummaryFirst(cmd, flags, buildCheckoutSummary(data, checkoutSessionID, extra...), out)
 		},
 	}
 	cmd.Flags().StringVar(&checkoutSessionID, "checkout-session-id", "", "Checkout session id from InitializeCheckout")
@@ -180,14 +183,25 @@ Requires --yes for a live mutation. --dry-run never sends the mutation.`,
 			if err != nil {
 				return classifyAPIError(cmd.OutOrStdout(), err, flags)
 			}
-			return printNarrativeJSON(cmd, flags, map[string]any{
+			out := map[string]any{
 				"would_charge": false,
 				"dry_run":      false,
 				"operation":    "UpdateCheckout",
 				"action":       "tipsUpdate",
 				"http_status":  status,
 				"response":     json.RawMessage(data),
-			})
+			}
+			// GraphQL errors or an *ErrorResponse typename mean the tip
+			// did not change (graphql_failure.go).
+			failure := detectPartialFailure(data)
+			out["updated"] = failure == nil
+			if err := printNarrativeJSON(cmd, flags, out); err != nil {
+				return err
+			}
+			if failure != nil {
+				return apiErr(fmt.Errorf("UpdateCheckout did not change the tip: %s", failure.Message))
+			}
+			return nil
 		},
 	}
 	cmd.Flags().StringVar(&checkoutSessionID, "checkout-session-id", "", "Checkout session id")
@@ -237,8 +251,14 @@ Card PANs/CVV are never accepted here; payment must already be attached on the c
 				"checkout_session_id": checkoutSessionID,
 				"gate":                "requires --yes AND --confirm-charge; --dry-run never charges",
 			}
-			// Always emit preview first.
-			if err := printNarrativeJSON(cmd, flags, map[string]any{"preview": preview}); err != nil {
+			// Always emit preview first, led by the totals summary
+			// (checkout_summary.go). The read-only invoice GET runs on
+			// --dry-run or with both consent flags; a refusal stays offline.
+			summary := checkoutSummary{Unavailable: "not fetched; pass --dry-run to see the totals"}
+			if dryRunOK(flags) || (flags.yes && confirmCharge) {
+				summary = fetchCheckoutSummary(cmd.Context(), flags, checkoutSessionID)
+			}
+			if err := printSummaryFirst(cmd, flags, summary, map[string]any{"preview": preview}); err != nil {
 				return err
 			}
 
@@ -249,6 +269,7 @@ Card PANs/CVV are never accepted here; payment must already be attached on the c
 					"charged":      false,
 					"would":        "POST /graphql FinalizeCheckout (NOT sent)",
 					"operation":    "FinalizeCheckout",
+					"window":       summary.Window,
 				})
 			}
 
@@ -313,6 +334,8 @@ Card PANs/CVV are never accepted here; payment must already be attached on the c
 			}
 			if !charged {
 				out["success"] = false
+			} else if summary.Window != "" {
+				out["booked_window"] = summary.Window
 			}
 			if err := printNarrativeJSON(cmd, flags, out); err != nil {
 				return err
