@@ -2,17 +2,17 @@
   "schema_version": 1,
   "slug": "concur",
   "cli_name": "concur-pp-cli",
-  "version": "2026.10.2",
-  "released_at": "2026-10-18T08:50:56Z",
-  "source_commit": "56e34063315e3d9ebe00112a8fc373fb32c9e628",
+  "version": "2026.10.4",
+  "released_at": "2026-10-19T08:57:46Z",
+  "source_commit": "25437872c8438ba0c1f63b6d3e48f07733e6a999",
   "printing_press_version": "4.30.3",
   "run_id": "20260812-144651-60addfc5",
   "changes": [
     {
-      "title": "feat(concur): inspect and fix itemization lines; attach fallbacks to chrome://inspect Chrome",
-      "pr": 2336,
-      "url": "https://github.com/mvanhorn/printing-press-library/pull/2336",
-      "commit": "56e34063315e3d9ebe00112a8fc373fb32c9e628"
+      "title": "fix(concur): evict cached reads after browser-driven writes; read exceptions live",
+      "pr": 2338,
+      "url": "https://github.com/mvanhorn/printing-press-library/pull/2338",
+      "commit": "25437872c8438ba0c1f63b6d3e48f07733e6a999"
     }
   ]
 }
