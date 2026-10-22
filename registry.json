@@ -1038,6 +1038,57 @@
       }
     },
     {
+      "name": "airtable",
+      "category": "productivity",
+      "api": "Airtable",
+      "description": "Airtable REST API CLI with offline cross-base search, CSV merge-upserts, field-level diffs before bulk writes, and schema drift detection.",
+      "search_terms": [
+        "airtable",
+        "airtable-pp-cli",
+        "Airtable REST API CLI with offline cross-base search, CSV merge-upserts, field-level diffs before bulk writes, and schema drift detection.",
+        "Merge-field upsert from CSV",
+        "records upsert-csv",
+        "Take a raw CSV export and merge-upsert it straight into an Airtable table, matched on the field you choose.",
+        "Local diff before bulk write",
+        "records diff",
+        "See exactly which fields on which existing records would change before a bulk update or upsert actually runs.",
+        "Cross-base full-text search",
+        "search",
+        "Search text across every synced base and table at once from one local index.",
+        "Schema drift detection",
+        "bases schema-diff",
+        "Show exactly what changed in a base's schema since the last time this command ran for that base."
+      ],
+      "path": "library/productivity/airtable",
+      "release": {
+        "cli_name": "airtable-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-21T08:52:22Z",
+        "source_commit": "1927cc03aef67b9e3247b18a364d97c356d8fdab"
+      },
+      "printer": "ElizabethcStone",
+      "printer_name": "Elizabeth Stone",
+      "creator": {
+        "handle": "ElizabethcStone",
+        "name": "Elizabeth Stone"
+      },
+      "mcp": {
+        "binary": "airtable-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 32,
+        "public_tool_count": 0,
+        "auth_type": "bearer_token",
+        "env_vars": [
+          "AIRTABLE_API_KEY"
+        ],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
       "name": "alaska-airlines",
       "category": "travel",
       "api": "Alaska Airlines",
@@ -5452,9 +5503,9 @@
       "path": "library/travel/coinlocker-navi",
       "release": {
         "cli_name": "coinlocker-navi-pp-cli",
-        "version": "2026.10.1",
-        "released_at": "2026-10-10T08:56:54Z",
-        "source_commit": "24b9ba5e3db31f0c8677b8be84171b2da5c3eb78"
+        "version": "2026.10.2",
+        "released_at": "2026-10-21T22:55:07Z",
+        "source_commit": "51e6be96c4f9f34cb98f562179770a47aa16005b"
       },
       "printer": "zjsng",
       "printer_name": "zjsng",
@@ -6419,6 +6470,63 @@
           "PRINTING_PRESS_CLIENT_PROFILE"
         ],
         "mcp_ready": "partial",
+        "spec_format": "internal"
+      }
+    },
+    {
+      "name": "crocoblock",
+      "category": "developer-tools",
+      "api": "Crocoblock",
+      "description": "Operate Crocoblock data and review changes across your WordPress workflows.",
+      "search_terms": [
+        "crocoblock",
+        "crocoblock-pp-cli",
+        "Operate Crocoblock data and review changes across your WordPress workflows.",
+        "Diferencias de estructura",
+        "schema diff",
+        "Muestra qué tipos, campos y definiciones cambiaron entre dos revisiones del sitio.",
+        "Uso observado de campos",
+        "forms field-usage",
+        "Compara los campos actuales de un formulario con los nombres presentes en registros seleccionados.",
+        "Solapamientos de reservas",
+        "reservations overlaps",
+        "Señala solapamientos por recurso y evalúa capacidad con una política explícita y ambas capturas completas de JetBooking 4.1.3.1 y JetAppointment 2.5.3. Sólo admite citas slot/range registradas; no expande recurrencias.",
+        "Efecto de cambios sobre filtros",
+        "filters impact",
+        "Identifica candidatos de reindexación por cambios registrados para filtros custom_fields de JetSmartFilters 3.8.6.2 con _query_var y _source_custom_field válidos; otros proveedores o versiones quedan unknown.",
+        "Conciliación de contenido CCT",
+        "cct reconcile",
+        "Compara registros entre instantáneas por una clave única y muestra diferencias en campos seleccionados.",
+        "Integridad de relaciones",
+        "relations audit",
+        "Detecta aristas duplicadas y ausencias comprobables en inventarios CCT completos sin filtros. Los extremos WordPress ausentes quedan unknown porque el inventario excluye papelera y puede omitir objetos restringidos."
+      ],
+      "path": "library/developer-tools/crocoblock",
+      "release": {
+        "cli_name": "crocoblock-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-21T08:52:22Z",
+        "source_commit": "1a5d6d48e3874268c96278dc25021c7fa28d09e4"
+      },
+      "printer": "bobeglz",
+      "printer_name": "bobe",
+      "creator": {
+        "handle": "bobeglz",
+        "name": "bobe"
+      },
+      "mcp": {
+        "binary": "crocoblock-pp-mcp",
+        "transports": [
+          "stdio"
+        ],
+        "tool_count": 75,
+        "public_tool_count": 0,
+        "auth_type": "api_key",
+        "env_vars": [
+          "CROCOBLOCK_USERNAME",
+          "CROCOBLOCK_APPLICATION_PASSWORD"
+        ],
+        "mcp_ready": "full",
         "spec_format": "internal"
       }
     },
@@ -9323,7 +9431,7 @@
           "stdio",
           "http"
         ],
-        "tool_count": 48,
+        "tool_count": 59,
         "public_tool_count": 0,
         "auth_type": "bearer_token",
         "env_vars": [
@@ -11544,9 +11652,9 @@
       "path": "library/marketing/google-ads",
       "release": {
         "cli_name": "google-ads-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-20T08:55:25Z",
+        "source_commit": "833637bd09b305963e8bd437869f1944b37ec914"
       },
       "printer": "cathrynlavery",
       "printer_name": "Cathryn Lavery",
@@ -12063,9 +12171,9 @@
       "path": "library/devices/googlehealth",
       "release": {
         "cli_name": "googlehealth-pp-cli",
-        "version": "2026.9.2",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "81f5764eda401077520268afe74913c0f21f5b7e"
+        "version": "2026.10.1",
+        "released_at": "2026-10-21T22:55:07Z",
+        "source_commit": "51e6be96c4f9f34cb98f562179770a47aa16005b"
       },
       "printer": "coopdogGGs",
       "printer_name": "ryanc00per",
@@ -15073,9 +15181,9 @@
       "path": "library/travel/japan-theme-parks",
       "release": {
         "cli_name": "japan-theme-parks-pp-cli",
-        "version": "2026.10.1",
-        "released_at": "2026-10-10T08:56:54Z",
-        "source_commit": "6f1c0c6001a9e5e434be76965b52888e48c1e20d"
+        "version": "2026.10.2",
+        "released_at": "2026-10-21T22:55:07Z",
+        "source_commit": "51e6be96c4f9f34cb98f562179770a47aa16005b"
       },
       "printer": "zjsng",
       "printer_name": "zjsng",
@@ -15118,9 +15226,9 @@
       "path": "library/travel/japan-timed-tickets",
       "release": {
         "cli_name": "japan-timed-tickets-pp-cli",
-        "version": "2026.10.1",
-        "released_at": "2026-10-10T08:56:54Z",
-        "source_commit": "f84e442f9ca72536ec7de62eb0f7fc0df4898506"
+        "version": "2026.10.2",
+        "released_at": "2026-10-21T22:55:07Z",
+        "source_commit": "51e6be96c4f9f34cb98f562179770a47aa16005b"
       },
       "printer": "zjsng",
       "printer_name": "zjsng",
@@ -18462,6 +18570,63 @@
         "env_vars": [],
         "mcp_ready": "partial",
         "spec_format": "internal"
+      }
+    },
+    {
+      "name": "n8n",
+      "category": "developer-tools",
+      "api": "n8n",
+      "description": "Every n8n Public API endpoint, plus a local mirror that answers what is failing, what uses what, and what changed.",
+      "search_terms": [
+        "n8n",
+        "n8n-pp-cli",
+        "Every n8n Public API endpoint, plus a local mirror that answers what is failing, what uses what, and what changed.",
+        "Failure triage",
+        "executions failures",
+        "See what broke recently, grouped by workflow and failing node, with the latest execution to retry.",
+        "Find usages",
+        "workflows uses",
+        "Find every workflow and node that uses a credential, node type, webhook path, variable, or sub-workflow.",
+        "Stale and unprotected workflows",
+        "workflows stale",
+        "Find active workflows with no recent successful run, workflows that never ran, and active workflows without an error workflow.",
+        "Wait for execution",
+        "executions wait",
+        "Block until an execution finishes and exit non-zero if it failed, with the failing node and message.",
+        "Semantic workflow diff",
+        "workflows diff",
+        "Compare a workflow across two instances or two saved versions at the node and connection level, ignoring layout noise.",
+        "Credential audit",
+        "credentials usage",
+        "List unused credentials, credentials many workflows depend on, and workflow references to credentials that no longer exist."
+      ],
+      "path": "library/developer-tools/n8n",
+      "release": {
+        "cli_name": "n8n-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-21T08:52:22Z",
+        "source_commit": "a792670458f827816f8d3b5942ea4bfc4f220c95"
+      },
+      "printer": "ElizabethcStone",
+      "printer_name": "Mini",
+      "creator": {
+        "handle": "ElizabethcStone",
+        "name": "Mini"
+      },
+      "mcp": {
+        "binary": "n8n-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 168,
+        "public_tool_count": 0,
+        "auth_type": "api_key",
+        "env_vars": [
+          "N8N_API_KEY"
+        ],
+        "mcp_ready": "full",
+        "spec_format": "openapi3"
       }
     },
     {
@@ -23810,9 +23975,9 @@
       "path": "library/marketing/rankmath",
       "release": {
         "cli_name": "rankmath-pp-cli",
-        "version": "2026.10.1",
-        "released_at": "2026-10-20T01:36:31Z",
-        "source_commit": "6ea3e3bc5ad8ad66e4459d39cf313e8365f65dc2"
+        "version": "2026.10.2",
+        "released_at": "2026-10-21T08:51:19Z",
+        "source_commit": "1d2a4ea1a0485ff7fffd7e4ebc7a50ff1ba5ecc1"
       },
       "printer": "ElizabethcStone",
       "printer_name": "ElizabethcStone",
