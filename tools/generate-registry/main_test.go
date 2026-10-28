@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -377,7 +378,7 @@ func TestBuildEntryCatalogDisplayNameOverridesPriorAPI(t *testing.T) {
 
 	entry, err := buildEntry(dir, "other", "weather-goat", map[string]RegistryEntry{
 		"weather-goat": {API: "Open-Meteo + NWS"},
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("buildEntry: %v", err)
 	}
@@ -386,6 +387,81 @@ func TestBuildEntryCatalogDisplayNameOverridesPriorAPI(t *testing.T) {
 	}
 	if got := entry.API; got != "Weather GOAT" {
 		t.Fatalf("entry API = %q, want explicit catalog display name", got)
+	}
+}
+
+func TestBuildEntryPassesHomepageThrough(t *testing.T) {
+	dir := t.TempDir()
+	manifest := `{
+  "api_name": "linear",
+  "display_name": "Linear",
+  "description": "Issue tracking.",
+  "homepage": "  https://linear.app  "
+}`
+	if err := os.WriteFile(filepath.Join(dir, ".printing-press.json"), []byte(manifest), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	entry, err := buildEntry(dir, "project-management", "linear", map[string]RegistryEntry{}, nil)
+	if err != nil {
+		t.Fatalf("buildEntry: %v", err)
+	}
+	if entry == nil {
+		t.Fatal("buildEntry returned nil")
+	}
+	if got := entry.Homepage; got != "https://linear.app" {
+		t.Fatalf("entry Homepage = %q, want trimmed manifest homepage", got)
+	}
+}
+
+func TestMarshalRegistryOmitsEmptyHomepage(t *testing.T) {
+	out, err := marshalRegistry(Registry{SchemaVersion: schemaVersion, Entries: []RegistryEntry{
+		{Name: "no-site", Category: "other", API: "No Site", Description: "d", Path: "library/other/no-site"},
+		{Name: "site", Category: "other", API: "Site", Description: "d", Path: "library/other/site", Homepage: "https://site.example.com"},
+	}})
+	if err != nil {
+		t.Fatalf("marshalRegistry: %v", err)
+	}
+	if got := strings.Count(string(out), `"homepage"`); got != 1 {
+		t.Fatalf("homepage keys = %d, want 1 (omitted when empty):\n%s", got, out)
+	}
+	if !strings.Contains(string(out), `"homepage": "https://site.example.com"`) {
+		t.Fatalf("missing homepage value:\n%s", out)
+	}
+}
+
+// TestValidateEntriesHomepageCorpus runs the corpus npm/tests/registry.test.ts
+// also runs, so the generator gate and the installer accept the same values.
+func TestValidateEntriesHomepageCorpus(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("testdata", "homepage-cases.json"))
+	if err != nil {
+		t.Fatalf("read corpus: %v", err)
+	}
+	var corpus struct {
+		Valid   []string `json:"valid"`
+		Invalid []string `json:"invalid"`
+	}
+	if err := json.Unmarshal(data, &corpus); err != nil {
+		t.Fatalf("parse corpus: %v", err)
+	}
+	check := func(homepage string, valid bool) {
+		if got := isWebURL(homepage); got != valid {
+			t.Errorf("isWebURL(%q) = %v, want %v", homepage, got, valid)
+		}
+	}
+	for _, h := range corpus.Valid {
+		check(h, true)
+	}
+	for _, h := range corpus.Invalid {
+		check(h, false)
+	}
+
+	// validateEntries treats an empty homepage as absent and flags the rest.
+	for homepage, wantErr := range map[string]bool{"": false, "https://linear.app": false, "linear.app": true} {
+		e := RegistryEntry{Name: "x", Category: "other", API: "X", Description: "d", Path: "library/other/x", Homepage: homepage}
+		if gotErr := len(validateEntries([]RegistryEntry{e})) > 0; gotErr != wantErr {
+			t.Errorf("validateEntries homepage %q: error = %v, want %v", homepage, gotErr, wantErr)
+		}
 	}
 }
 
@@ -501,7 +577,7 @@ func TestBuildEntriesIncludesReleaseMetadataFromReleaseFiles(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chdir(cwd) })
 
-	generatedEntries, err := buildEntries(libraryDir, loadExistingEntries(registryPath))
+	generatedEntries, err := buildEntries(libraryDir, loadExistingEntries(registryPath), nil)
 	if err != nil {
 		t.Fatalf("build entries: %v", err)
 	}
@@ -571,7 +647,7 @@ func TestBuildEntriesOmitsReleaseForUnreleasedSkeleton(t *testing.T) {
 	writeCLI("ai", "skeleton", `{"display_name":"Skeleton","api_name":"skeleton","description":"Does things."}`,
 		`{"cli_name":"skeleton-pp-cli","version":"","released_at":"","source_commit":""}`)
 
-	entries, err := buildEntries(root, map[string]RegistryEntry{})
+	entries, err := buildEntries(root, map[string]RegistryEntry{}, nil)
 	if err != nil {
 		t.Fatalf("buildEntries: %v", err)
 	}
@@ -613,7 +689,7 @@ func TestBuildEntriesKeepsReleaseForBlankCLINameSkeleton(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	entries, err := buildEntries(root, map[string]RegistryEntry{})
+	entries, err := buildEntries(root, map[string]RegistryEntry{}, nil)
 	if err != nil {
 		t.Fatalf("buildEntries: %v", err)
 	}
@@ -1087,5 +1163,100 @@ No sentinels here.
 	}
 	if !strings.Contains(err.Error(), "missing begin sentinel") {
 		t.Errorf("expected missing-sentinel error, got: %v", err)
+	}
+}
+
+// The ledger commits the stamped version after the merge commit it records,
+// so the registry must point at the commit that last wrote the release file.
+func TestReleaseManifestCommitsPicksCommitThatLastWroteEachReleaseFile(t *testing.T) {
+	repo := t.TempDir()
+	git := func(args ...string) string {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", repo}, args...)...)
+		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	write := func(rel, body string) {
+		t.Helper()
+		path := filepath.Join(repo, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	git("init", "-q", "-b", "main")
+	write("library/cat/alpha/.printing-press-release.json", `{"version":"2026.10.1"}`)
+	write("library/cat/beta/.printing-press-release.json", `{"version":"2026.10.1"}`)
+	git("add", ".")
+	git("commit", "-q", "-m", "merge")
+	write("library/cat/alpha/.printing-press-release.json", `{"version":"2026.10.2"}`)
+	git("commit", "-q", "-am", "chore(releases): update CLI release ledger [skip ci]")
+	ledger := git("rev-parse", "HEAD")
+	betaCommit := git("rev-parse", "HEAD^")
+	write("library/cat/alpha/README.md", "docs")
+	git("add", ".")
+	git("commit", "-q", "-m", "docs")
+
+	commits, err := releaseManifestCommits(repo, "library")
+	if err != nil {
+		t.Fatalf("releaseManifestCommits: %v", err)
+	}
+	want := map[string]string{
+		filepath.Join("library", "cat", "alpha", ".printing-press-release.json"): ledger,
+		filepath.Join("library", "cat", "beta", ".printing-press-release.json"):  betaCommit,
+	}
+	if len(commits) != len(want) {
+		t.Fatalf("commits = %v, want %v", commits, want)
+	}
+	for path, sha := range want {
+		if commits[path] != sha {
+			t.Errorf("commits[%s] = %q, want %q", path, commits[path], sha)
+		}
+	}
+
+	shallow := filepath.Join(t.TempDir(), "shallow")
+	if out, err := exec.Command("git", "clone", "-q", "--depth", "1", "file://"+repo, shallow).CombinedOutput(); err != nil {
+		t.Fatalf("shallow clone: %v\n%s", err, out)
+	}
+	if commits, err := releaseManifestCommits(shallow, "library"); err != nil || commits != nil {
+		t.Fatalf("shallow clone: commits = %v, err = %v; want no override", commits, err)
+	}
+}
+
+func TestBuildEntriesUsesLedgerCommitAsReleaseSourceCommit(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "ai", "alpha")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".printing-press.json"), []byte(`{"display_name":"Alpha","api_name":"alpha","description":"Does things."}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".printing-press-release.json"), []byte(`{"cli_name":"alpha-pp-cli","version":"2026.10.2","released_at":"2026-10-27T00:00:00Z","source_commit":"merge"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tc := range []struct {
+		name    string
+		commits map[string]string
+		want    string
+	}{
+		{"ledger commit known", map[string]string{filepath.Join(dir, ".printing-press-release.json"): "ledger"}, "ledger"},
+		{"shallow clone", nil, "merge"},
+	} {
+		entries, err := buildEntries(root, map[string]RegistryEntry{}, tc.commits)
+		if err != nil {
+			t.Fatalf("%s: buildEntries: %v", tc.name, err)
+		}
+		if len(entries) != 1 || entries[0].Release == nil || entries[0].Release.SourceCommit != tc.want {
+			t.Errorf("%s: release = %+v, want source_commit %q", tc.name, entries[0].Release, tc.want)
+		}
 	}
 }

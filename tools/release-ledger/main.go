@@ -4,12 +4,15 @@
 // asking contributors to edit 233 independent changelogs by hand. Versions use
 // YYYY.M.N, where N is the release count for that CLI within the month.
 //
-// Usage:
+// Usage, from the repository root:
 //
 //	go run ./tools/release-ledger/main.go --init-missing
 //	go run ./tools/release-ledger/main.go --changed-from <sha> --changed-to <sha>
 //	go run ./tools/release-ledger/main.go --check --changed-from <sha> --changed-to <sha>
 //	go run ./tools/release-ledger/main.go --list-first-parent --changed-from <sha> --changed-to <sha>
+//
+// resolveModuleDir is in this file on purpose. `go run` of a single file does
+// not compile its siblings, and the workflow and docs pin that invocation.
 package main
 
 import (
@@ -18,6 +21,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -264,6 +268,20 @@ func changedCLIKeys(from, to string) (map[string]bool, error) {
 	if err != nil {
 		return out, err
 	}
+	// A deleted file never selects a CLI on its own (see --diff-filter above),
+	// but it does cancel the homepage-only exemption for that CLI, so a PR
+	// that edits homepage and deletes source still cuts a release.
+	// --no-renames reports a file moved out to another CLI as a deletion here.
+	deleted, err := gitOutput("diff", "--name-only", "--no-renames", "--diff-filter=D", from, to, "--", libraryDir)
+	if err != nil {
+		return out, err
+	}
+	hasDeletion := make(map[string]bool)
+	for _, name := range strings.Split(deleted, "\n") {
+		if key := cliKeyFromPath(strings.TrimSpace(name)); key != "" && !isReleaseLedgerGeneratedPath(name) {
+			hasDeletion[key] = true
+		}
+	}
 	for _, name := range strings.Split(diff, "\n") {
 		name = strings.TrimSpace(name)
 		if name == "" || isReleaseLedgerGeneratedPath(name) {
@@ -278,12 +296,30 @@ func changedCLIKeys(from, to string) (map[string]bool, error) {
 				continue
 			}
 		}
-		parts := strings.Split(name, "/")
-		if len(parts) >= 3 && parts[0] == libraryDir {
-			out[parts[1]+"/"+parts[2]] = true
+		if strings.HasSuffix(name, "/.printing-press.json") && !hasDeletion[cliKeyFromPath(name)] {
+			onlyHomepage, err := isHomepageOnlyChange(from, to, name)
+			if err != nil {
+				return out, err
+			}
+			if onlyHomepage {
+				continue
+			}
+		}
+		if key := cliKeyFromPath(name); key != "" {
+			out[key] = true
 		}
 	}
 	return out, nil
+}
+
+// cliKeyFromPath returns "<category>/<slug>" for a path under library/, or ""
+// for any other path.
+func cliKeyFromPath(name string) string {
+	parts := strings.Split(name, "/")
+	if len(parts) >= 3 && parts[0] == libraryDir {
+		return parts[1] + "/" + parts[2]
+	}
+	return ""
 }
 
 func isReleaseLedgerGeneratedPath(name string) bool {
@@ -320,6 +356,53 @@ func isRuntimeVersionOnlyChange(from, to, path string) (bool, error) {
 		}
 	}
 	return changed, nil
+}
+
+// isHomepageOnlyChange reports whether a .printing-press.json edit touches
+// nothing but the catalog-only `homepage` field. Such edits change registry
+// metadata, not the CLI, so they must not cut a release. Anything doubtful
+// counts as a real change: a manifest that did not exist at `from` (a new
+// CLI), or one that is not valid JSON on either side.
+func isHomepageOnlyChange(from, to, path string) (bool, error) {
+	if _, err := gitOutput("cat-file", "-e", from+":"+path); err != nil {
+		return false, nil
+	}
+	before, ok, err := manifestWithoutHomepage(from, path)
+	if err != nil || !ok {
+		return false, err
+	}
+	after, ok, err := manifestWithoutHomepage(to, path)
+	if err != nil || !ok {
+		return false, err
+	}
+	return bytes.Equal(before, after), nil
+}
+
+// manifestWithoutHomepage returns the manifest at rev with `homepage` removed,
+// re-encoded with sorted keys so formatting differences compare equal. ok is
+// false when the manifest is not a JSON object.
+func manifestWithoutHomepage(rev, path string) (out []byte, ok bool, err error) {
+	// Read untrimmed: gitOutput's TrimSpace would strip invalid bytes such as
+	// a non-breaking space after the closing brace before the EOF check.
+	cmd := exec.Command("git", "show", rev+":"+path)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	raw, err := cmd.Output()
+	if err != nil {
+		return nil, false, fmt.Errorf("git show %s:%s: %w: %s", rev, path, err, strings.TrimSpace(stderr.String()))
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	var fields map[string]any
+	if err := dec.Decode(&fields); err != nil || fields == nil {
+		return nil, false, nil
+	}
+	if _, err := dec.Token(); err != io.EOF {
+		return nil, false, nil // trailing data after the object
+	}
+	delete(fields, "homepage")
+	out, err = json.Marshal(fields)
+	return out, err == nil, err
 }
 
 func isRuntimeVersionStampLine(line string) bool {
@@ -497,17 +580,21 @@ func insertChangelogEntry(existing, entry []byte) []byte {
 }
 
 func stampRuntimeVersion(dir string, manifest releaseManifest, check bool) (bool, error) {
+	moduleDir, err := resolveModuleDir(dir)
+	if err != nil {
+		return false, err
+	}
 	var paths []string
 	for _, rel := range []string{
 		filepath.Join("internal", "cli", "version.go"),
 		filepath.Join("internal", "cli", "root.go"),
 	} {
-		path := filepath.Join(dir, rel)
+		path := filepath.Join(moduleDir, rel)
 		if exists(path) {
 			paths = append(paths, path)
 		}
 	}
-	matches, err := filepath.Glob(filepath.Join(dir, "cmd", "*-pp-mcp", "main.go"))
+	matches, err := filepath.Glob(filepath.Join(moduleDir, "cmd", "*-pp-mcp", "main.go"))
 	if err != nil {
 		return false, err
 	}
@@ -575,6 +662,153 @@ func slugFromDir(dir string) string {
 
 func cliKeyFromDir(dir string) string {
 	return filepath.Base(filepath.Dir(dir)) + "/" + filepath.Base(dir)
+}
+
+// resolveModuleDir returns the directory that holds this CLI's go.mod.
+//
+// A catalog root that already has go.mod is that directory. Some CLIs cannot
+// put the module there: a module path ending in /vN is invalid, so the module
+// lives one directory down (library/ai/v0/vzero). When the catalog root has no
+// go.mod, prefer the shared .goreleaser.yaml builds[].dir, and otherwise the
+// single immediate child directory that contains a go.mod. Anything else stays
+// the catalog root, which is what the stamper already did.
+//
+// tools/release-ledger/resolve-module-dir.sh is the same rule for the release
+// workflows. TestResolveModuleDirMatchesShell keeps them together. This
+// function stays in main.go so `go run ./tools/release-ledger/main.go` compiles it.
+func resolveModuleDir(catalog string) (string, error) {
+	if exists(filepath.Join(catalog, "go.mod")) {
+		return catalog, nil
+	}
+	rel, err := goreleaserModuleRel(catalog)
+	if err != nil {
+		return "", err
+	}
+	if rel != "" {
+		candidate := filepath.Join(catalog, rel)
+		if info, statErr := os.Stat(candidate); statErr == nil && info.IsDir() {
+			return candidate, nil
+		}
+	}
+	rel, err = soleNestedModuleRel(catalog)
+	if err != nil {
+		return "", err
+	}
+	if rel != "" {
+		return filepath.Join(catalog, rel), nil
+	}
+	return catalog, nil
+}
+
+func goreleaserModuleRel(catalog string) (string, error) {
+	data, err := os.ReadFile(filepath.Join(catalog, ".goreleaser.yaml"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	var dirs []string
+	inBuilds := false
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimRight(line, "\r")
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		if indentOf(line) == 0 {
+			inBuilds = trimmed == "builds:"
+			continue
+		}
+		if !inBuilds {
+			continue
+		}
+		item := trimmed
+		if strings.HasPrefix(item, "- ") {
+			item = strings.TrimSpace(strings.TrimPrefix(item, "- "))
+		}
+		key, val, ok := strings.Cut(item, ":")
+		if !ok || strings.TrimSpace(key) != "dir" {
+			continue
+		}
+		normalized, err := normalizeBuildDir(val)
+		if err != nil {
+			return "", fmt.Errorf("%s: %w", catalog, err)
+		}
+		if normalized != "" {
+			dirs = append(dirs, normalized)
+		}
+	}
+	unique := uniqueStrings(dirs)
+	if len(unique) > 1 {
+		return "", fmt.Errorf("%s: .goreleaser.yaml builds disagree on dir: %s", catalog, strings.Join(unique, ", "))
+	}
+	if len(unique) == 1 {
+		return unique[0], nil
+	}
+	return "", nil
+}
+
+func normalizeBuildDir(raw string) (string, error) {
+	val := strings.TrimSpace(raw)
+	if hash := strings.Index(val, " #"); hash >= 0 {
+		val = strings.TrimSpace(val[:hash])
+	}
+	val = strings.Trim(val, `"'`)
+	val = strings.TrimSpace(val)
+	if val == "" || val == "." || val == "./" {
+		return "", nil
+	}
+	val = strings.TrimPrefix(val, "./")
+	val = strings.TrimSuffix(val, "/")
+	if val == "" || val == "." {
+		return "", nil
+	}
+	if strings.Contains(val, "..") || strings.HasPrefix(val, "/") || strings.ContainsAny(val, " \t\\") {
+		return "", fmt.Errorf("refusing goreleaser build dir %q", strings.TrimSpace(raw))
+	}
+	return val, nil
+}
+
+func soleNestedModuleRel(catalog string) (string, error) {
+	entries, err := os.ReadDir(catalog)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	var found []string
+	for _, entry := range entries {
+		name := entry.Name()
+		if name == "" || strings.HasPrefix(name, ".") || !entry.IsDir() {
+			continue
+		}
+		if exists(filepath.Join(catalog, name, "go.mod")) {
+			found = append(found, name)
+		}
+	}
+	if len(found) == 1 {
+		return found[0], nil
+	}
+	return "", nil
+}
+
+func indentOf(line string) int {
+	return len(line) - len(strings.TrimLeft(line, " "))
+}
+
+func uniqueStrings(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	var out []string
+	for _, value := range values {
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
 }
 
 func exists(path string) bool {

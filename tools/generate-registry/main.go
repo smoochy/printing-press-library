@@ -25,9 +25,11 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -65,10 +67,16 @@ type Registry struct {
 }
 
 type RegistryEntry struct {
-	Name        string   `json:"name"`
-	Category    string   `json:"category"`
-	API         string   `json:"api"`
-	Description string   `json:"description"`
+	Name        string `json:"name"`
+	Category    string `json:"category"`
+	API         string `json:"api"`
+	Description string `json:"description"`
+	// Homepage is the product's own website, sourced from
+	// .printing-press.json's optional `homepage` field. Catalog clients use
+	// it for "open website" links and favicon lookups. Omitted when unset;
+	// an API host is often not the product's homepage, so leave it empty
+	// rather than guess.
+	Homepage    string   `json:"homepage,omitempty"`
 	SearchTerms []string `json:"search_terms,omitempty"`
 	Path        string   `json:"path"`
 	Release     *Release `json:"release,omitempty"`
@@ -152,6 +160,7 @@ type printingPressManifest struct {
 	CatalogDisplayName string   `json:"catalog_display_name"`
 	CatalogDescription string   `json:"catalog_description"`
 	Description        string   `json:"description"`
+	Homepage           string   `json:"homepage"`
 	Creator            *Person  `json:"creator"`
 	Contributors       []Person `json:"contributors"`
 	Printer            string   `json:"printer"`
@@ -203,7 +212,7 @@ func main() {
 	// change that CLI). With no args, every entry is validated — the mode
 	// the post-merge full-library check uses.
 	if *validate {
-		sourceEntries, err := buildEntries(libraryDir, map[string]RegistryEntry{})
+		sourceEntries, err := buildEntries(libraryDir, map[string]RegistryEntry{}, nil)
 		if err != nil {
 			log.Fatalf("building entries for validation: %v", err)
 		}
@@ -231,7 +240,15 @@ func main() {
 
 	existing := loadExistingEntries(registryPath)
 
-	entries, err := buildEntries(libraryDir, existing)
+	commits, err := releaseManifestCommits(".", libraryDir)
+	if err != nil {
+		log.Fatalf("reading release ledger history: %v", err)
+	}
+	if commits == nil {
+		fmt.Fprintln(os.Stderr, "warning: shallow clone; release.source_commit keeps each ledger's recorded merge commit")
+	}
+
+	entries, err := buildEntries(libraryDir, existing, commits)
 	if err != nil {
 		log.Fatalf("building entries: %v", err)
 	}
@@ -331,7 +348,7 @@ func loadExistingEntries(path string) map[string]RegistryEntry {
 // one RegistryEntry per CLI. Errors out only on filesystem/JSON parsing
 // failures; missing optional files (manifest.json, .goreleaser.yaml)
 // degrade gracefully so partial CLIs still register.
-func buildEntries(root string, existing map[string]RegistryEntry) ([]RegistryEntry, error) {
+func buildEntries(root string, existing map[string]RegistryEntry, releaseCommits map[string]string) ([]RegistryEntry, error) {
 	categories, err := os.ReadDir(root)
 	if err != nil {
 		return nil, fmt.Errorf("reading library dir: %w", err)
@@ -351,7 +368,7 @@ func buildEntries(root string, existing map[string]RegistryEntry) ([]RegistryEnt
 				continue
 			}
 			cliDir := filepath.Join(catPath, slug.Name())
-			entry, err := buildEntry(cliDir, cat.Name(), slug.Name(), existing)
+			entry, err := buildEntry(cliDir, cat.Name(), slug.Name(), existing, releaseCommits)
 			if err != nil {
 				return nil, fmt.Errorf("building entry for %s: %w", cliDir, err)
 			}
@@ -373,7 +390,7 @@ func buildEntries(root string, existing map[string]RegistryEntry) ([]RegistryEnt
 // — that's the gate for "is this an actual CLI directory?" because every
 // printed CLI ships one. Pre-printing-press top-level dirs (like build/
 // or experimental scratch) are silently skipped.
-func buildEntry(dir, category, slug string, existing map[string]RegistryEntry) (*RegistryEntry, error) {
+func buildEntry(dir, category, slug string, existing map[string]RegistryEntry, releaseCommits map[string]string) (*RegistryEntry, error) {
 	ppPath := filepath.Join(dir, ".printing-press.json")
 	ppData, err := os.ReadFile(ppPath)
 	if err != nil {
@@ -427,6 +444,7 @@ func buildEntry(dir, category, slug string, existing map[string]RegistryEntry) (
 		pp.Description,
 		pp.CatalogDescription,
 	)
+	entry.Homepage = strings.TrimSpace(pp.Homepage)
 	entry.SearchTerms = searchTerms(pp)
 	if release, err := readRelease(filepath.Join(dir, ".printing-press-release.json")); err != nil {
 		return nil, err
@@ -438,6 +456,9 @@ func buildEntry(dir, category, slug string, existing map[string]RegistryEntry) (
 		// malformed — skipping the whole CLI. Omitting it keeps the generated
 		// registry, the --validate gate, and the npm parser consistent: a
 		// release block is present only once the CLI is actually released.
+		if commit := releaseCommits[filepath.Join(dir, ".printing-press-release.json")]; commit != "" {
+			release.SourceCommit = commit
+		}
 		entry.Release = release
 	}
 
@@ -482,6 +503,39 @@ func isUnreleasedSkeleton(r *Release) bool {
 		strings.TrimSpace(r.Version) == "" &&
 		strings.TrimSpace(r.ReleasedAt) == "" &&
 		strings.TrimSpace(r.SourceCommit) == ""
+}
+
+// releaseManifestCommits maps each ledger file to the commit that last wrote
+// it. The ledger records the merge commit as source_commit but stamps the
+// runtime version in its own later commit, and only that later commit builds a
+// binary reporting the released version (issue #1908).
+func releaseManifestCommits(repoRoot, library string) (map[string]string, error) {
+	shallow, err := exec.Command("git", "-C", repoRoot, "rev-parse", "--is-shallow-repository").Output()
+	if err != nil {
+		return nil, fmt.Errorf("git rev-parse: %w", err)
+	}
+	if strings.TrimSpace(string(shallow)) == "true" {
+		return nil, nil
+	}
+	out, err := exec.Command("git", "-C", repoRoot, "log", "--format=%x00%H", "--name-only", "--",
+		library+"/*/*/.printing-press-release.json").Output()
+	if err != nil {
+		return nil, fmt.Errorf("git log: %w", err)
+	}
+	commits := map[string]string{}
+	var current string
+	for _, line := range strings.Split(string(out), "\n") {
+		switch {
+		case strings.HasPrefix(line, "\x00"):
+			current = strings.TrimPrefix(line, "\x00")
+		case line != "":
+			path := filepath.FromSlash(line)
+			if _, seen := commits[path]; !seen {
+				commits[path] = current
+			}
+		}
+	}
+	return commits, nil
 }
 
 func readRelease(path string) (*Release, error) {
@@ -600,6 +654,37 @@ func dedupeStrings(values []string) []string {
 //
 // Returns an empty slice when every entry validates. Caller decides how to
 // surface the result (the --validate flag prints them and exits 2).
+// homepageRE is the whole homepage rule: http or https, an ASCII domain name
+// whose last label is a real top-level domain (letters, or an xn-- IDN TLD),
+// an optional port, then an optional path, query and fragment of URL-safe
+// characters and well-formed percent escapes. IP addresses, userinfo,
+// whitespace and non-ASCII characters (write IDNs as xn--) are rejected.
+// npm/src/registry.ts optionalWebURL uses the same pattern text, with no URL
+// parser on either side, so the two cannot disagree; both run
+// testdata/homepage-cases.json.
+var homepageRE = regexp.MustCompile(`(?i)^https?://(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})(?::([0-9]{1,5}))?(?:[/?#](?:[a-z0-9\-._~!$&'()*+,;=:@/?#]|%[0-9a-f]{2})*)?$`)
+
+// isWebURL reports whether s is ASCII, satisfies homepageRE, and has a port of
+// at most 65535. The ASCII check comes first because RE2's (?i) lets the
+// Kelvin sign and long s match [a-z], which JavaScript's /i does not.
+func isWebURL(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] > 0x7f {
+			return false
+		}
+	}
+	m := homepageRE.FindStringSubmatch(s)
+	if m == nil {
+		return false
+	}
+	if m[1] != "" {
+		if n, err := strconv.Atoi(m[1]); err != nil || n > 65535 {
+			return false
+		}
+	}
+	return true
+}
+
 func validateEntries(entries []RegistryEntry) []string {
 	// isBlank matches the npm installer's requiredString semantics
 	// (`.trim() === ""`). Using == "" here would let an all-whitespace
@@ -632,6 +717,9 @@ func validateEntries(entries []RegistryEntry) []string {
 			// Source order mirrors the resolution chain in registryDescription:
 			// .printing-press.json description is checked before goreleaser brews.
 			errs = append(errs, fmt.Sprintf("%s: description is empty (sources checked: .printing-press.json description, .goreleaser.yaml brews description)", slug))
+		}
+		if !isBlank(e.Homepage) && !isWebURL(e.Homepage) {
+			errs = append(errs, fmt.Sprintf("%s: homepage %q is not an absolute http(s) URL", slug, e.Homepage))
 		}
 		if e.MCP != nil {
 			if isBlank(e.MCP.Binary) {
