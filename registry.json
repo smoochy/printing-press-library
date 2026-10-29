@@ -28703,7 +28703,7 @@
         "Archive a whole Substack publication into a local SQLite mirror you can read, search, and query offline — no other Substack tool builds a persistent corpus.",
         "Entitlement-aware read",
         "read",
-        "Read a post's full text; free posts keyless, and paid posts you subscribe to via your own session cookie — with an honest 'preview only, you're not entitled' signal.",
+        "Read one or more posts' full text: free posts keyless, paid posts you subscribe to via your own session cookie, with an honest 'preview only, you're not entitled' signal. Each post comes back as real Markdown and is kept in your local corpus, so an authenticated read upgrades a stored preview to the full text (--no-store skips it; --save <dir> writes Markdown files).",
         "Cross-publication digest",
         "digest",
         "A time-windowed digest across every publication in your local corpus — what's new since you last synced, ranked, in one view.",
@@ -28717,9 +28717,9 @@
       "path": "library/media-and-entertainment/substack-reader",
       "release": {
         "cli_name": "substack-reader-pp-cli",
-        "version": "2026.9.3",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "b815f4cc4ec8054b6fec93c9f9a2e7f2220153ff"
+        "version": "2026.10.1",
+        "released_at": "2026-10-28T18:24:18Z",
+        "source_commit": "28752497793d35171679fcfe1eb2f70ef0e2d336"
       },
       "printer": "maxswinguy",
       "printer_name": "Maxime Delavergne",
@@ -32166,7 +32166,7 @@
         "cli_name": "v0-pp-cli",
         "version": "2026.9.1",
         "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "b815f4cc4ec8054b6fec93c9f9a2e7f2220153ff"
+        "source_commit": "2768e35b38e3edc3183bc5205f22d679a1428103"
       },
       "printer": "SomSamantray",
       "printer_name": "Som Samantray",

@@ -148,6 +148,7 @@ jobs:
           # Normal CLIs keep library/<cat>/<slug>/go.sum. A nested module
           # (library/ai/v0/vzero) has the sum next to its go.mod.
           echo "gosum=${module_dir}/go.sum" >> "$GITHUB_OUTPUT"
+          echo "dir=${module_dir}" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-go@v6
         with:
           go-version-file: .go-version
@@ -173,6 +174,7 @@ jobs:
         env:
           CLI_TARGET: ${{ matrix.target }}
           PLATFORM: ${{ matrix.platform }}
+          MODULE_DIR: ${{ steps.module.outputs.dir }}
         run: |
           set -euo pipefail
           cli_dir="library/${CLI_TARGET}"
@@ -193,7 +195,41 @@ jobs:
           fi
           out="${RUNNER_TEMP}/out/${slug}-pp-mcp-${os}-${arch}.mcpb"
           mkdir -p "$(dirname "$out")"
-          cli-printing-press bundle "$cli_dir" --platform "${PLATFORM}" --output "$out"
+          bundle_args=()
+          # The bundler rejects a zero-padded month that the ledger pattern allows.
+          ledger="${cli_dir}/.printing-press-release.json"
+          release_version=""
+          if [ -f "$ledger" ]; then
+            release_version="$(jq -r '.version // empty' "$ledger")"
+          fi
+          if [ -n "$release_version" ]; then
+            if [[ ! "$release_version" =~ ^[0-9]{4}\.([1-9]|1[0-2])\.[1-9][0-9]*$ ]]; then
+              echo "::error::${cli_dir}: invalid release version '${release_version}' in .printing-press-release.json."
+              exit 1
+            fi
+            bundle_args+=(--version "$release_version")
+          fi
+          if [ -n "$MODULE_DIR" ] && [ "$MODULE_DIR" != "$cli_dir" ]; then
+            # bundle runs go build from the catalog root, which has no go.mod
+            # for a nested module.
+            mcp_name="$(jq -r '.name // empty' "${cli_dir}/manifest.json")"
+            cli_name="$(jq -r '.cli_name // empty' "${cli_dir}/.printing-press.json")"
+            for name in "$mcp_name" "$cli_name"; do
+              if [[ ! "$name" =~ ^[a-z0-9-]+$ ]]; then
+                echo "::error::${cli_dir}: invalid binary name '${name}' in manifest.json or .printing-press.json."
+                exit 1
+              fi
+            done
+            ext=""
+            [ "$os" = "windows" ] && ext=".exe"
+            bin_dir="${RUNNER_TEMP}/bundle-bin"
+            mkdir -p "$bin_dir"
+            (cd "$MODULE_DIR" && GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags='-s -w -buildid=' \
+              -o "${bin_dir}/" "./cmd/${mcp_name}" "./cmd/${cli_name}")
+            bundle_args+=(--skip-build --binary "${bin_dir}/${mcp_name}${ext}" \
+              --cli-skip-build --cli-binary "${bin_dir}/${cli_name}${ext}")
+          fi
+          cli-printing-press bundle "$cli_dir" --platform "${PLATFORM}" --output "$out" ${bundle_args[@]+"${bundle_args[@]}"}
           ls -lh "$out"
       - name: Upload bundle artifact
         uses: actions/upload-artifact@v6
@@ -390,6 +426,7 @@ jobs:
           pattern: cli-${{ steps.slug.outputs.slug }}__*
           merge-multiple: true
       - name: List downloaded artifacts and enforce per-app gate
+        id: gate
         env:
           CLI_TARGET: ${{ matrix.target }}
           SLUG: ${{ steps.slug.outputs.slug }}
@@ -410,16 +447,19 @@ jobs:
           # ship without a bundle.
           if [ "$cli_count" = "0" ]; then
             echo "::warning::Skipping release for ${SLUG}: no CLI binaries produced (build-cli matrix failed for this app)."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           if [ -f "library/${CLI_TARGET}/manifest.json" ] && [ "$mcpb_count" = "0" ]; then
             echo "::warning::Skipping release for ${SLUG}: app declares manifest.json (expects MCPB) but no .mcpb produced (bundle matrix failed for this app)."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
       # A replayed or late run must not replace a newer release built from a
       # later ledger commit.
       - name: Skip if main has a newer release
         id: current
+        if: steps.gate.outputs.skip != 'true'
         env:
           CLI_TARGET: ${{ matrix.target }}
           SLUG: ${{ steps.slug.outputs.slug }}
@@ -435,7 +475,7 @@ jobs:
             echo "skip=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Verify CLI version matches the release ledger
-        if: steps.current.outputs.skip != 'true'
+        if: steps.gate.outputs.skip != 'true' && steps.current.outputs.skip != 'true'
         env:
           CLI_TARGET: ${{ matrix.target }}
           SLUG: ${{ steps.slug.outputs.slug }}
@@ -465,7 +505,7 @@ jobs:
           fi
           echo "${SLUG} was built with ${expected}, matching the release ledger."
       - name: Verify release-write PAT
-        if: steps.current.outputs.skip != 'true'
+        if: steps.gate.outputs.skip != 'true' && steps.current.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.RELEASE_WRITE_TOKEN }}
         run: |
@@ -492,7 +532,7 @@ jobs:
           fi
           echo "PAT confirmed for repo ${GITHUB_REPOSITORY}."
       - name: Publish release ${{ steps.slug.outputs.slug }}-current
-        if: steps.current.outputs.skip != 'true'
+        if: steps.gate.outputs.skip != 'true' && steps.current.outputs.skip != 'true'
         env:
           # Use a fine-grained PAT (Contents:write on this repo) instead of
           # the default GITHUB_TOKEN. The workflow's GITHUB_TOKEN reports
