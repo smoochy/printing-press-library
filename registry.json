@@ -2065,9 +2065,9 @@
       "path": "library/developer-tools/apify",
       "release": {
         "cli_name": "apify-pp-cli",
-        "version": "2026.10.2",
-        "released_at": "2026-10-27T08:51:30Z",
-        "source_commit": "58be79c51d47560910a09c5e6bc2c107fc46c5b3"
+        "version": "2026.10.3",
+        "released_at": "2026-10-30T08:57:11Z",
+        "source_commit": "132fd54b02b905a494f6458c99e054b4dca3238e"
       },
       "printer": "kjmagnan1s",
       "printer_name": "Kevin Magnan",
@@ -5875,9 +5875,9 @@
       "path": "library/sales-and-crm/conduyt-crm",
       "release": {
         "cli_name": "conduyt-crm-pp-cli",
-        "version": "2026.10.2",
-        "released_at": "2026-10-23T14:24:31Z",
-        "source_commit": "986b1df61eb325952a0a9fe0fed98c8bdd64e740"
+        "version": "2026.10.3",
+        "released_at": "2026-10-30T08:51:38Z",
+        "source_commit": "95c3bd717f499d032c37636acf927f499a99e91a"
       },
       "printer": "ptaramona",
       "printer_name": "Conduyt",
@@ -13057,9 +13057,9 @@
       "path": "library/media-and-entertainment/hackernews",
       "release": {
         "cli_name": "hackernews-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "b815f4cc4ec8054b6fec93c9f9a2e7f2220153ff"
+        "version": "2026.10.1",
+        "released_at": "2026-10-30T14:37:45Z",
+        "source_commit": "5d126dc701cedcbd166def40c55d1a6e3ba68549"
       },
       "printer": "tmchow",
       "printer_name": "Trevin Chow",
@@ -22393,6 +22393,67 @@
       }
     },
     {
+      "name": "pingenerator",
+      "category": "marketing",
+      "api": "Pin Generator",
+      "description": "Every Pin Generator MCP tool as a typed command, with credit-safe dry runs, preflight pricing and a local spend ledger.",
+      "search_terms": [
+        "pingenerator",
+        "Pin Generator",
+        "pingenerator-pp-cli",
+        "Every Pin Generator MCP tool as a typed command, with credit-safe dry runs, preflight pricing and a local spend ledger.",
+        "Post to pin",
+        "pin-post",
+        "Turn a blog post URL into a scheduled Pinterest pin in one command, previewed for free before any credit is spent.",
+        "Plan preflight",
+        "preflight",
+        "Price a planned batch in credits and confirm the profile, board and design profile exist before spending anything.",
+        "Products to pins",
+        "pin-products",
+        "Turn a connected store's products into a batch of scheduled pins, skipping products already pinned.",
+        "Unpinned posts",
+        "unpinned-posts",
+        "List sitemap posts that have no scheduled pin and no ledgered spend.",
+        "Spend ledger",
+        "ledger",
+        "See every credit-spending call this CLI executed, with totals by tool and time window.",
+        "Queue gaps",
+        "queue-gaps",
+        "Find empty and overloaded days in the scheduled-pin queue, per board.",
+        "Credit runway",
+        "credit-runway",
+        "Estimate weekly credit burn from active automations and how many days of credit remain."
+      ],
+      "path": "library/marketing/pingenerator",
+      "release": {
+        "cli_name": "pingenerator-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-30T08:52:31Z",
+        "source_commit": "45c82590db82f1e25bc9d14511a966fa695266bd"
+      },
+      "printer": "ElizabethcStone",
+      "printer_name": "Elizabeth Stone",
+      "creator": {
+        "handle": "ElizabethcStone",
+        "name": "Elizabeth Stone"
+      },
+      "mcp": {
+        "binary": "pingenerator-pp-mcp",
+        "transports": [
+          "stdio",
+          "http"
+        ],
+        "tool_count": 1,
+        "public_tool_count": 0,
+        "auth_type": "bearer_token",
+        "env_vars": [
+          "PINGENERATOR_ACCESS_KEY"
+        ],
+        "mcp_ready": "full",
+        "spec_format": "internal"
+      }
+    },
+    {
       "name": "pinterest",
       "category": "marketing",
       "api": "Pinterest",
@@ -22904,9 +22965,9 @@
       "path": "library/media-and-entertainment/podscan",
       "release": {
         "cli_name": "podscan-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "b815f4cc4ec8054b6fec93c9f9a2e7f2220153ff"
+        "version": "2026.10.1",
+        "released_at": "2026-10-30T13:18:27Z",
+        "source_commit": "c26df0f65417debf1830a2b75d1d58c679db2267"
       },
       "printer": "gregvanhorn",
       "printer_name": "Greg Van Horn",
@@ -24612,9 +24673,9 @@
       "path": "library/other/redfin",
       "release": {
         "cli_name": "redfin-pp-cli",
-        "version": "2026.9.1",
-        "released_at": "2026-09-11T09:22:21Z",
-        "source_commit": "b815f4cc4ec8054b6fec93c9f9a2e7f2220153ff"
+        "version": "2026.10.1",
+        "released_at": "2026-10-30T15:16:28Z",
+        "source_commit": "cfb35866d889c346f32d9b58433ad396e35e25e6"
       },
       "printer": "rderwin",
       "printer_name": "rderwin",
@@ -25872,9 +25933,9 @@
       "path": "library/other/scientific-consensus",
       "release": {
         "cli_name": "scientific-consensus-pp-cli",
-        "version": "2026.10.5",
-        "released_at": "2026-10-23T09:02:35Z",
-        "source_commit": "48a6a5df8aeaf58e09ac3e7e6b9e1a76e87eece5"
+        "version": "2026.10.6",
+        "released_at": "2026-10-30T15:00:12Z",
+        "source_commit": "464b2ee32900c96938f04a7844f90d6acb5ac75d"
       },
       "printer": "laci141",
       "printer_name": "laci141",
@@ -33244,6 +33305,60 @@
         "auth_type": "bearer_token",
         "env_vars": [
           "WEBFLOW_OAUTH2"
+        ],
+        "mcp_ready": "full",
+        "spec_format": "openapi3"
+      }
+    },
+    {
+      "name": "whatsapp-business",
+      "category": "social-and-messaging",
+      "api": "WhatsApp Business Tools",
+      "description": "Operate the official WhatsApp Business MCP with reviewable writes and captured evidence for integration checks.",
+      "search_terms": [
+        "whatsapp-business",
+        "WhatsApp Business Tools",
+        "whatsapp-business-pp-cli",
+        "Operate the official WhatsApp Business MCP with reviewable writes and captured evidence for integration checks.",
+        "Local scope map",
+        "ops scope-map",
+        "See the captured business, account and phone relationships for an explicitly selected scope, including gaps and shared-account roles.",
+        "Template component checklist",
+        "ops template-checklist",
+        "Extract the values a saved template needs and flag components the MCP send tool cannot express, without sending or inventing parameter values.",
+        "MCP catalog drift",
+        "ops catalog-drift",
+        "Compare saved MCP catalogs and identify removed tools, new required inputs and changed schema paths that could break saved commands.",
+        "Captured asset changes",
+        "ops changes",
+        "Compare two captures of the same selected scope and see changed fields, additions and evidence gaps without mistaking incomplete pages for deletions.",
+        "Cross-account template comparison",
+        "ops template-compare",
+        "Compare two explicitly chosen captured templates across accounts, with field and component differences tied to their original account and capture time."
+      ],
+      "path": "library/social-and-messaging/whatsapp-business",
+      "release": {
+        "cli_name": "whatsapp-business-pp-cli",
+        "version": "2026.10.1",
+        "released_at": "2026-10-30T08:52:31Z",
+        "source_commit": "45c82590db82f1e25bc9d14511a966fa695266bd"
+      },
+      "printer": "bobeglz",
+      "printer_name": "bobe",
+      "creator": {
+        "handle": "bobeglz",
+        "name": "bobe"
+      },
+      "mcp": {
+        "binary": "whatsapp-business-pp-mcp",
+        "transports": [
+          "stdio"
+        ],
+        "tool_count": 1,
+        "public_tool_count": 0,
+        "auth_type": "bearer_token",
+        "env_vars": [
+          "WHATSAPP_BUSINESS_MCP_TOKEN"
         ],
         "mcp_ready": "full",
         "spec_format": "openapi3"
